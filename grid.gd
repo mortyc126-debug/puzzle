@@ -82,9 +82,9 @@ func place_block(x: int, y: int, block_color: Color):
 		block_colors[y][x] = block_color  # Сохраняем цвет
 		queue_redraw()
 
-# Проверяет и очищает заполненные ряды и колонки
-# Проверяет и очищает заполненные ряды и колонки
-func check_and_clear_lines():
+# Проверяет и очищает заполненные ряды и колонки.
+# Возвращает количество найденных линий (сама очистка идёт с анимацией).
+func check_and_clear_lines() -> int:
 	var lines_to_clear = []
 	
 	# Проверяем все горизонтальные ряды
@@ -110,6 +110,8 @@ func check_and_clear_lines():
 	# Если есть линии для очистки — запускаем анимацию
 	if lines_to_clear.size() > 0:
 		animate_clear_lines(lines_to_clear)
+	
+	return lines_to_clear.size()
 
 # Анимация очистки линий
 func animate_clear_lines(lines_to_clear):
@@ -222,7 +224,7 @@ func _input(event):
 				return
 			
 			# Проверяем, активен ли режим молотка
-			if game.hammer_mode:
+			if game.hammer_mode and not game.is_input_blocked():
 				# Вычисляем координаты клетки относительно сетки
 				var mouse_global = get_global_mouse_position()
 				var local_pos = mouse_global - global_position

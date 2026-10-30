@@ -6,6 +6,7 @@ var dragging = false
 var drag_offset = Vector2.ZERO
 var original_position = Vector2.ZERO
 var grid_reference = null
+var slot_index = 0  # Номер слота внизу экрана (0-2)
 
 # Форма блока
 var shape = []
@@ -38,6 +39,10 @@ func _draw():
 		draw_rect(rect, Color.WHITE, false, 3)
 
 func _input(event):
+	# Пока открыто окно или игра окончена — новые перетаскивания не начинаем
+	if not dragging and is_input_blocked():
+		return
+	
 	# === МЫШЬ (ПК) ===
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
@@ -142,6 +147,10 @@ func _input(event):
 		else:
 			global_position = event.position - drag_offset
 
+func is_input_blocked() -> bool:
+	var game = get_node_or_null("/root/Game")
+	return game != null and game.is_input_blocked()
+
 func is_point_inside(point: Vector2) -> bool:
 	for cell in shape:
 		var cell_global_pos = global_position + cell * cell_size
@@ -172,26 +181,20 @@ func try_place_on_grid():
 			break
 	
 	if can_place:
-		# Сохраняем ход для Undo
+		# Блок поставлен — больше не реагирует на касания и не участвует в проверке Game Over
+		set_process_input(false)
 		var game = get_node("/root/Game")
+		game.active_blocks.erase(self)
+		
 		var placed_cells = []
 		for cell in shape:
 			var place_x = grid_x + int(cell.x)
 			var place_y = grid_y + int(cell.y)
 			placed_cells.append(Vector2(place_x, place_y))
 		
-		game.last_move = {
-			"cells": placed_cells,
-			"color": color
-		}
-		
-		game.update_powerup_buttons()
-		
 		# Размещаем блок
-		for cell in shape:
-			var place_x = grid_x + int(cell.x)
-			var place_y = grid_y + int(cell.y)
-			grid_reference.place_block(place_x, place_y, color)
+		for cell in placed_cells:
+			grid_reference.place_block(int(cell.x), int(cell.y), color)
 		
 		global_position = grid_pos + Vector2(grid_x * cell_size, grid_y * cell_size)
 		print("Блок размещён!")
@@ -202,7 +205,20 @@ func try_place_on_grid():
 			sound_place.play()
 		
 		# Очистка линий
-		grid_reference.check_and_clear_lines()
+		var lines_found = grid_reference.check_and_clear_lines()
+		
+		# Сохраняем ход для Undo. Ход с очисткой линий отменить нельзя:
+		# очки и XP за линии уже начислены
+		if lines_found == 0:
+			game.last_move = {
+				"cells": placed_cells,
+				"color": color,
+				"slot": slot_index
+			}
+		else:
+			game.last_move = null
+		
+		game.update_powerup_buttons()
 		
 		await get_tree().create_timer(0.2).timeout
 		

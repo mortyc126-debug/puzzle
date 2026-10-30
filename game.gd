@@ -19,6 +19,12 @@ var game_timer = 0       # Таймер обновления
 var continue_cost = 100  # Начальная цена Continue
 var continue_used_count = 0  # Сколько раз продолжили в этом матче
 
+# Награды за партию
+var rewarded_score = 0          # Очки, за которые уже выданы монеты и XP
+var record_bonus_given = false  # Бонус за рекорд уже выдан
+var run_finished = false        # Партия уже записана в статистику
+var best_score_at_start = 0     # Рекорд на момент начала партии
+
 # Ссылка на систему прогрессии
 var progression = null
 
@@ -162,6 +168,7 @@ func _ready():
 	progression.reward_unlocked.connect(_on_reward_unlocked)
 	# Загружаем лучший результат
 	load_best_score()
+	best_score_at_start = best_score
 	
 	# Создаём label для текущих очков
 	score_label = Label.new()
@@ -362,6 +369,10 @@ func spawn_blocks():
 	# Очищаем список активных блоков
 	active_blocks.clear()
 	
+	# Ход из прошлого набора отменить уже нельзя
+	last_move = null
+	update_powerup_buttons()
+	
 	# Берём только существующие индексы цветов из профиля
 	var active_colors = []
 	for color_index in progression.active_colors:
@@ -408,6 +419,7 @@ func spawn_blocks():
 		
 		# Позиционируем блок с учётом центрирования
 		block.global_position = block_positions[i] - Vector2(offset_x, offset_y)
+		block.slot_index = i
 		
 		# Подписываемся на удаление блока
 		block.tree_exited.connect(_on_block_removed)
@@ -507,6 +519,10 @@ func _on_lines_cleared(count: int):
 		save_best_score()
 	
 	print("Очки: ", score, " | Множитель: x", progression.score_multiplier, " | Комбо: x", combo_multiplier)
+
+# Нельзя трогать поле: игра окончена или открыто окно поверх игры
+func is_input_blocked() -> bool:
+	return game_over or not get_tree().get_nodes_in_group("modal").is_empty()
 
 # Проверяет, можно ли разместить хотя бы один из активных блоков
 func check_game_over():
@@ -643,6 +659,7 @@ func _on_battle_pass_pressed():
 	# Загружаем сцену Battle Pass
 	var bp_scene = load("res://battle_pass.tscn")
 	var bp_instance = bp_scene.instantiate()
+	bp_instance.add_to_group("modal")
 	add_child(bp_instance)
 
 # Обновляет состояние кнопок Power-ups
@@ -690,6 +707,9 @@ func use_hammer_on_cell(x: int, y: int):
 	grid.queue_redraw()
 	
 	print("🔨 Блок удалён!")
+	
+	# После молотка поле изменилось — старый ход не отменить
+	last_move = null
 	
 	# Выключаем режим молотка
 	hammer_mode = false
@@ -763,21 +783,9 @@ func _on_undo_pressed():
 	block.shape = restored_shape
 	block.color = last_move["color"]
 	
-	# Находим свободную позицию внизу
-	var free_position = null
-	for pos in block_positions:
-		var occupied = false
-		for existing_block in active_blocks:
-			if is_instance_valid(existing_block):
-				if existing_block.global_position.distance_to(pos) < 50:
-					occupied = true
-					break
-		if not occupied:
-			free_position = pos
-			break
-	
-	if free_position == null:
-		free_position = block_positions[0]  # Fallback
+	# Возвращаем блок в его слот внизу
+	var slot = last_move.get("slot", 0)
+	var free_position = block_positions[slot]
 	
 	# Центрируем блок
 	var width = 0
@@ -792,6 +800,7 @@ func _on_undo_pressed():
 	var offset_y = (height + 1) * 80 / 2.0
 	
 	block.global_position = free_position - Vector2(offset_x, offset_y)
+	block.slot_index = slot
 	block.tree_exited.connect(_on_block_removed)
 	add_child(block)
 	active_blocks.append(block)
@@ -835,6 +844,7 @@ func show_daily_reward_popup():
 	# Создаём затемнение
 	var overlay = ColorRect.new()
 	overlay.name = "DailyOverlay"
+	overlay.add_to_group("modal")
 	overlay.color = Color(0, 0, 0, 0.8)
 	overlay.size = Vector2(900, 960)
 	overlay.position = Vector2(0, 0)
@@ -944,6 +954,7 @@ func _on_settings_pressed():
 	# Загружаем сцену Settings
 	var settings_scene = load("res://settings.tscn")
 	var settings_instance = settings_scene.instantiate()
+	settings_instance.add_to_group("modal")
 	add_child(settings_instance)
 	
 # Загружает и применяет сохранённые настройки
@@ -1003,6 +1014,7 @@ func show_restart_confirmation():
 	# Создаём затемнение
 	var overlay = ColorRect.new()
 	overlay.name = "RestartConfirmation"
+	overlay.add_to_group("modal")
 	overlay.color = Color(0, 0, 0, 0.8)
 	overlay.size = Vector2(900, 960)
 	overlay.position = Vector2(0, 0)
@@ -1057,57 +1069,73 @@ func _on_restart_confirm(overlay, container):
 	container.queue_free()
 	
 	# НАЧИСЛЯЕМ НАГРАДЫ (как при Game Over)
-	award_game_over_rewards()
+	finish_run()
 	
 	# Перезагружаем сцену
 	get_tree().reload_current_scene()
 
-# Начисляет награды как при Game Over (без показа экрана)
-func award_game_over_rewards():
-	# Проверяем, есть ли вообще счёт
-	if score == 0:
-		print("🎮 Счёт 0, награды не начисляются")
-		return
+# XP за партию с таким счётом (без мультипликатора)
+func get_game_xp_for_score(value: int) -> int:
+	if value <= 0:
+		return 0
 	
-	# ЗАПИСЫВАЕМ ИГРУ (ДОБАВЬ ЭТО)
-	progression.record_game_finished(score)
-	
-	# НАЧИСЛЯЕМ XP за завершённую игру С МУЛЬТИПЛИКАТОРОМ
-	var base_xp = 10
+	var xp = 10
 	
 	# Бонусы за высокие очки
-	if score >= 1000:
-		base_xp += 20
-	if score >= 5000:
-		base_xp += 50
-	if score >= 10000:
-		base_xp += 100
+	if value >= 1000:
+		xp += 20
+	if value >= 5000:
+		xp += 50
+	if value >= 10000:
+		xp += 100
+	return xp
+
+# Начисляет награды за очки, за которые ещё ничего не выдано.
+# Повторный вызов (после Continue или Restart) не выдаёт награды дважды.
+func award_game_over_rewards():
+	if score <= rewarded_score:
+		print("🎮 Новых очков нет, награды не начисляются")
+		return
 	
+	# НАЧИСЛЯЕМ XP за завершённую игру С МУЛЬТИПЛИКАТОРОМ
+	var base_xp = get_game_xp_for_score(score) - get_game_xp_for_score(rewarded_score)
 	var final_xp = int(base_xp * progression.score_multiplier)
-	progression.gain_xp(final_xp)
-	print("🎮 Restart награды: XP с множителем x", progression.score_multiplier, ": ", final_xp)
+	if final_xp > 0:
+		progression.gain_xp(final_xp)
+		print("🎮 Награды: XP с множителем x", progression.score_multiplier, ": ", final_xp)
 	
 	# КОНВЕРТАЦИЯ ОЧКОВ В МОНЕТЫ С МУЛЬТИПЛИКАТОРОМ
-	var base_coins = int(score / 10.0)
+	var base_coins = int(score / 10.0) - int(rewarded_score / 10.0)
 	var final_coins = int(base_coins * progression.score_multiplier)
 	
 	if final_coins > 0:
 		progression.add_coins(final_coins)
-		# ЗАПИСЫВАЕМ ЗАРАБОТАННЫЕ МОНЕТЫ (ДОБАВЬ ЭТО)
 		progression.record_coins_earned(final_coins)
-		print("🎮 Restart награды: монет за очки (x", progression.score_multiplier, "): ", final_coins)
+		print("🎮 Награды: монет за очки (x", progression.score_multiplier, "): ", final_coins)
 	
-	# Бонус за побитие рекорда (без мультипликатора)
-	if score > best_score:
+	# Бонус за побитие рекорда (без мультипликатора, один раз за партию)
+	if not record_bonus_given and score > best_score_at_start:
+		record_bonus_given = true
 		progression.add_coins(20)
-		# ЗАПИСЫВАЕМ БОНУС (ДОБАВЬ ЭТО)
 		progression.record_coins_earned(20)
-		print("🎮 Restart награды: бонус за новый рекорд: +20 монет!")
+		print("🎮 Награды: бонус за новый рекорд: +20 монет!")
+	
+	rewarded_score = score
+	print("🎮 Награды начислены. Счёт: ", score)
+
+# Завершает партию: выдаёт оставшиеся награды и записывает статистику (один раз)
+func finish_run():
+	if run_finished:
+		return
+	run_finished = true
+	
+	award_game_over_rewards()
+	
+	if score > 0:
+		progression.record_game_finished(score)
 	
 	# СБРАСЫВАЕМ МУЛЬТИПЛИКАТОР для новой игры
 	progression.reset_multiplier()
-	
-	print("🎮 RESTART с наградами! Финальный счёт: ", score)
 
 # === CONTINUE СИСТЕМА ===
 
@@ -1217,14 +1245,13 @@ func _on_give_up(overlay, container):
 	overlay.queue_free()
 	container.queue_free()
 	
-	# ЗАПИСЫВАЕМ ИГРУ ПЕРЕД GAME OVER (ДОБАВЬ ЭТО)
-	if score > 0:
-		progression.record_game_finished(score)
-	
 	# Показываем финальный Game Over
 	show_final_game_over()
 
 func show_final_game_over():
+	# Выдаём оставшиеся награды и записываем партию
+	finish_run()
+	
 	# ФИНАЛЬНОЕ СОХРАНЕНИЕ И ПРОВЕРКА ДОСТИЖЕНИЙ
 	progression.save_progress()
 	progression.check_achievements()
@@ -1279,6 +1306,7 @@ func _on_profile_pressed():
 	# Загружаем профиль
 	var profile_scene = load("res://profile.tscn")
 	var profile_instance = profile_scene.instantiate()
+	profile_instance.add_to_group("modal")
 	add_child(profile_instance)
 
 # === COMBO SYSTEM ===
