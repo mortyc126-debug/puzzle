@@ -12,9 +12,12 @@ grow_vertical = 2
 script = ExtResource("1_irdq8")
 
 [node name="Background" type="ColorRect" parent="."]
-layout_mode = 0
-offset_right = 900.0
-offset_bottom = 960.0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.101960786, 0.101960786, 0.18039216, 1)
 
 [node name="TitleLabel" type="Label" parent="."]
@@ -42,7 +45,7 @@ layout_mode = 0
 offset_left = 50.0
 offset_top = 150.0
 offset_right = 850.0
-offset_bottom = 850.0
+offset_bottom = 1420.0
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 2
 
@@ -53,9 +56,9 @@ layout_mode = 2
 [node name="ProgressLabel" type="Label" parent="."]
 layout_mode = 0
 offset_left = 200.0
-offset_top = 880.0
+offset_top = 1450.0
 offset_right = 700.0
-offset_bottom = 920.0
+offset_bottom = 1500.0
 theme_override_font_sizes/font_size = 28
 text = "Level 1 • 0 / 100 XP • 💰 0"
 horizontal_alignment = 1

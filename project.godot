@@ -21,15 +21,30 @@ config/icon="res://icon.svg"
 
 [autoload]
 
-ItemsDB="*res://items_database.gd"
+ItemsDB="*res://autoload/items_db.gd"
+Events="*res://autoload/events.gd"
+GameSettings="*res://autoload/game_settings.gd"
+ThemeManager="*res://autoload/theme_manager.gd"
+Progression="*res://autoload/progression.gd"
+Achievements="*res://autoload/achievements.gd"
 
 [display]
 
 window/size/viewport_width=900
-window/size/viewport_height=960
-window/size/resizable=false
-window/stretch/mode="viewport"
+window/size/viewport_height=1600
+window/size/window_width_override=450
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 window/handheld/orientation=1
+
+[gui]
+
+theme/custom="res://ui/ui_theme.tres"
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
 
 [rendering]
 

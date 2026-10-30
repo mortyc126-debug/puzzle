@@ -1,248 +1,151 @@
 extends Node2D
 
-const GRID_SIZE = 8
-const CELL_SIZE = 80  # было 100, стало 80
-const GRID_COLOR = Color(0.2, 0.2, 0.25)
-const LINE_COLOR = Color(0.4, 0.4, 0.45)
+## Вид поля: рисует Board в текущей теме, Ghost (куда встанет фигура), подсветку линий,
+## которые очистятся, и вспышки очистки. Логики игры здесь нет — её ведёт Game.
+
+signal cell_tapped(x: int, y: int)
+
+const GRID_SIZE = Board.SIZE
+const CELL_SIZE = 80
+const FLASH_TIME = 0.28
+
+var board := Board.new()
 
 # Ghost Preview
 var ghost_active = false
 var ghost_shape = []
-var ghost_position = Vector2(-1, -1)
-var ghost_valid = false  # Можно ли разместить
+var ghost_position = Vector2i(-1, -1)
+var ghost_valid = false
+var ghost_color_index = 0
+var ghost_lines = {"rows": [], "cols": []}
 
-var grid_data = []
-var block_colors = []  # Массив для хранения цветов блоков
+# Вспышки очищенных клеток: [{"pos": Vector2i, "color": int, "time": float}]
+var flashes: Array = []
 
-signal lines_cleared(count)  # Сигнал для уведомления об очищенных линиях
+func _ready() -> void:
+	ThemeManager.theme_changed.connect(_on_theme_changed)
 
-func _ready():
-	for y in range(GRID_SIZE):
-		var row = []
-		var color_row = []
-		for x in range(GRID_SIZE):
-			row.append(0)
-			color_row.append(Color.TRANSPARENT)
-		grid_data.append(row)
-		block_colors.append(color_row)
-	
-	var total_grid_size = GRID_SIZE * CELL_SIZE
-	var screen_center_x = 900 / 2.0
-	var screen_center_y = 960 / 2.0
-	
-	position = Vector2(
-		screen_center_x - total_grid_size / 2.0,
-		screen_center_y - total_grid_size / 2.0
-	)
-
-func _draw():
-	var grid_rect = Rect2(0, 0, GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE)
-	draw_rect(grid_rect, GRID_COLOR)
-	
-	# Рисуем занятые клетки с их цветами
-	for y in range(GRID_SIZE):
-		for x in range(GRID_SIZE):
-			if grid_data[y][x] == 1:
-				var cell_rect = Rect2(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-				draw_rect(cell_rect, block_colors[y][x])
-				draw_rect(cell_rect, Color.WHITE, false, 3)
-	
-	# === РИСУЕМ GHOST PREVIEW ===
-	if ghost_active and ghost_position.x >= 0:
-		var ghost_color = Color(0, 1, 0, 0.3) if ghost_valid else Color(1, 0, 0, 0.3)  # Зелёный или красный
-		
-		for cell in ghost_shape:
-			var draw_x = int(ghost_position.x + cell.x)
-			var draw_y = int(ghost_position.y + cell.y)
-			
-			# Проверяем границы
-			if draw_x >= 0 and draw_x < GRID_SIZE and draw_y >= 0 and draw_y < GRID_SIZE:
-				var cell_rect = Rect2(draw_x * CELL_SIZE, draw_y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-				draw_rect(cell_rect, ghost_color)  # Полупрозрачный
-				draw_rect(cell_rect, ghost_color.lightened(0.3), false, 3)  # Обводка
-	
-	# Рисуем линии сетки
-	for i in range(GRID_SIZE + 1):
-		var x = i * CELL_SIZE
-		draw_line(Vector2(x, 0), Vector2(x, GRID_SIZE * CELL_SIZE), LINE_COLOR, 2)
-		
-		var y = i * CELL_SIZE
-		draw_line(Vector2(0, y), Vector2(GRID_SIZE * CELL_SIZE, y), LINE_COLOR, 2)
-
-# Проверяет, свободна ли клетка
-func is_cell_empty(x: int, y: int) -> bool:
-	if x < 0 or x >= GRID_SIZE or y < 0 or y >= GRID_SIZE:
-		return false
-	return grid_data[y][x] == 0
-
-# Размещает блок на сетке
-func place_block(x: int, y: int, block_color: Color):
-	if is_cell_empty(x, y):
-		grid_data[y][x] = 1
-		block_colors[y][x] = block_color  # Сохраняем цвет
-		queue_redraw()
-
-# Проверяет и очищает заполненные ряды и колонки.
-# Возвращает количество найденных линий (сама очистка идёт с анимацией).
-func check_and_clear_lines() -> int:
-	var lines_to_clear = []
-	
-	# Проверяем все горизонтальные ряды
-	for y in range(GRID_SIZE):
-		var full = true
-		for x in range(GRID_SIZE):
-			if grid_data[y][x] == 0:
-				full = false
-				break
-		if full:
-			lines_to_clear.append({"type": "row", "index": y})
-	
-	# Проверяем все вертикальные колонки
-	for x in range(GRID_SIZE):
-		var full = true
-		for y in range(GRID_SIZE):
-			if grid_data[y][x] == 0:
-				full = false
-				break
-		if full:
-			lines_to_clear.append({"type": "col", "index": x})
-	
-	# Если есть линии для очистки — запускаем анимацию
-	if lines_to_clear.size() > 0:
-		animate_clear_lines(lines_to_clear)
-	
-	return lines_to_clear.size()
-
-# Анимация очистки линий
-func animate_clear_lines(lines_to_clear):
-	# Сначала "подсвечиваем" линии (делаем их белыми)
-	for line in lines_to_clear:
-		if line["type"] == "row":
-			var y = line["index"]
-			for x in range(GRID_SIZE):
-				block_colors[y][x] = Color.WHITE
-		else:
-			var x = line["index"]
-			for y in range(GRID_SIZE):
-				block_colors[y][x] = Color.WHITE
-	
+func _on_theme_changed(_theme: BlockTheme) -> void:
 	queue_redraw()
-	
-	# Ждём 0.15 секунды
-	await get_tree().create_timer(0.15).timeout
-	
-	# Очищаем линии
-	for line in lines_to_clear:
-		if line["type"] == "row":
-			clear_row(line["index"])
-		else:
-			clear_column(line["index"])
-	
-	# ЗАПУСКАЕМ PARTICLE EFFECTS
-	spawn_clear_particles(lines_to_clear)
-	
-	queue_redraw()
-	lines_cleared.emit(lines_to_clear.size())
-	print("Очищено линий: ", lines_to_clear.size())
 
-# Очищает горизонтальный ряд
-func clear_row(y: int):
-	for x in range(GRID_SIZE):
-		grid_data[y][x] = 0
-		block_colors[y][x] = Color.TRANSPARENT
+func get_pixel_size() -> Vector2:
+	return Vector2(GRID_SIZE * CELL_SIZE, GRID_SIZE * CELL_SIZE)
 
-# Очищает вертикальную колонку
-func clear_column(x: int):
-	for y in range(GRID_SIZE):
-		grid_data[y][x] = 0
-		block_colors[y][x] = Color.TRANSPARENT
+func cell_rect(x: int, y: int) -> Rect2:
+	return Rect2(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
 
-# Проверяет, можно ли разместить блок с данной формой где-либо на сетке
-func can_place_shape(shape: Array) -> bool:
-	# Перебираем все возможные позиции на сетке
-	for start_y in range(GRID_SIZE):
-		for start_x in range(GRID_SIZE):
-			# Проверяем, можно ли разместить блок начиная с этой позиции
-			var can_place = true
-			for cell in shape:
-				var check_x = start_x + int(cell.x)
-				var check_y = start_y + int(cell.y)
-				
-				if not is_cell_empty(check_x, check_y):
-					can_place = false
-					break
-			
-			# Если нашли хотя бы одну подходящую позицию — блок можно разместить
-			if can_place:
-				return true
-	
-	# Не нашли ни одной подходящей позиции
-	return false
-
-# Создаёт particle effects для очищенных линий
-func spawn_clear_particles(lines_to_clear):
-	var particles = get_node_or_null("ClearParticles")
-	if particles == null:
+func _process(delta: float) -> void:
+	if flashes.is_empty():
 		return
-	
-	for line in lines_to_clear:		
-		# Вычисляем центр линии
-		var center_pos = Vector2.ZERO
-		
-		if line["type"] == "row":
-			var y = line["index"]
-			center_pos = Vector2(GRID_SIZE * CELL_SIZE / 2, y * CELL_SIZE + CELL_SIZE / 2)
-		else:
-			var x = line["index"]
-			center_pos = Vector2(x * CELL_SIZE + CELL_SIZE / 2, GRID_SIZE * CELL_SIZE / 2)
-		
-		# Создаём копию частиц для каждой линии
-		var new_particles = particles.duplicate()
-		add_child(new_particles)
-		new_particles.position = center_pos
-		new_particles.emitting = true
-		
-		# Удаляем частицы через 1 секунду (после завершения анимации)
-		get_tree().create_timer(1.0).timeout.connect(new_particles.queue_free)
+	for flash in flashes:
+		flash["time"] += delta
+	flashes = flashes.filter(func(flash): return flash["time"] < FLASH_TIME)
+	queue_redraw()
 
-# Обработка кликов для Hammer
-func _input(event):
-	if event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			# Получаем ссылку на Game
-			var game = get_parent()
-			if game == null:
-				return
-			
-			# Проверяем, есть ли переменная hammer_mode
-			if not "hammer_mode" in game:
-				return
-			
-			# Проверяем, активен ли режим молотка
-			if game.hammer_mode and not game.is_input_blocked():
-				# Вычисляем координаты клетки относительно сетки
-				var mouse_global = get_global_mouse_position()
-				var local_pos = mouse_global - global_position
-				var grid_x = int(local_pos.x / CELL_SIZE)
-				var grid_y = int(local_pos.y / CELL_SIZE)
-				
-				print("DEBUG: Клик по позиции сетки: ", grid_x, ", ", grid_y)
-				
-				# Проверяем границы
-				if grid_x >= 0 and grid_x < GRID_SIZE and grid_y >= 0 and grid_y < GRID_SIZE:
-					game.use_hammer_on_cell(grid_x, grid_y)
-				else:
-					print("DEBUG: Клик вне границ сетки")
+func _draw() -> void:
+	var theme: BlockTheme = ThemeManager.current
+	BlockRenderer.draw_board(self, Rect2(Vector2.ZERO, get_pixel_size()), theme)
+
+	for y in range(GRID_SIZE):
+		for x in range(GRID_SIZE):
+			var value = board.get_cell(x, y)
+			if value == Board.EMPTY:
+				BlockRenderer.draw_empty_cell(self, cell_rect(x, y), theme)
+			else:
+				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(value), theme)
+
+	if ghost_active:
+		# Линии, которые очистятся после постановки
+		for row in ghost_lines["rows"]:
+			draw_rect(Rect2(0, row * CELL_SIZE, GRID_SIZE * CELL_SIZE, CELL_SIZE), theme.line_highlight_color)
+		for col in ghost_lines["cols"]:
+			draw_rect(Rect2(col * CELL_SIZE, 0, CELL_SIZE, GRID_SIZE * CELL_SIZE), theme.line_highlight_color)
+
+		for cell in ghost_shape:
+			var x = ghost_position.x + int(cell.x)
+			var y = ghost_position.y + int(cell.y)
+			if not board.in_bounds(x, y):
+				continue
+			if ghost_valid:
+				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(ghost_color_index), theme, 0.4)
+			else:
+				draw_rect(cell_rect(x, y).grow(-4), theme.ghost_invalid_color)
+
+	for flash in flashes:
+		var t = flash["time"] / FLASH_TIME
+		var pos: Vector2i = flash["pos"]
+		BlockRenderer.draw_flash(self, cell_rect(pos.x, pos.y), ThemeManager.get_block_color(flash["color"]), theme, t)
 
 # === GHOST PREVIEW ===
 
-func show_ghost(shape: Array, grid_x: int, grid_y: int, is_valid: bool):
+func show_ghost(shape: Array, grid_x: int, grid_y: int, is_valid: bool, color_index: int) -> void:
+	var position_changed = not ghost_active or ghost_position != Vector2i(grid_x, grid_y) or ghost_valid != is_valid
 	ghost_active = true
 	ghost_shape = shape
-	ghost_position = Vector2(grid_x, grid_y)
+	ghost_position = Vector2i(grid_x, grid_y)
 	ghost_valid = is_valid
+	ghost_color_index = color_index
+	if position_changed:
+		ghost_lines = {"rows": [], "cols": []}
+		if is_valid:
+			var preview = board.duplicate_board()
+			preview.place(shape, grid_x, grid_y, color_index)
+			ghost_lines = preview.find_full_lines()
+		queue_redraw()
+
+func hide_ghost() -> void:
+	if ghost_active:
+		ghost_active = false
+		ghost_lines = {"rows": [], "cols": []}
+		queue_redraw()
+
+# === ЭФФЕКТЫ ОЧИСТКИ ===
+
+# cleared — результат Board.clear_lines(), lines — результат Board.find_full_lines()
+func play_clear_effect(cleared: Array, lines: Dictionary) -> void:
+	for item in cleared:
+		flashes.append({"pos": item["pos"], "color": item["color"], "time": 0.0})
+	spawn_clear_particles(lines)
 	queue_redraw()
 
-func hide_ghost():
-	ghost_active = false
-	queue_redraw()
+func spawn_clear_particles(lines: Dictionary) -> void:
+	var particles = get_node_or_null("ClearParticles")
+	if particles == null:
+		return
+
+	var centers = []
+	for row in lines["rows"]:
+		centers.append(Vector2(GRID_SIZE * CELL_SIZE / 2.0, row * CELL_SIZE + CELL_SIZE / 2.0))
+	for col in lines["cols"]:
+		centers.append(Vector2(col * CELL_SIZE + CELL_SIZE / 2.0, GRID_SIZE * CELL_SIZE / 2.0))
+
+	for center in centers:
+		var new_particles = particles.duplicate()
+		add_child(new_particles)
+		new_particles.position = center
+		new_particles.modulate = ThemeManager.current.particle_color
+		new_particles.emitting = true
+		get_tree().create_timer(1.0).timeout.connect(new_particles.queue_free)
+
+# === МОЛОТОК: нажатие по клетке ===
+
+func _input(event: InputEvent) -> void:
+	var game = get_parent()
+	if game == null or not game.hammer_mode or game.is_input_blocked():
+		return
+	if (event is InputEventMouseButton) and event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+
+	var pressed = false
+	if event is InputEventScreenTouch and event.pressed:
+		pressed = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		pressed = true
+	if not pressed:
+		return
+
+	var local_pos = to_local(event.position)
+	var grid_x = int(floor(local_pos.x / CELL_SIZE))
+	var grid_y = int(floor(local_pos.y / CELL_SIZE))
+	if board.in_bounds(grid_x, grid_y):
+		cell_tapped.emit(grid_x, grid_y)

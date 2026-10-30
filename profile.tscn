@@ -12,9 +12,12 @@ grow_vertical = 2
 script = ExtResource("1_skihg")
 
 [node name="Background" type="ColorRect" parent="."]
-layout_mode = 0
-offset_right = 900.0
-offset_bottom = 960.0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.101960786, 0.101960786, 0.18039216, 1)
 
 [node name="BackButton" type="Button" parent="."]
@@ -81,11 +84,11 @@ text = "💰 0"
 
 [node name="CustomizeContainer" type="TabContainer" parent="."]
 layout_mode = 0
-offset_left = 50.0
+offset_left = 30.0
 offset_top = 480.0
-offset_right = 850.0
-offset_bottom = 900.0
-current_tab = 1
+offset_right = 870.0
+offset_bottom = 1560.0
+current_tab = 0
 
 [node name="📊 Statistics" type="ScrollContainer" parent="CustomizeContainer"]
 visible = false
@@ -162,14 +165,14 @@ theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10
 columns = 8
 
-[node name="🌌 Backgrounds" type="ScrollContainer" parent="CustomizeContainer"]
+[node name="🌌 Themes" type="ScrollContainer" parent="CustomizeContainer"]
 visible = false
 layout_mode = 2
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 2
 metadata/_tab_index = 2
 
-[node name="BackgroundsList" type="GridContainer" parent="CustomizeContainer/🌌 Backgrounds"]
+[node name="ThemesList" type="GridContainer" parent="CustomizeContainer/🌌 Themes"]
 layout_mode = 2
 theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10

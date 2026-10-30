@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="Texture2D" uid="uid://3biy5mb55nb2" path="res://assets/background.png" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "classic"
+display_name = "Классика"
+description = "Тот самый вид: яркие блоки с бликом и белой обводкой. Цвета выбираются во вкладке «Цвета»."
+rarity = "COMMON"
+unlock = {
+"type": "default"
+}
+background_color = Color(0.08, 0.09, 0.16, 1)
+background_texture = ExtResource("2_bg")
+board_color = Color(0.2, 0.2, 0.25, 0.92)
+cell_color = Color(0.26, 0.26, 0.32, 1)
+board_corner_radius = 14.0
+board_padding = 6.0
+line_highlight_color = Color(1, 1, 1, 0.14)
+block_style = 1
+use_player_colors = true
+palette = PackedColorArray()
+block_corner_radius = 6.0
+glow_strength = 0.6
+ghost_invalid_color = Color(1, 0.25, 0.3, 0.35)
+flash_color = Color(1, 1, 1, 1)
+particle_color = Color(0.96, 0.99, 0.06, 1)
+accent_color = Color(1, 0.84, 0, 1)

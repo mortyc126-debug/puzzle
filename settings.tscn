@@ -12,9 +12,12 @@ grow_vertical = 2
 script = ExtResource("1_x2hje")
 
 [node name="Background" type="ColorRect" parent="."]
-layout_mode = 0
-offset_right = 900.0
-offset_bottom = 960.0
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.101960786, 0.101960786, 0.18039216, 1)
 
 [node name="TitleLabel" type="Label" parent="Background"]
