@@ -1,0 +1,36 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
+[application]
+
+config/name="BlockPuzzle"
+run/main_scene="uid://rv4fddmg0qlx"
+config/features=PackedStringArray("4.7", "Mobile")
+config/icon="res://icon.svg"
+
+[autoload]
+
+ItemsDB="*res://items_database.gd"
+
+[display]
+
+window/size/viewport_width=900
+window/size/viewport_height=960
+window/size/resizable=false
+window/stretch/mode="viewport"
+window/handheld/orientation=1
+
+[rendering]
+
+renderer/rendering_method="mobile"
