@@ -115,10 +115,6 @@ func check_and_clear_lines() -> int:
 
 # Анимация очистки линий
 func animate_clear_lines(lines_to_clear):
-	# Создаём Tween для анимации
-	var tween = create_tween()
-	tween.set_parallel(true)  # Все анимации одновременно
-	
 	# Сначала "подсвечиваем" линии (делаем их белыми)
 	for line in lines_to_clear:
 		if line["type"] == "row":
@@ -185,11 +181,11 @@ func can_place_shape(shape: Array) -> bool:
 
 # Создаёт particle effects для очищенных линий
 func spawn_clear_particles(lines_to_clear):
-	for line in lines_to_clear:
-		var particles = get_node_or_null("ClearParticles")
-		if particles == null:
-			return
-		
+	var particles = get_node_or_null("ClearParticles")
+	if particles == null:
+		return
+	
+	for line in lines_to_clear:		
 		# Вычисляем центр линии
 		var center_pos = Vector2.ZERO
 		
@@ -207,8 +203,7 @@ func spawn_clear_particles(lines_to_clear):
 		new_particles.emitting = true
 		
 		# Удаляем частицы через 1 секунду (после завершения анимации)
-		await get_tree().create_timer(1.0).timeout
-		new_particles.queue_free()
+		get_tree().create_timer(1.0).timeout.connect(new_particles.queue_free)
 
 # Обработка кликов для Hammer
 func _input(event):

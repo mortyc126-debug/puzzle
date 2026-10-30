@@ -344,15 +344,10 @@ func _ready():
 	# Обновляем состояние кнопок
 	update_powerup_buttons()
 	
-	# Кнопка Daily Reward
-	var daily_btn = Button.new()
-	daily_btn.name = "DailyButton"
-	daily_btn.position = Vector2(580, 880)
-	daily_btn.size = Vector2(180, 60)
-	daily_btn.text = "🎁 DAILY"
-	daily_btn.add_theme_font_size_override("font_size", 24)
-	daily_btn.pressed.connect(_on_daily_pressed)
-	add_child(daily_btn)
+	# Кнопка Daily Reward (из сцены)
+	var daily_btn = get_node_or_null("DailyButton")
+	if daily_btn:
+		daily_btn.pressed.connect(_on_daily_pressed)
 	
 	# Подписываемся на события Daily Rewards
 	progression.daily_reward_available.connect(_on_daily_available)
@@ -669,7 +664,7 @@ func update_powerup_buttons():
 	var undo_btn = get_node_or_null("UndoButton")
 	
 	if hammer_btn:
-		hammer_btn.disabled = progression.total_coins < 10  # Было 20, стало 10
+		hammer_btn.disabled = progression.total_coins < 10 and not hammer_mode
 	if shuffle_btn:
 		shuffle_btn.disabled = progression.total_coins < 30
 	if undo_btn:
@@ -678,6 +673,13 @@ func update_powerup_buttons():
 # === POWER-UPS ===
 
 func _on_hammer_pressed():
+	# Повторное нажатие — отмена, монеты возвращаются
+	if hammer_mode:
+		progression.add_coins(10)
+		print("🔨 Hammer отменён, монеты возвращены")
+		reset_hammer_button()
+		return
+	
 	if not progression.spend_coins(10):  # Было 20, стало 10
 		print("Недостаточно монет!")
 		return
@@ -688,7 +690,7 @@ func _on_hammer_pressed():
 	# Меняем текст кнопки
 	var hammer_btn = get_node("HammerButton")
 	if hammer_btn:
-		hammer_btn.text = "🔨 Кликни\nна блок!"
+		hammer_btn.text = "🔨 Кликни\nна блок!\n(отмена)"
 		hammer_btn.modulate = Color(1, 1, 0)  # Жёлтая подсветка
 
 func use_hammer_on_cell(x: int, y: int):
@@ -712,10 +714,14 @@ func use_hammer_on_cell(x: int, y: int):
 	last_move = null
 	
 	# Выключаем режим молотка
+	reset_hammer_button()
+
+# Выключает режим молотка и возвращает кнопке обычный вид
+func reset_hammer_button():
 	hammer_mode = false
-	var hammer_btn = get_node("HammerButton")
+	var hammer_btn = get_node_or_null("HammerButton")
 	if hammer_btn:
-		hammer_btn.text = "🔨 Hammer\n10💰"  # ВОЗВРАЩАЕМ ПРАВИЛЬНУЮ ЦЕНУ
+		hammer_btn.text = "🔨\n10"
 		hammer_btn.modulate = Color.WHITE
 	
 	# Обновляем состояние кнопок

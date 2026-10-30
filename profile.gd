@@ -26,22 +26,14 @@ func _ready():
 	var tab_container = get_node_or_null("CustomizeContainer")
 	if tab_container:
 		update_tab_titles(tab_container)
-		tab_container.set_tab_title(0, "📊 Statistics")
-		tab_container.set_tab_title(1, "🎨 Colors")
-		tab_container.set_tab_title(2, "🌌 Backgrounds")
-		tab_container.set_tab_title(3, "🎵 Music")
-		tab_container.set_tab_title(4, "👤 Avatars")
-		tab_container.set_tab_title(5, "🖼️ Frames")
-		tab_container.set_tab_title(6, "🏆 Achievements")
-		
-		# Делаем кнопку прозрачной
+	
+	# Делаем кнопку прозрачной
+	if edit_name_btn:
 		var stylebox = StyleBoxEmpty.new()
 		edit_name_btn.add_theme_stylebox_override("normal", stylebox)
 		edit_name_btn.add_theme_stylebox_override("hover", stylebox)
 		edit_name_btn.add_theme_stylebox_override("pressed", stylebox)
-		
-		edit_name_btn.pressed.connect(_on_edit_name_pressed)
-		
+	
 	# Создаём контент
 	create_avatars_list()
 	create_frames_list()
@@ -65,7 +57,7 @@ func update_tab_titles(tab_container):
 	var new_music = progression.has_new_items.get("music", false)
 	
 	tab_container.set_tab_title(0, "📊 Stats")
-	tab_container.set_tab_title(1, "🎨 Colors" + (" NEW!" if new_avatars else ""))
+	tab_container.set_tab_title(1, "🎨 Colors")
 	tab_container.set_tab_title(2, "🌌 Backgrounds" + (" NEW!" if new_backgrounds else ""))
 	tab_container.set_tab_title(3, "🎵 Music" + (" NEW!" if new_music else ""))
 	tab_container.set_tab_title(4, "👤 Avatars" + (" NEW!" if new_avatars else ""))

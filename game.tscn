@@ -83,7 +83,7 @@ offset_right = 120.0
 offset_bottom = 450.0
 size_flags_horizontal = 0
 theme_override_font_sizes/font_size = 24
-text = "🔨\\n10"
+text = "🔨\n10"
 
 [node name="ShuffleButton" type="Button" parent="."]
 offset_left = 20.0
@@ -91,7 +91,7 @@ offset_top = 465.0
 offset_right = 120.0
 offset_bottom = 565.0
 theme_override_font_sizes/font_size = 24
-text = "🔄\\n30"
+text = "🔄\n30"
 
 [node name="UndoButton" type="Button" parent="."]
 offset_left = 20.0
@@ -99,7 +99,7 @@ offset_top = 580.0
 offset_right = 120.0
 offset_bottom = 680.0
 theme_override_font_sizes/font_size = 24
-text = "↩️\\n20"
+text = "↩️\n20"
 
 [node name="DailyButton" type="Button" parent="."]
 offset_left = 580.0

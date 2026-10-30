@@ -63,7 +63,6 @@ var unlocked_themes = []  # Список разблокированных тем
 var unlocked_backgrounds = []
 var unlocked_music = []
 var unlocked_sounds = []
-var color_slots = 4  # Начальное количество слотов
 
 # Данные уровней Battle Pass
 var level_rewards = {}
@@ -76,6 +75,7 @@ var unlocked_frames = [1]
 
 # ДОБАВЬ ЭТО:
 # Цвета блоков
+const MAX_COLOR_SLOTS = 8
 var max_color_slots = 4  # Начальное количество слотов (растёт до 8)
 var active_colors = [0, 1, 2, 3]  # Индексы активных цветов (изначально 4)
 
@@ -170,8 +170,8 @@ func give_level_reward(level: int):
 			print("Разблокирован цвет: ", reward["data"])
 		
 		"slot":
-			color_slots += reward["amount"]
-			print("Разблокирован +1 слот! Теперь слотов: ", color_slots)
+			max_color_slots = min(MAX_COLOR_SLOTS, max_color_slots + reward["amount"])
+			print("Разблокирован +1 слот! Теперь слотов: ", max_color_slots)
 		
 		"theme":
 			unlock_theme(reward["data"])
@@ -186,6 +186,15 @@ func give_level_reward(level: int):
 			print("Разблокирован фон: ", reward["data"])
 	
 	reward_unlocked.emit(reward["type"], reward.get("data", reward.get("amount")))
+
+# Сколько слотов цветов положено на этом уровне (по наградам "slot")
+func get_color_slots_for_level(level: int) -> int:
+	var slots = 4
+	for i in range(2, level + 1):
+		var reward = get_reward_for_level(i)
+		if reward != null and reward["type"] == "slot":
+			slots += reward["amount"]
+	return min(MAX_COLOR_SLOTS, slots)
 
 # Получить награду для уровня
 func get_reward_for_level(level: int):
@@ -292,6 +301,8 @@ func load_progress():
 			unlocked_avatars = save_data.get("unlocked_avatars", [])
 			unlocked_frames = save_data.get("unlocked_frames", [1])  # Только 1 рамка
 			max_color_slots = save_data.get("max_color_slots", 4)
+			# Раньше награда "slot" не увеличивала слоты — досчитываем по уровню
+			max_color_slots = max(max_color_slots, get_color_slots_for_level(current_level))
 			player_name = save_data.get("player_name", "Player")
 			active_colors = save_data.get("active_colors", [0, 1, 2, 3])
 			
@@ -658,7 +669,7 @@ func unlock_achievement(category: String, level: int):
 
 # Получает прогресс достижения (для UI)
 func get_achievement_progress_data(category: String) -> Dictionary:
-	var current_level = achievement_progress.get(category, 0)
+	var achievement_level = achievement_progress.get(category, 0)
 	var max_level = 100
 	if category == "combo":
 		max_level = 8
@@ -678,12 +689,12 @@ func get_achievement_progress_data(category: String) -> Dictionary:
 		stats["score"] = game.best_score
 	
 	var current_value = stats[category]
-	var next_level = current_level + 1
+	var next_level = achievement_level + 1
 	
 	if next_level > max_level:
 		# Все достижения в категории получены
 		return {
-			"current_level": current_level,
+			"current_level": achievement_level,
 			"max_level": max_level,
 			"current_value": current_value,
 			"next_requirement": 0,
@@ -698,7 +709,7 @@ func get_achievement_progress_data(category: String) -> Dictionary:
 		progress_percent = min(100.0, (float(current_value) / float(next_requirement)) * 100.0)
 	
 	return {
-		"current_level": current_level,
+		"current_level": achievement_level,
 		"max_level": max_level,
 		"current_value": current_value,
 		"next_requirement": next_requirement,
