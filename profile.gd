@@ -26,16 +26,16 @@ const GOLD = Color(1, 0.84, 0)
 
 var progression = null
 var all_colors = ItemsDB.block_colors
+var best_value_label: Label
+var coins_value_label: Label
 
 func _ready():
 	progression = Progression
 
 	$BackButton.pressed.connect(_on_back_pressed)
+	style_header()
 	var edit_name_btn = get_node_or_null("EditNameButton")
 	if edit_name_btn:
-		var empty = StyleBoxEmpty.new()
-		for style in ["normal", "hover", "pressed", "focus"]:
-			edit_name_btn.add_theme_stylebox_override(style, empty)
 		edit_name_btn.pressed.connect(show_name_edit_popup)
 
 	var tabs: TabContainer = get_node_or_null(PATH_TABS)
@@ -56,12 +56,61 @@ func _ready():
 
 # === ШАПКА ===
 
+# Фон, кнопка «Назад», значок правки на аватарке, плашки «рекорд» и «монеты»
+func style_header():
+	ScreenStyle.apply_background(get_node_or_null("Background"))
+	ScreenStyle.style_back_button($BackButton)
+
+	var edit_name_btn = get_node_or_null("EditNameButton")
+	if edit_name_btn:
+		edit_name_btn.theme_type_variation = &"IconButton"
+		edit_name_btn.icon = load("res://assets/ui/icons/edit.svg")
+		edit_name_btn.expand_icon = true
+		edit_name_btn.add_theme_constant_override("icon_max_width", 28)
+
+	var name_label = get_node_or_null("PlayerNameLabel")
+	if name_label:
+		name_label.theme_type_variation = &"DisplayLabel"
+		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	var row = HBoxContainer.new()
+	row.position = Vector2(150, 346)
+	row.size = Vector2(600, 64)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(row)
+	best_value_label = add_stat_pill(row, "trophy", GOLD)
+	coins_value_label = add_stat_pill(row, "coin", Color.WHITE)
+
+func add_stat_pill(parent: Control, icon_name: String, tint: Color) -> Label:
+	var pill = PanelContainer.new()
+	pill.theme_type_variation = &"Pill"
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var line = HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	var picture = TextureRect.new()
+	picture.texture = load("res://assets/ui/icons/%s.svg" % icon_name)
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.custom_minimum_size = Vector2(30, 30)
+	picture.modulate = tint
+	line.add_child(picture)
+	var label = Label.new()
+	label.theme_type_variation = &"DisplayLabel"
+	label.add_theme_font_size_override("font_size", 26)
+	label.add_theme_color_override("font_color", GOLD)
+	line.add_child(label)
+	pill.add_child(line)
+	parent.add_child(pill)
+	return label
+
 func update_profile():
 	var name_label = get_node_or_null("PlayerNameLabel")
 	if name_label:
 		name_label.text = progression.player_name
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		adjust_text_size(name_label, 180)
+		adjust_text_size(name_label, 520)
 
 	var avatar_display = get_node_or_null("AvatarDisplay")
 	if avatar_display:
@@ -75,13 +124,10 @@ func update_profile():
 	if level_label:
 		level_label.text = str(progression.current_level)
 
-	var best_label = get_node_or_null("BestScoreLabel")
-	if best_label:
-		best_label.text = "🏆 Рекорд: %d" % progression.best_score
-
-	var coins_label = get_node_or_null("CoinsLabel")
-	if coins_label:
-		coins_label.text = "💰 %d" % progression.total_coins
+	if best_value_label:
+		best_value_label.text = "%d" % progression.best_score
+	if coins_value_label:
+		coins_value_label.text = "%d" % progression.total_coins
 
 	update_stats_labels()
 
@@ -90,8 +136,8 @@ func adjust_text_size(label: Label, max_width: float):
 	var font = label.get_theme_font("font")
 	if font == null:
 		font = ThemeDB.fallback_font
-	var font_size = 28
-	while font_size > 14:
+	var font_size = 44
+	while font_size > 22:
 		if font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size).x <= max_width:
 			break
 		font_size -= 2

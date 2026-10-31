@@ -32,19 +32,19 @@ horizontal_alignment = 1
 
 [node name="BackButton" type="Button" parent="."]
 layout_mode = 0
-offset_left = 50.0
-offset_top = 50.0
-offset_right = 150.0
+offset_left = 30.0
+offset_top = 36.0
+offset_right = 180.0
 offset_bottom = 100.0
 theme_override_font_sizes/font_size = 24
 text = "← Назад"
 
 [node name="OptionsContainer" type="VBoxContainer" parent="."]
 layout_mode = 0
-offset_left = 200.0
-offset_top = 150.0
-offset_right = 700.0
-offset_bottom = 750.0
+offset_left = 120.0
+offset_top = 170.0
+offset_right = 780.0
+offset_bottom = 1000.0
 theme_override_constants/separation = 30
 
 [node name="SoundOption" type="HBoxContainer" parent="OptionsContainer"]
@@ -55,7 +55,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(300, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "🔊 Звуки"
+text = "Звуки"
 vertical_alignment = 1
 
 [node name="SoundCheckbox" type="CheckButton" parent="OptionsContainer/SoundOption"]
@@ -71,7 +71,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(300, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "🎵 Музыка"
+text = "Музыка"
 vertical_alignment = 1
 
 [node name="MusicCheckbox" type="CheckButton" parent="OptionsContainer/MusicOption"]
@@ -87,7 +87,7 @@ layout_mode = 2
 custom_minimum_size = Vector2(300, 60)
 layout_mode = 2
 theme_override_font_sizes/font_size = 28
-text = "📳 Вибрация"
+text = "Вибрация"
 vertical_alignment = 1
 
 [node name="VibrationCheckbox" type="CheckButton" parent="OptionsContainer/VibrationOption"]

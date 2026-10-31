@@ -53,6 +53,12 @@ docs/                 План развития и инструкции по к�
 
 **Свои картинки:** положите файл в `assets/avatars/` (или `assets/frames/`) и добавьте запись в `autoload/items_db.gd` — подробнее в [docs/CONTENT.md](docs/CONTENT.md).
 
+## Оформление
+
+- Шрифты: **Russo One** (заголовки, цифры) и **Rubik** (текст) — `assets/fonts/`, лицензия SIL OFL 1.1 (файлы `OFL-*.txt` рядом).
+- Иконки интерфейса — `assets/ui/icons/`, рисуются скриптом `tools/make_icons.py` (белые линии, цвет задаётся в игре).
+- Все стили — в `ui/ui_theme.tres`: вариации `PrimaryButton`, `GoldButton`, `IconButton`, `HudPanel`, `Pill`, `ToastPanel`, `TitleLabel`, `DisplayLabel`, `CaptionLabel`. Новому элементу достаточно указать `theme_type_variation`.
+
 ## Как это связано
 
 `Game` ведёт партию: берёт набор фигур у `PieceGenerator`, ставит фигуру в `Board`, считает очки через `Scoring` и сообщает о событиях в `Events`. `Progression` и `Achievements` слушают события и сами обновляют статистику, выдают награды и открывают предметы. Цвета и вид блоков берутся из текущей темы `ThemeManager`, поэтому новая тема — это новый файл `.tres`, без правок кода игры.

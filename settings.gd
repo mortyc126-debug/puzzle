@@ -4,6 +4,9 @@ extends Control
 
 func _ready():
 	$BackButton.pressed.connect(_on_back_pressed)
+	ScreenStyle.apply_background($Background)
+	ScreenStyle.style_back_button($BackButton)
+	ScreenStyle.style_title($Background/TitleLabel)
 
 	var sound = $OptionsContainer/SoundOption/SoundCheckbox
 	var music = $OptionsContainer/MusicOption/MusicCheckbox
@@ -25,7 +28,7 @@ func _ready():
 func add_zen_toggle():
 	var row = HBoxContainer.new()
 	var label = Label.new()
-	label.text = "🧘 Спокойный режим\nбез проигрыша, со следующей партии"
+	label.text = "Спокойный режим\nбез проигрыша, со следующей партии"
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.add_theme_font_size_override("font_size", 26)
 	row.add_child(label)
@@ -39,9 +42,9 @@ func add_zen_toggle():
 func add_links():
 	var options = $OptionsContainer
 	if GameSettings.has_store_page():
-		options.add_child(make_button("⭐ Оценить игру", GameSettings.open_store_page))
+		options.add_child(make_button("Оценить игру", GameSettings.open_store_page, "star"))
 	if GameSettings.has_feedback_email():
-		options.add_child(make_button("✉️ Написать разработчику", GameSettings.open_feedback_email))
+		options.add_child(make_button("Написать разработчику", GameSettings.open_feedback_email, "edit"))
 
 	var version = Label.new()
 	version.text = "Версия %s" % GameSettings.get_version()
@@ -50,9 +53,20 @@ func add_links():
 	version.add_theme_color_override("font_color", Color(0.7, 0.72, 0.85))
 	options.add_child(version)
 
-func make_button(text: String, action: Callable) -> Button:
+	var credits = Label.new()
+	credits.text = "Шрифты Russo One и Rubik — SIL Open Font License 1.1"
+	credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	credits.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	credits.add_theme_font_size_override("font_size", 18)
+	credits.add_theme_color_override("font_color", Color(0.55, 0.58, 0.75))
+	options.add_child(credits)
+
+func make_button(text: String, action: Callable, icon_name: String = "") -> Button:
 	var button = Button.new()
 	button.text = text
+	if icon_name != "":
+		button.icon = load("res://assets/ui/icons/%s.svg" % icon_name)
+		button.add_theme_constant_override("icon_max_width", 32)
 	button.custom_minimum_size = Vector2(0, 80)
 	button.add_theme_font_size_override("font_size", 28)
 	button.pressed.connect(action)

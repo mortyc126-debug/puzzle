@@ -77,8 +77,20 @@ var run_max_combo = 0
 var record_announced = false  # Баннер «Новый рекорд!» уже показан в этой партии
 
 # HUD
+const ICON_DIR = "res://assets/ui/icons/"
+const GOLD = Color(1, 0.81, 0.29)
+const NAVY = Color(0.04, 0.05, 0.15)
+
 var score_label: Label
 var best_score_label: Label
+var coins_label: Label
+var multiplier_label: Label
+var multiplier_pill: Control
+var level_label: Label
+var xp_bar: ProgressBar
+var xp_label: Label
+var next_reward_label: Label
+var streak_pill: Control
 var combo_label: Label
 var streak_label: Label
 var toast_offset = 0
@@ -147,7 +159,7 @@ func _process(delta):
 # === ИНТЕРФЕЙС ===
 
 func make_label(text: String, font_size: int, color: Color, pos: Vector2, label_size: Vector2,
-		align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER, outline: int = 3) -> Label:
+		align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER, outline: int = 0) -> Label:
 	var label = Label.new()
 	label.text = text
 	label.position = pos
@@ -158,48 +170,175 @@ func make_label(text: String, font_size: int, color: Color, pos: Vector2, label_
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	if outline > 0:
-		label.add_theme_color_override("font_outline_color", Color.BLACK)
+		label.add_theme_color_override("font_outline_color", NAVY)
 		label.add_theme_constant_override("outline_size", outline)
 	add_child(label)
 	return label
 
+func icon(icon_name: String) -> Texture2D:
+	return load(ICON_DIR + icon_name + ".svg")
+
+func icon_rect(icon_name: String, icon_size: float, tint: Color = Color.WHITE) -> TextureRect:
+	var rect = TextureRect.new()
+	rect.texture = icon(icon_name)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rect.custom_minimum_size = Vector2(icon_size, icon_size)
+	rect.modulate = tint
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return rect
+
+# Небольшая панель-контейнер (вариации темы: HudPanel, Pill, ToastPanel)
+func make_panel(variation: StringName, pos: Vector2) -> PanelContainer:
+	var panel = PanelContainer.new()
+	panel.theme_type_variation = variation
+	panel.position = pos
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(panel)
+	return panel
+
+func styled_label(text: String, font_size: int, color: Color, variation: StringName = &"") -> Label:
+	var label = Label.new()
+	label.text = text
+	label.theme_type_variation = variation
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	return label
+
+# Шапка: счёт в панели по центру, монеты и множитель справа, уровень с полоской опыта ниже.
+# Всё лежит на полупрозрачных панелях, чтобы читаться на любом фоне темы.
 func build_hud():
-	best_score_label = make_label("Рекорд: %d" % progression.best_score, 30, Color(1, 0.84, 0),
-		Vector2(300, 20), Vector2(300, 40))
-	score_label = make_label("0", 72, Color.WHITE, Vector2(250, 60), Vector2(400, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
+	var score_panel = make_panel(&"HudPanel", Vector2(270, 20))
+	score_panel.custom_minimum_size = Vector2(320, 128)
+	var score_box = VBoxContainer.new()
+	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	score_box.add_theme_constant_override("separation", -4)
+	score_panel.add_child(score_box)
+	var caption = styled_label("ОЧКИ", 18, Color(0.64, 0.67, 0.85), &"CaptionLabel")
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_box.add_child(caption)
+	score_label = styled_label("0", 66, Color.WHITE, &"DisplayLabel")
+	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_box.add_child(score_label)
+	var best_row = HBoxContainer.new()
+	best_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	best_row.add_theme_constant_override("separation", 6)
+	best_row.add_child(icon_rect("trophy", 22, GOLD))
+	best_score_label = styled_label("%d" % progression.best_score, 22, GOLD)
+	best_row.add_child(best_score_label)
+	score_box.add_child(best_row)
 
-	var coins_label = make_label("💰 %d" % progression.total_coins, 28, Color(1, 0.84, 0),
-		Vector2(560, 120), Vector2(300, 36), HORIZONTAL_ALIGNMENT_RIGHT, 2)
-	coins_label.name = "CoinsLabel"
+	var coin_pill = make_panel(&"Pill", Vector2(606, 32))
+	coin_pill.custom_minimum_size = Vector2(164, 0)
+	var coin_row = HBoxContainer.new()
+	coin_row.add_theme_constant_override("separation", 8)
+	coin_row.add_child(icon_rect("coin", 34))
+	coins_label = styled_label("%d" % progression.total_coins, 28, GOLD, &"DisplayLabel")
+	coin_row.add_child(coins_label)
+	coin_pill.add_child(coin_row)
 
-	var multiplier_label = make_label("x1.0", 24, Color(1, 0.5, 0), Vector2(560, 156), Vector2(300, 30),
-		HORIZONTAL_ALIGNMENT_RIGHT, 2)
-	multiplier_label.name = "MultiplierLabel"
-	multiplier_label.visible = false
+	multiplier_pill = make_panel(&"Pill", Vector2(606, 96))
+	multiplier_label = styled_label("×1.0", 22, Color(1, 0.62, 0.25), &"DisplayLabel")
+	multiplier_pill.add_child(multiplier_label)
+	multiplier_pill.visible = false
 
-	var xp_bar = ProgressBar.new()
-	xp_bar.name = "XPBar"
-	xp_bar.position = Vector2(50, 200)
-	xp_bar.size = Vector2(800, 20)
+	var level_badge = make_panel(&"Pill", Vector2(34, 172))
+	level_badge.custom_minimum_size = Vector2(68, 68)
+	level_label = styled_label("1", 30, GOLD, &"DisplayLabel")
+	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	level_badge.add_child(level_label)
+
+	xp_label = make_label("", 20, Color.WHITE, Vector2(118, 168), Vector2(560, 28), HORIZONTAL_ALIGNMENT_LEFT)
+	xp_bar = ProgressBar.new()
+	xp_bar.position = Vector2(118, 200)
+	xp_bar.size = Vector2(742, 14)
 	xp_bar.show_percentage = false
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(xp_bar)
+	next_reward_label = make_label("", 18, Color(0.72, 0.76, 0.95), Vector2(118, 220), Vector2(742, 26), HORIZONTAL_ALIGNMENT_LEFT)
 
-	var xp_label = make_label("", 18, Color.WHITE, Vector2(50, 222), Vector2(520, 26), HORIZONTAL_ALIGNMENT_LEFT, 2)
-	xp_label.name = "XPLabel"
+	streak_pill = make_panel(&"Pill", Vector2(700, 160))
+	var streak_row = HBoxContainer.new()
+	streak_row.add_theme_constant_override("separation", 6)
+	streak_row.add_child(icon_rect("flame", 24, Color(1, 0.6, 0.25)))
+	streak_label = styled_label("×2", 22, Color(1, 0.7, 0.35), &"DisplayLabel")
+	streak_row.add_child(streak_label)
+	streak_pill.add_child(streak_row)
+	streak_pill.visible = false
+
 	update_xp_display()
 
-	var next_reward_label = make_label("", 17, Color(0.85, 0.9, 1), Vector2(50, 247), Vector2(800, 24), HORIZONTAL_ALIGNMENT_LEFT, 2)
-	next_reward_label.name = "NextRewardLabel"
-	update_next_reward_display()
-
-	streak_label = make_label("", 24, Color(1, 0.6, 0.2), Vector2(560, 222), Vector2(300, 30), HORIZONTAL_ALIGNMENT_RIGHT, 3)
-	streak_label.visible = false
-
-	combo_label = make_label("", 72, Color.WHITE, Vector2(250, 480), Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 8)
+	combo_label = make_label("", 72, Color.WHITE, Vector2(250, 480), Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 10)
+	combo_label.theme_type_variation = &"DisplayLabel"
 	combo_label.pivot_offset = combo_label.size / 2.0
 	combo_label.modulate = Color(1, 1, 1, 0)
 	combo_label.z_index = 50
+
+	setup_buttons_style()
+
+# Иконки и ценники на кнопках
+func setup_buttons_style():
+	setup_tool_button($HammerButton, "hammer", PRICE_HAMMER)
+	setup_tool_button($RotateButton, "rotate", PRICE_ROTATE)
+	setup_tool_button($ShuffleButton, "shuffle", PRICE_SHUFFLE)
+	setup_tool_button($UndoButton, "undo", PRICE_UNDO)
+
+	var settings = $SettingsButton
+	settings.text = ""
+	settings.theme_type_variation = &"IconButton"
+	settings.icon = icon("settings")
+	settings.expand_icon = true
+	settings.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	settings.add_theme_constant_override("icon_max_width", 44)
+
+	for pair in [[$RestartButton, "restart", "Заново"], [$DailyButton, "tasks", "Задания"]]:
+		var button: Button = pair[0]
+		button.icon = icon(pair[1])
+		button.text = pair[2]
+		button.add_theme_constant_override("icon_max_width", 34)
+		button.add_theme_font_size_override("font_size", 26)
+
+func setup_tool_button(button: Button, icon_name: String, price: int):
+	button.text = ""
+	button.icon = icon(icon_name)
+	button.expand_icon = true
+	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+	button.add_theme_constant_override("icon_max_width", 44)
+
+	var pill = PanelContainer.new()
+	pill.name = "PricePill"
+	pill.theme_type_variation = &"Pill"
+	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row = HBoxContainer.new()
+	row.name = "Row"
+	row.add_theme_constant_override("separation", 4)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var coin = icon_rect("coin", 20)
+	coin.name = "Coin"
+	row.add_child(coin)
+	var label = styled_label(str(price), 20, GOLD, &"DisplayLabel")
+	label.name = "PriceLabel"
+	row.add_child(label)
+	pill.add_child(row)
+	button.add_child(pill)
+	pill.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 8)
+	pill.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pill.grow_vertical = Control.GROW_DIRECTION_BEGIN
+
+# Включённый бонус (молоток, поворот) подсвечивается золотом, вместо цены — «отмена»
+func set_tool_active(button: Button, active: bool, price: int):
+	button.theme_type_variation = &"GoldButton" if active else &""
+	var pill = button.get_node_or_null("PricePill")
+	if pill:
+		pill.get_node("Row/Coin").visible = not active
+		pill.get_node("Row/PriceLabel").text = "отмена" if active else str(price)
+
+func update_multiplier_display():
+	multiplier_label.text = "×" + str(progression.score_multiplier)
+	multiplier_pill.visible = progression.score_multiplier > 1.0
 
 func connect_buttons():
 	$SettingsButton.pressed.connect(_on_settings_pressed)
@@ -216,7 +355,7 @@ func update_score_display():
 	if zen:
 		return  # Рекорды ставятся только в обычном режиме
 	if progression.update_best_score(score):
-		best_score_label.text = "Рекорд: %d" % progression.best_score
+		best_score_label.text = "%d" % progression.best_score
 	# Праздник в момент, когда рекорд побит (один раз за партию)
 	if not record_announced and best_score_at_start > 0 and score > best_score_at_start:
 		record_announced = true
@@ -225,11 +364,11 @@ func update_score_display():
 
 func update_zen_display():
 	if zen:
-		best_score_label.text = "🧘 Спокойный режим"
+		best_score_label.text = "Спокойный режим"
 
 # Ближайшая награда за уровень — то, ради чего хочется сыграть ещё партию
 func update_next_reward_display():
-	var label = get_node_or_null("NextRewardLabel")
+	var label = next_reward_label
 	if label == null:
 		return
 	var next = progression.get_next_special_reward()
@@ -243,13 +382,13 @@ func update_next_reward_display():
 
 func update_xp_display():
 	update_next_reward_display()
-	var xp_bar = get_node_or_null("XPBar")
-	var xp_label = get_node_or_null("XPLabel")
+	if level_label:
+		level_label.text = str(progression.current_level)
 	if xp_bar:
 		xp_bar.max_value = progression.get_xp_for_next_level()
 		xp_bar.value = progression.current_xp
 	if xp_label:
-		var text = "Ур. %d · %s" % [progression.current_level, progression.get_rank()]
+		var text = progression.get_rank()
 		if progression.is_max_level():
 			text += " · максимум"
 		else:
@@ -259,9 +398,9 @@ func update_xp_display():
 		xp_label.text = text
 
 func update_streak_display(streak: int):
-	streak_label.visible = streak >= 2
+	streak_pill.visible = streak >= 2
 	if streak >= 2:
-		streak_label.text = "🔥 Серия ×%d" % streak
+		streak_label.text = "×%d" % streak
 
 func is_input_blocked() -> bool:
 	return game_over or not get_tree().get_nodes_in_group("modal").is_empty()
@@ -414,10 +553,7 @@ func on_lines_cleared(count: int, result: Dictionary, fill_before: float):
 
 	# Множитель монет растёт со счётом
 	progression.score_multiplier = progression.calculate_multiplier(score)
-	var multiplier_label = get_node_or_null("MultiplierLabel")
-	if multiplier_label:
-		multiplier_label.text = "x" + str(progression.score_multiplier)
-		multiplier_label.visible = progression.score_multiplier > 1.0
+	update_multiplier_display()
 
 	# XP за линии копится и начисляется в конце партии. Множитель счёта на опыт не влияет:
 	# иначе сильные игроки проходили бы 500 уровней в разы быстрее, чем новички.
@@ -487,8 +623,7 @@ func _on_hammer_pressed():
 	if rotate_mode:
 		reset_rotate_button()
 	hammer_mode = true
-	$HammerButton.text = "🔨 Нажми\nна блок\n(отмена)"
-	$HammerButton.modulate = Color(1, 1, 0)
+	set_tool_active($HammerButton, true, PRICE_HAMMER)
 
 func use_hammer_on_cell(x: int, y: int):
 	if not hammer_mode:
@@ -511,8 +646,7 @@ func use_hammer_on_cell(x: int, y: int):
 
 func reset_hammer_button():
 	hammer_mode = false
-	$HammerButton.text = "🔨\n%d" % PRICE_HAMMER
-	$HammerButton.modulate = Color.WHITE
+	set_tool_active($HammerButton, false, PRICE_HAMMER)
 	update_powerup_buttons()
 
 func _on_shuffle_pressed():
@@ -535,8 +669,7 @@ func _on_rotate_pressed():
 		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
 	rotate_mode = true
-	$RotateButton.text = "🔃 Нажми\nна фигуру"
-	$RotateButton.modulate = Color(1, 1, 0)
+	set_tool_active($RotateButton, true, PRICE_ROTATE)
 
 func rotate_block(block):
 	if not rotate_mode or not progression.spend_coins(PRICE_ROTATE):
@@ -557,8 +690,7 @@ func rotate_block(block):
 
 func reset_rotate_button():
 	rotate_mode = false
-	$RotateButton.text = "🔃\n%d" % PRICE_ROTATE
-	$RotateButton.modulate = Color.WHITE
+	set_tool_active($RotateButton, false, PRICE_ROTATE)
 	update_powerup_buttons()
 
 func _on_undo_pressed():
@@ -620,11 +752,11 @@ func close_modal(box: Control):
 func modal_title(box: Control, text: String, color: Color = Color(1, 0.84, 0), font_size: int = 44) -> Label:
 	var label = Label.new()
 	label.text = text
+	label.theme_type_variation = &"TitleLabel"
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	label.add_theme_color_override("font_outline_color", Color.BLACK)
-	label.add_theme_constant_override("outline_size", 4)
 	box.add_child(label)
 	return label
 
@@ -643,11 +775,17 @@ func modal_buttons(box: Control, buttons: Array) -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 20)
 	box.add_child(row)
-	for item in buttons:
+	# Последняя кнопка — главное действие (синяя), третий элемент задаёт стиль явно
+	for i in range(buttons.size()):
+		var item: Array = buttons[i]
 		var button = Button.new()
 		button.text = item[0]
-		button.custom_minimum_size = Vector2(240, 80)
-		button.add_theme_font_size_override("font_size", 28)
+		button.custom_minimum_size = Vector2(240, 84)
+		button.add_theme_font_size_override("font_size", 26)
+		if item.size() > 2:
+			button.theme_type_variation = item[2]
+		elif i == buttons.size() - 1:
+			button.theme_type_variation = &"PrimaryButton"
 		button.pressed.connect(item[1])
 		row.add_child(button)
 
@@ -667,6 +805,7 @@ func _on_profile_pressed():
 
 func show_toast(text: String, color: Color = Color.WHITE):
 	var panel = PanelContainer.new()
+	panel.theme_type_variation = &"ToastPanel"
 	panel.z_index = 120
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var label = Label.new()
@@ -751,9 +890,7 @@ func _on_reward_unlocked(reward_type: String, reward_data):
 			summary["ranks"].append(str(reward_data))
 
 func _on_coins_changed(new_amount: int):
-	var coins_label = get_node_or_null("CoinsLabel")
-	if coins_label:
-		coins_label.text = "💰 %d" % new_amount
+	coins_label.text = "%d" % new_amount
 	update_powerup_buttons()
 
 # === DAILY REWARDS ===
@@ -761,8 +898,9 @@ func _on_coins_changed(new_amount: int):
 func update_daily_button():
 	var daily_btn = $DailyButton
 	var has_news = progression.can_claim_daily
-	daily_btn.text = "📋 Задания %d/3" % Missions.count_done()
-	daily_btn.modulate = Color(1, 1, 0) if has_news else Color.WHITE
+	daily_btn.text = "Задания %d/3" % Missions.count_done()
+	# Есть неполученная награда дня — кнопка золотая
+	daily_btn.theme_type_variation = &"GoldButton" if has_news else &""
 
 func _on_daily_available():
 	update_daily_button()
@@ -927,11 +1065,11 @@ func show_continue_screen():
 	var box = open_modal(540)
 	modal_title(box, "ПРОДОЛЖИТЬ?", Color.YELLOW, 52)
 	modal_text(box, "Очки: %d" % score, 34, Color.WHITE)
-	modal_text(box, "Три новые фигуры за 💰 %d" % continue_cost, 30, Color(1, 0.84, 0))
-	modal_text(box, "У вас 💰 %d. Монеты и опыт за партию начислятся, когда она закончится." % progression.total_coins, 22)
+	modal_text(box, "Три новые фигуры за %d монет" % continue_cost, 30, GOLD)
+	modal_text(box, "У вас %d монет. Монеты и опыт за партию начислятся, когда она закончится." % progression.total_coins, 22)
 	modal_buttons(box, [
 		["СДАТЬСЯ", _on_give_up.bind(box)],
-		["ПРОДОЛЖИТЬ", _on_continue_game.bind(box)],
+		["ПРОДОЛЖИТЬ", _on_continue_game.bind(box), &"GoldButton"],
 	])
 
 func _on_continue_game(box):
@@ -1183,10 +1321,7 @@ func load_run() -> bool:
 	score_label.text = str(score)
 	update_streak_display(scoring.streak)
 	update_xp_display()
-	var multiplier_label = get_node_or_null("MultiplierLabel")
-	if multiplier_label:
-		multiplier_label.text = "x" + str(progression.score_multiplier)
-		multiplier_label.visible = progression.score_multiplier > 1.0
+	update_multiplier_display()
 	grid.queue_redraw()
 	refresh_tray()
 	check_game_over()
@@ -1220,7 +1355,8 @@ func show_points_popup(cells: Array, points: int):
 		center += grid.cell_rect(cell.x, cell.y).get_center()
 	center = center / cells.size() + grid.position
 
-	var label = make_label("+%d" % points, 34, Color.WHITE, center - Vector2(80, 25), Vector2(160, 50))
+	var label = make_label("+%d" % points, 34, Color.WHITE, center - Vector2(80, 25), Vector2(160, 50), HORIZONTAL_ALIGNMENT_CENTER, 6)
+	label.theme_type_variation = &"DisplayLabel"
 	label.z_index = 40
 	var tween = create_tween()
 	tween.set_parallel(true)
@@ -1347,9 +1483,9 @@ func refresh_profile_button():
 		profile_frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		profile_frame.texture = ItemsDB.get_frame_texture(progression.player_frame)
 
-	var level_label = profile_btn.get_node_or_null("ProfileLevelLabel")
-	if level_label:
-		level_label.text = str(progression.current_level)
+	var profile_level_label = profile_btn.get_node_or_null("ProfileLevelLabel")
+	if profile_level_label:
+		profile_level_label.text = str(progression.current_level)
 
 	update_achievements_indicator()
 

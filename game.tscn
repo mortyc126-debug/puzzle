@@ -47,7 +47,7 @@ offset_top = 30.0
 offset_right = 860.0
 offset_bottom = 110.0
 theme_override_font_sizes/font_size = 36
-text = "⚙️"
+text = ""
 
 [node name="HammerButton" type="Button" parent="."]
 offset_left = 45.0
@@ -55,8 +55,7 @@ offset_top = 1250.0
 offset_right = 225.0
 offset_bottom = 1350.0
 theme_override_font_sizes/font_size = 24
-text = "🔨
-10"
+text = ""
 
 [node name="RotateButton" type="Button" parent="."]
 offset_left = 255.0
@@ -64,8 +63,7 @@ offset_top = 1250.0
 offset_right = 435.0
 offset_bottom = 1350.0
 theme_override_font_sizes/font_size = 24
-text = "🔃
-15"
+text = ""
 
 [node name="ShuffleButton" type="Button" parent="."]
 offset_left = 465.0
@@ -73,8 +71,7 @@ offset_top = 1250.0
 offset_right = 645.0
 offset_bottom = 1350.0
 theme_override_font_sizes/font_size = 24
-text = "🔄
-30"
+text = ""
 
 [node name="UndoButton" type="Button" parent="."]
 offset_left = 675.0
@@ -82,8 +79,7 @@ offset_top = 1250.0
 offset_right = 855.0
 offset_bottom = 1350.0
 theme_override_font_sizes/font_size = 24
-text = "↩️
-20"
+text = ""
 
 [node name="RestartButton" type="Button" parent="."]
 offset_left = 90.0
@@ -91,7 +87,7 @@ offset_top = 1395.0
 offset_right = 430.0
 offset_bottom = 1475.0
 theme_override_font_sizes/font_size = 26
-text = "🔄 Заново"
+text = "Заново"
 
 [node name="DailyButton" type="Button" parent="."]
 offset_left = 470.0
@@ -99,7 +95,7 @@ offset_top = 1395.0
 offset_right = 810.0
 offset_bottom = 1475.0
 theme_override_font_sizes/font_size = 26
-text = "📋 Задания"
+text = "Задания"
 
 [node name="ProfileButton" type="TextureButton" parent="."]
 offset_left = 20.0
