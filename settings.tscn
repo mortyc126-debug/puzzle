@@ -1,0 +1,96 @@
+[gd_scene load_steps=2 format=3 uid="uid://dqfidyees35i0"]
+
+[ext_resource type="Script" uid="uid://btmrpri34oxy6" path="res://settings.gd" id="1_x2hje"]
+
+[node name="Settings" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_x2hje")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.101960786, 0.101960786, 0.18039216, 1)
+
+[node name="TitleLabel" type="Label" parent="Background"]
+layout_mode = 0
+offset_left = 200.0
+offset_top = 40.0
+offset_right = 700.0
+offset_bottom = 100.0
+theme_override_font_sizes/font_size = 48
+text = "НАСТРОЙКИ"
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="."]
+layout_mode = 0
+offset_left = 30.0
+offset_top = 36.0
+offset_right = 180.0
+offset_bottom = 100.0
+theme_override_font_sizes/font_size = 24
+text = "← Назад"
+
+[node name="OptionsContainer" type="VBoxContainer" parent="."]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 170.0
+offset_right = 780.0
+offset_bottom = 1000.0
+theme_override_constants/separation = 30
+
+[node name="SoundOption" type="HBoxContainer" parent="OptionsContainer"]
+custom_minimum_size = Vector2(500, 60)
+layout_mode = 2
+
+[node name="SoundLabel" type="Label" parent="OptionsContainer/SoundOption"]
+custom_minimum_size = Vector2(300, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Звуки"
+vertical_alignment = 1
+
+[node name="SoundCheckbox" type="CheckButton" parent="OptionsContainer/SoundOption"]
+custom_minimum_size = Vector2(100, 60)
+layout_mode = 2
+button_pressed = true
+
+[node name="MusicOption" type="HBoxContainer" parent="OptionsContainer"]
+custom_minimum_size = Vector2(500, 60)
+layout_mode = 2
+
+[node name="label" type="Label" parent="OptionsContainer/MusicOption"]
+custom_minimum_size = Vector2(300, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Музыка"
+vertical_alignment = 1
+
+[node name="MusicCheckbox" type="CheckButton" parent="OptionsContainer/MusicOption"]
+custom_minimum_size = Vector2(100, 60)
+layout_mode = 2
+button_pressed = true
+
+[node name="VibrationOption" type="HBoxContainer" parent="OptionsContainer"]
+custom_minimum_size = Vector2(500, 60)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="OptionsContainer/VibrationOption"]
+custom_minimum_size = Vector2(300, 60)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Вибрация"
+vertical_alignment = 1
+
+[node name="VibrationCheckbox" type="CheckButton" parent="OptionsContainer/VibrationOption"]
+custom_minimum_size = Vector2(100, 60)
+layout_mode = 2
+button_pressed = true

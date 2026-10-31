@@ -1,0 +1,12 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Временные файлы редактора
+*.tmp
+
+# Python
+__pycache__/
+
+# Сборки
+build/

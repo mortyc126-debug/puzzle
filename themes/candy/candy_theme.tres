@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://themes/candy/candy_background.tscn" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "candy"
+display_name = "Конфеты"
+description = "Пастельные блоки-желейки и падающая посыпка. Сладко и спокойно."
+rarity = "UNCOMMON"
+unlock = {
+"level": 10,
+"type": "level"
+}
+background_color = Color(1, 0.82, 0.9, 1)
+background_scene = ExtResource("2_bg")
+board_color = Color(1, 1, 1, 0.45)
+cell_color = Color(1, 1, 1, 0.55)
+board_corner_radius = 24.0
+board_padding = 8.0
+line_highlight_color = Color(1, 1, 1, 0.35)
+block_style = 5
+use_player_colors = false
+palette = PackedColorArray(1.0, 0.494, 0.714, 1, 0.373, 0.878, 0.69, 1, 1.0, 0.847, 0.302, 1, 0.718, 0.545, 1.0, 1, 1.0, 0.643, 0.361, 1, 0.431, 0.784, 1.0, 1)
+block_corner_radius = 16.0
+glow_strength = 0.6
+ghost_invalid_color = Color(1, 0.3, 0.45, 0.35)
+flash_color = Color(1, 1, 1, 1)
+particle_color = Color(1, 0.6, 0.85, 1)
+accent_color = Color(1, 0.45, 0.7, 1)
