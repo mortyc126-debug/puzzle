@@ -603,6 +603,8 @@ func get_stat(stat_id: String) -> int:
 			return best_run_lines
 		"avatars_unlocked":
 			return unlocked_avatars.size()
+		"themes_played":
+			return theme_games.size()
 	if stat_id.begins_with("theme_games:"):
 		return int(theme_games.get(stat_id.trim_prefix("theme_games:"), 0))
 	return 0

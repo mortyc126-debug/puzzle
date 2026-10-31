@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://themes/wood/wood_background.tscn" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "wood"
+display_name = "Дерево"
+description = "Деревянные бруски с прожилками на старом столе. Тёплая классика головоломок."
+rarity = "RARE"
+unlock = {
+"level": 30,
+"type": "level"
+}
+background_color = Color(0.24, 0.13, 0.07, 1)
+background_scene = ExtResource("2_bg")
+board_color = Color(0.22, 0.12, 0.06, 0.92)
+cell_color = Color(0.3, 0.18, 0.1, 1)
+board_corner_radius = 14.0
+board_padding = 8.0
+line_highlight_color = Color(1, 0.9, 0.7, 0.14)
+block_style = 7
+use_player_colors = false
+palette = PackedColorArray(0.91, 0.718, 0.478, 1, 0.788, 0.553, 0.31, 1, 0.941, 0.788, 0.529, 1, 0.71, 0.322, 0.231, 1, 0.851, 0.765, 0.627, 1, 0.612, 0.416, 0.235, 1)
+block_corner_radius = 8.0
+glow_strength = 0.6
+ghost_invalid_color = Color(1, 0.3, 0.2, 0.35)
+flash_color = Color(1, 0.95, 0.85, 1)
+particle_color = Color(0.95, 0.75, 0.45, 1)
+accent_color = Color(0.95, 0.72, 0.4, 1)

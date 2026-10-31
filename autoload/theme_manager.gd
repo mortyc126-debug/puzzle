@@ -10,6 +10,10 @@ signal theme_changed(theme: BlockTheme)
 const THEME_PATHS = [
 	"res://themes/classic/classic_theme.tres",
 	"res://themes/space/space_theme.tres",
+	"res://themes/candy/candy_theme.tres",
+	"res://themes/ocean/ocean_theme.tres",
+	"res://themes/wood/wood_theme.tres",
+	"res://themes/retro/retro_theme.tres",
 ]
 
 var themes: Array = []

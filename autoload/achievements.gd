@@ -54,6 +54,8 @@ const LIST = [
 		"stat": "best_clean_score", "tiers": [1000, 3000, 6000]},
 	{"id": "space_games", "icon": "🚀", "title": "Звёздный путь", "desc": "Сыграйте %s партий в теме «Космос»",
 		"stat": "theme_games:space", "tiers": [10, 50, 200]},
+	{"id": "traveler", "icon": "🗺️", "title": "Путешественник", "desc": "Сыграйте хотя бы партию в %s разных темах",
+		"stat": "themes_played", "tiers": [2, 4, 6]},
 
 	# Разовые испытания
 	{"id": "double", "icon": "✌️", "title": "Дубль", "desc": "Очистите 2 линии одним ходом",

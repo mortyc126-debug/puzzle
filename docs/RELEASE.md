@@ -79,9 +79,9 @@
 > • Три новых задания каждый день.
 > • Честные фигуры: в каждом наборе есть фигура, которую можно поставить.
 > • 500 уровней, звания от «Новичка» до «Легенды».
-> • 18 достижений, 69 ступеней.
+> • 19 достижений, 72 ступени.
 > • 16 аватарок и 11 рамок для профиля.
-> • Темы «Классика» и «Космос» — неоновые блоки на звёздном небе.
+> • 6 тем: Классика, Космос, Конфеты, Океан, Дерево и Ретро — у каждой свои блоки и живой фон.
 > • Бонусы: молоток, поворот фигуры, новые фигуры, отмена хода.
 > • Награда каждый день.
 >
@@ -90,7 +90,7 @@
 **English (если понадобится):**
 > Short: Place blocks, clear lines. No ads, works offline, fair pieces.
 >
-> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. 500 levels, 18 achievements with 69 tiers, 16 avatars, 11 frames, Classic and Space themes.
+> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. 500 levels, 19 achievements with 72 tiers, 16 avatars, 11 frames, 6 themes (Classic, Space, Candy, Ocean, Wood, Retro).
 
 ## Чек-лист перед загрузкой
 
