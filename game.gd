@@ -56,7 +56,7 @@ var pieces_this_run = 0
 # Итоги партии: пока идёт начисление наград в finish_run(), события уровня,
 # предметов и достижений собираются сюда, а не показываются уведомлениями
 var collecting_summary = false
-var summary = {"levels": [], "level_coins": 0, "slots": 0, "ranks": [], "items": [], "achievements": [], "missions": []}
+var summary = {"levels": [], "level_coins": 0, "slots": 0, "ranks": [], "items": [], "item_refs": [], "achievements": [], "missions": []}
 var tutorial_label: Label = null
 
 # Continue
@@ -189,6 +189,10 @@ func build_hud():
 	xp_label.name = "XPLabel"
 	update_xp_display()
 
+	var next_reward_label = make_label("", 17, Color(0.85, 0.9, 1), Vector2(50, 247), Vector2(800, 24), HORIZONTAL_ALIGNMENT_LEFT, 2)
+	next_reward_label.name = "NextRewardLabel"
+	update_next_reward_display()
+
 	streak_label = make_label("", 24, Color(1, 0.6, 0.2), Vector2(560, 222), Vector2(300, 30), HORIZONTAL_ALIGNMENT_RIGHT, 3)
 	streak_label.visible = false
 
@@ -223,7 +227,22 @@ func update_zen_display():
 	if zen:
 		best_score_label.text = "🧘 Спокойный режим"
 
+# Ближайшая награда за уровень — то, ради чего хочется сыграть ещё партию
+func update_next_reward_display():
+	var label = get_node_or_null("NextRewardLabel")
+	if label == null:
+		return
+	var next = progression.get_next_special_reward()
+	if next.is_empty():
+		label.text = ""
+		return
+	var text = "🎁 Ур. %d: %s" % [next["level"], next["lines"][0]]
+	if next["lines"].size() > 1:
+		text += " и ещё %d" % (next["lines"].size() - 1)
+	label.text = text
+
 func update_xp_display():
+	update_next_reward_display()
 	var xp_bar = get_node_or_null("XPBar")
 	var xp_label = get_node_or_null("XPLabel")
 	if xp_bar:
@@ -687,6 +706,7 @@ func _on_item_unlocked(item_type: String, item_id):
 	update_achievements_indicator()
 	if collecting_summary:
 		summary["items"].append(text)
+		summary["item_refs"].append({"type": item_type, "id": item_id})
 	else:
 		show_toast(text, Color(0.6, 1, 0.7))
 
@@ -950,12 +970,101 @@ func show_final_game_over():
 	modal_text(box, "Итоги партии", 30, Color.WHITE)
 	for line in get_summary_lines():
 		modal_text(box, line[0], 24, line[1])
+	add_reward_cards(box)
 
 	if should_ask_for_rating():
 		modal_text(box, "Нравится игра? Оценка в магазине очень поможет.", 22)
 		modal_buttons(box, [["⭐ ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 	else:
 		modal_buttons(box, [["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
+
+# Новые предметы — картинками, с кнопкой «Надеть»: момент получения награды должен быть заметным
+func add_reward_cards(box: Control):
+	var refs: Array = summary["item_refs"]
+	if refs.is_empty():
+		return
+	box.add_child(HSeparator.new())
+	modal_text(box, "🎁 Новые награды", 30, Color(0.6, 1, 0.7))
+	var row = HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 14)
+	box.add_child(row)
+	for i in range(mini(refs.size(), 3)):
+		row.add_child(make_reward_card(refs[i]))
+	if refs.size() > 3:
+		modal_text(box, "И ещё %d — смотрите в профиле" % (refs.size() - 3), 20)
+
+func make_reward_card(item: Dictionary) -> Control:
+	var card = VBoxContainer.new()
+	card.custom_minimum_size = Vector2(180, 0)
+	card.add_theme_constant_override("separation", 6)
+
+	var holder = CenterContainer.new()
+	holder.custom_minimum_size = Vector2(180, 130)
+	card.add_child(holder)
+	var item_id = item["id"]
+	match item["type"]:
+		"avatar", "frame":
+			var picture = TextureRect.new()
+			picture.texture = ItemsDB.get_avatar_texture(item_id) if item["type"] == "avatar" else ItemsDB.get_frame_texture(item_id)
+			picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			picture.custom_minimum_size = Vector2(124, 124)
+			holder.add_child(picture)
+		"theme":
+			var preview = ThemePreview.new()
+			preview.custom_minimum_size = Vector2(170, 124)
+			preview.set_theme_resource(ThemeManager.get_theme_by_id(str(item_id)), false)
+			holder.add_child(preview)
+		"effect":
+			var effect = EffectPreview.new()
+			effect.custom_minimum_size = Vector2(170, 124)
+			effect.setup(ItemsDB.get_effect_data(item_id).get("kind", "sparks"), Color(0.4, 0.7, 1))
+			holder.add_child(effect)
+		"color":
+			var swatch = ColorRect.new()
+			swatch.color = ItemsDB.block_colors[int(item_id)]
+			swatch.custom_minimum_size = Vector2(110, 110)
+			holder.add_child(swatch)
+
+	var title = Label.new()
+	title.text = progression.get_item_label(item["type"], item_id)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.custom_minimum_size = Vector2(180, 0)
+	title.add_theme_font_size_override("font_size", 18)
+	card.add_child(title)
+
+	var button = Button.new()
+	button.text = "В СЛОТЫ" if item["type"] == "color" else "НАДЕТЬ"
+	button.custom_minimum_size = Vector2(170, 60)
+	button.add_theme_font_size_override("font_size", 22)
+	button.pressed.connect(equip_item.bind(item, button))
+	card.add_child(button)
+	return card
+
+func equip_item(item: Dictionary, button: Button):
+	var item_id = item["id"]
+	match item["type"]:
+		"avatar":
+			progression.player_avatar = int(item_id)
+		"frame":
+			progression.player_frame = int(item_id)
+		"theme":
+			progression.select_theme(str(item_id))
+		"effect":
+			progression.player_effect = int(item_id)
+		"color":
+			if progression.active_colors.size() >= progression.max_color_slots:
+				button.text = "СЛОТЫ ЗАНЯТЫ"
+				button.disabled = true
+				return
+			if not progression.active_colors.has(int(item_id)):
+				progression.active_colors.append(int(item_id))
+	progression.request_save()
+	refresh_profile_button()
+	button.text = "✓ ГОТОВО"
+	button.disabled = true
 
 # Строки итогов: [текст, цвет]
 func get_summary_lines() -> Array:
@@ -974,8 +1083,7 @@ func get_summary_lines() -> Array:
 		lines.append(["🏅 Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
 	if summary["slots"] > 0:
 		lines.append(["🎨 +%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
-	for item_text in summary["items"]:
-		lines.append([item_text, Color(0.6, 1, 0.7)])
+	# Новые предметы показываются карточками ниже (add_reward_cards)
 	for mission_text in summary["missions"]:
 		lines.append([mission_text, Color(0.55, 0.9, 1)])
 	for achievement in summary["achievements"]:

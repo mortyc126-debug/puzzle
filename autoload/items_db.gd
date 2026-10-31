@@ -20,6 +20,40 @@ var block_colors = [
 	Color.OLIVE, Color.TEAL, Color.CORAL, Color.INDIGO
 ]
 
+var color_names = [
+	"Синий", "Красный", "Зелёный", "Жёлтый", "Фиолетовый", "Оранжевый", "Голубой", "Розовый",
+	"Лайм", "Пурпурный", "Шоколадный", "Бирюзовый", "Золотой", "Малиновый", "Хвойный", "Тёмно-синий",
+	"Оливковый", "Морской", "Коралловый", "Индиго",
+]
+
+# Цвета 0–5 доступны сразу, остальные — награды ранних уровней (индекс цвета → уровень)
+const COLOR_UNLOCK_LEVELS = {
+	6: 2, 7: 4, 8: 6, 9: 9, 10: 11, 11: 13, 12: 14, 13: 16, 14: 19, 15: 21, 16: 22, 17: 23, 18: 27, 19: 29,
+}
+
+# === ЭФФЕКТЫ ОЧИСТКИ ===
+# kind — как выглядят частицы, см. ui/effect_painter.gd
+
+var effects_data = {
+	1: {"name": "Искры", "rarity": "COMMON", "kind": "sparks",
+		"description": "Брызги в цвет темы. С них всё начинается.", "unlock": {"type": "default"}},
+	2: {"name": "Конфетти", "rarity": "UNCOMMON", "kind": "confetti",
+		"description": "Разноцветные бумажки разлетаются от каждой линии — маленький праздник.", "unlock": {"type": "level", "level": 8}},
+	3: {"name": "Звёздочки", "rarity": "UNCOMMON", "kind": "stars",
+		"description": "Золотые звёзды поднимаются над полем и мерцают.", "unlock": {"type": "level", "level": 17}},
+	4: {"name": "Пузыри", "rarity": "RARE", "kind": "bubbles",
+		"description": "Линия растворяется пузырями, как в морской глубине.", "unlock": {"type": "level", "level": 24}},
+	5: {"name": "Сердечки", "rarity": "RARE", "kind": "hearts",
+		"description": "Каждая очищенная линия — немного любви.", "unlock": {"type": "level", "level": 40}},
+	6: {"name": "Пиксели", "rarity": "EPIC", "kind": "pixels",
+		"description": "Блоки рассыпаются на крупные пиксели, как в старых играх.", "unlock": {"type": "level", "level": 55}},
+	7: {"name": "Радуга", "rarity": "EPIC", "kind": "rainbow",
+		"description": "Искры переливаются всеми цветами радуги.", "unlock": {"type": "level", "level": 90}},
+	8: {"name": "Фейерверк", "rarity": "LEGENDARY", "kind": "fireworks",
+		"description": "Залпы салюта за длинные серии. Для тех, кто не останавливается.",
+		"unlock": {"type": "achievement", "id": "streak", "tier": 4}},
+}
+
 # === РАМКИ ===
 
 var frames_data = {
@@ -99,6 +133,34 @@ var frames_data = {
 		"description": "Высшая награда: 500-й уровень. Таких рамок почти ни у кого нет.",
 		"texture": "res://assets/frames/frame_11.svg",
 		"unlock": {"type": "level", "level": 500},
+	},
+	12: {
+		"name": "Карамель",
+		"rarity": "UNCOMMON",
+		"description": "Полосатая, как леденцовая трость. Сладкая награда.",
+		"texture": "res://assets/frames/frame_12.svg",
+		"unlock": {"type": "level", "level": 26},
+	},
+	13: {
+		"name": "Волна",
+		"rarity": "RARE",
+		"description": "Морская рамка с гребнями волн.",
+		"texture": "res://assets/frames/frame_13.svg",
+		"unlock": {"type": "level", "level": 48},
+	},
+	14: {
+		"name": "Дубовая",
+		"rarity": "RARE",
+		"description": "Крепкая резная рамка из старого дуба.",
+		"texture": "res://assets/frames/frame_14.svg",
+		"unlock": {"type": "level", "level": 85},
+	},
+	15: {
+		"name": "Пиксельная",
+		"rarity": "EPIC",
+		"description": "Восемь бит, неоновые грани — привет из аркадного зала.",
+		"texture": "res://assets/frames/frame_15.svg",
+		"unlock": {"type": "level", "level": 130},
 	},
 }
 
@@ -203,6 +265,54 @@ var avatars_data = {
 		"description": "Корона по праву: триста уровней на поле.",
 		"unlock": {"type": "level", "level": 300},
 	},
+	17: {
+		"name": "Кексик",
+		"rarity": "UNCOMMON",
+		"description": "Пышный крем и вишенка сверху. Сладкоежка со стажем.",
+		"unlock": {"type": "level", "level": 25},
+	},
+	18: {
+		"name": "Леденец",
+		"rarity": "RARE",
+		"description": "Крутится-вертится и всегда в хорошем настроении.",
+		"unlock": {"type": "level", "level": 65},
+	},
+	19: {
+		"name": "Рыбка",
+		"rarity": "UNCOMMON",
+		"description": "Плавает между блоками и ищет свободную клетку.",
+		"unlock": {"type": "level", "level": 28},
+	},
+	20: {
+		"name": "Осьминог",
+		"rarity": "EPIC",
+		"description": "Восемь щупалец — восемь способов выбраться из безнадёжной позиции.",
+		"unlock": {"type": "achievement", "id": "clutch", "tier": 2},
+	},
+	21: {
+		"name": "Бобр",
+		"rarity": "RARE",
+		"description": "Строит плотины из блоков. Аккуратно, ряд к ряду.",
+		"unlock": {"type": "level", "level": 42},
+	},
+	22: {
+		"name": "Жёлудь",
+		"rarity": "UNCOMMON",
+		"description": "Маленький, но упрямый. Из него вырастет дуб.",
+		"unlock": {"type": "level", "level": 18},
+	},
+	23: {
+		"name": "Пиксельный пришелец",
+		"rarity": "EPIC",
+		"description": "Прилетел прямо из игрового автомата.",
+		"unlock": {"type": "level", "level": 52},
+	},
+	24: {
+		"name": "Джойстик",
+		"rarity": "LEGENDARY",
+		"description": "Для тех, кто сыграл двести пятьдесят партий и не собирается останавливаться.",
+		"unlock": {"type": "achievement", "id": "games", "tier": 4},
+	},
 }
 
 # === ФОНЫ И МУЗЫКА ===
@@ -221,6 +331,22 @@ func get_frame_ids() -> Array:
 	var ids = frames_data.keys()
 	ids.sort()
 	return ids
+
+func get_effect_ids() -> Array:
+	var ids = effects_data.keys()
+	ids.sort()
+	return ids
+
+func get_effect_data(effect_id: int) -> Dictionary:
+	return effects_data.get(effect_id, effects_data[1])
+
+func get_color_ids() -> Array:
+	return range(block_colors.size())
+
+func get_color_unlock(color_index: int) -> Dictionary:
+	if COLOR_UNLOCK_LEVELS.has(color_index):
+		return {"type": "level", "level": COLOR_UNLOCK_LEVELS[color_index]}
+	return {"type": "default"}
 
 func get_avatar_data(avatar_id: int) -> Dictionary:
 	return avatars_data.get(avatar_id, {})

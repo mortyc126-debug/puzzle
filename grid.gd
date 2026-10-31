@@ -21,6 +21,8 @@ var ghost_lines = {"rows": [], "cols": []}
 
 # Вспышки очищенных клеток: [{"pos": Vector2i, "color": int, "time": float}]
 var flashes: Array = []
+# Частицы выбранного эффекта очистки (см. ui/effect_painter.gd)
+var particles: Array = []
 
 func _ready() -> void:
 	ThemeManager.theme_changed.connect(_on_theme_changed)
@@ -35,11 +37,12 @@ func cell_rect(x: int, y: int) -> Rect2:
 	return Rect2(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE)
 
 func _process(delta: float) -> void:
-	if flashes.is_empty():
+	if flashes.is_empty() and particles.is_empty():
 		return
 	for flash in flashes:
 		flash["time"] += delta
 	flashes = flashes.filter(func(flash): return flash["time"] < FLASH_TIME)
+	EffectPainter.update(particles, delta)
 	queue_redraw()
 
 func _draw() -> void:
@@ -76,6 +79,8 @@ func _draw() -> void:
 		var pos: Vector2i = flash["pos"]
 		BlockRenderer.draw_flash(self, cell_rect(pos.x, pos.y), ThemeManager.get_block_color(flash["color"]), theme, t)
 
+	EffectPainter.draw(self, particles)
+
 # === GHOST PREVIEW ===
 
 func show_ghost(shape: Array, grid_x: int, grid_y: int, is_valid: bool, color_index: int) -> void:
@@ -102,30 +107,15 @@ func hide_ghost() -> void:
 # === ЭФФЕКТЫ ОЧИСТКИ ===
 
 # cleared — результат Board.clear_lines(), lines — результат Board.find_full_lines()
-func play_clear_effect(cleared: Array, lines: Dictionary) -> void:
+func play_clear_effect(cleared: Array, _lines: Dictionary = {}) -> void:
+	var kind: String = ItemsDB.get_effect_data(Progression.player_effect).get("kind", "sparks")
+	# Чем больше клеток очищено, тем меньше частиц на клетку — чтобы не перегружать экран и телефон
+	var per_cell = clampi(48 / maxi(cleared.size(), 1), 2, 6)
 	for item in cleared:
 		flashes.append({"pos": item["pos"], "color": item["color"], "time": 0.0})
-	spawn_clear_particles(lines)
+		var color = ThemeManager.current.particle_color if kind == "sparks" else ThemeManager.get_block_color(item["color"])
+		EffectPainter.burst(particles, kind, cell_rect(item["pos"].x, item["pos"].y).get_center(), color, per_cell, CELL_SIZE)
 	queue_redraw()
-
-func spawn_clear_particles(lines: Dictionary) -> void:
-	var particles = get_node_or_null("ClearParticles")
-	if particles == null:
-		return
-
-	var centers = []
-	for row in lines["rows"]:
-		centers.append(Vector2(GRID_SIZE * CELL_SIZE / 2.0, row * CELL_SIZE + CELL_SIZE / 2.0))
-	for col in lines["cols"]:
-		centers.append(Vector2(col * CELL_SIZE + CELL_SIZE / 2.0, GRID_SIZE * CELL_SIZE / 2.0))
-
-	for center in centers:
-		var new_particles = particles.duplicate()
-		add_child(new_particles)
-		new_particles.position = center
-		new_particles.modulate = ThemeManager.current.particle_color
-		new_particles.emitting = true
-		get_tree().create_timer(1.0).timeout.connect(new_particles.queue_free)
 
 # === МОЛОТОК: нажатие по клетке ===
 

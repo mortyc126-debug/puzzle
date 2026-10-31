@@ -4,18 +4,20 @@ extends Control
 ## Вкладки: Статистика, Цвета, Темы, Музыка, Аватарки, Рамки, Достижения.
 
 const TAB_STATS = 0
-const TAB_COLORS = 1
-const TAB_THEMES = 2
-const TAB_MUSIC = 3
-const TAB_AVATARS = 4
-const TAB_FRAMES = 5
-const TAB_ACHIEVEMENTS = 6
+const TAB_REWARDS = 1
+const TAB_COLORS = 2
+const TAB_THEMES = 3
+const TAB_EFFECTS = 4
+const TAB_AVATARS = 5
+const TAB_FRAMES = 6
+const TAB_ACHIEVEMENTS = 7
 
 const PATH_TABS = "CustomizeContainer"
 const PATH_STATS = "CustomizeContainer/📊 Statistics/StatsContent"
 const PATH_COLORS = "CustomizeContainer/🎨 Colors/ColorsContent"
 const PATH_THEMES = "CustomizeContainer/🌌 Themes/ThemesList"
-const PATH_MUSIC = "CustomizeContainer/🎵 Music/MusicList"
+const PATH_EFFECTS = "CustomizeContainer/✨ Effects/EffectsList"
+const PATH_REWARDS = "CustomizeContainer/🎁 Rewards/RewardsList"
 const PATH_AVATARS = "CustomizeContainer/👤 Avatars/AvatarsList"
 const PATH_FRAMES = "CustomizeContainer/🖼️ Frames/FramesList"
 const PATH_ACHIEVEMENTS = "CustomizeContainer/🏆 Achievements/AchievementsContent"
@@ -44,7 +46,8 @@ func _ready():
 	create_stats_list()
 	create_colors_list()
 	create_themes_list()
-	create_music_list()
+	create_effects_list()
+	create_rewards_list()
 	create_avatars_list()
 	create_frames_list()
 	create_achievements_list()
@@ -109,11 +112,10 @@ func update_tab_titles():
 	var flags = progression.has_new_items
 	var new_mark = func(key): return " НОВОЕ" if flags.get(key, false) else ""
 	tabs.set_tab_title(TAB_STATS, "📊 Статистика")
-	tabs.set_tab_title(TAB_COLORS, "🎨 Цвета")
+	tabs.set_tab_title(TAB_REWARDS, "🎁 Путь наград")
+	tabs.set_tab_title(TAB_COLORS, "🎨 Цвета" + new_mark.call("colors"))
 	tabs.set_tab_title(TAB_THEMES, "🌌 Темы" + new_mark.call("themes"))
-	tabs.set_tab_title(TAB_MUSIC, "🎵 Музыка")
-	# Музыки пока нет — вкладку не показываем
-	tabs.set_tab_hidden(TAB_MUSIC, true)
+	tabs.set_tab_title(TAB_EFFECTS, "✨ Эффекты" + new_mark.call("effects"))
 	tabs.set_tab_title(TAB_AVATARS, "👤 Аватарки" + new_mark.call("avatars"))
 	tabs.set_tab_title(TAB_FRAMES, "🖼️ Рамки" + new_mark.call("frames"))
 	tabs.set_tab_title(TAB_ACHIEVEMENTS, "🏆 Достижения" + new_mark.call("achievements"))
@@ -124,6 +126,10 @@ func _on_tab_changed(tab: int):
 	match tab:
 		TAB_THEMES:
 			category = "themes"
+		TAB_EFFECTS:
+			category = "effects"
+		TAB_COLORS:
+			category = "colors"
 		TAB_AVATARS:
 			category = "avatars"
 		TAB_FRAMES:
@@ -146,6 +152,8 @@ func auto_open_new_items_tab():
 		["themes", TAB_THEMES],
 		["avatars", TAB_AVATARS],
 		["frames", TAB_FRAMES],
+		["effects", TAB_EFFECTS],
+		["colors", TAB_COLORS],
 	]
 	for pair in order:
 		if progression.has_new_items.get(pair[0], false):
@@ -164,7 +172,7 @@ func create_stats_list():
 		var progress_box = VBoxContainer.new()
 		progress_box.name = "ProgressBox"
 		progress_box.add_theme_constant_override("separation", 6)
-		for node_name in ["RankLabel", "XPProgressLabel", "NextRewardLabel"]:
+		for node_name in ["RankLabel", "XPProgressLabel", "NextRewardLabel", "CollectionLabel"]:
 			var label = make_label("", 26, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
 			label.name = node_name
 			progress_box.add_child(label)
@@ -220,6 +228,8 @@ func update_stats_labels():
 				"🎁 На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
 		next_label.add_theme_font_size_override("font_size", 22)
 		next_label.add_theme_color_override("font_color", Color(0.8, 0.84, 0.98))
+		var collection = progression.get_collection_progress()
+		progress_box.get_node("CollectionLabel").text = "🗂️ Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]
 
 # === ЦВЕТА БЛОКОВ (тема «Классика») ===
 
@@ -290,6 +300,19 @@ func create_colors_list():
 		color_rect.color = all_colors[i]
 		color_container.add_child(color_rect)
 
+		if not progression.is_unlocked("color", i):
+			color_rect.color = Color(all_colors[i], 0.25)
+			var lock_label = Label.new()
+			lock_label.text = "🔒%d" % ItemsDB.get_color_unlock(i).get("level", 0)
+			lock_label.size = Vector2(80, 80)
+			lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			lock_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			lock_label.add_theme_font_size_override("font_size", 20)
+			lock_label.tooltip_text = ItemsDB.color_names[i]
+			color_container.add_child(lock_label)
+			all_colors_container.add_child(color_container)
+			continue
+
 		var select_btn = Button.new()
 		select_btn.size = Vector2(80, 80)
 		select_btn.flat = true
@@ -303,7 +326,7 @@ func create_colors_list():
 		all_colors_container.add_child(color_container)
 
 func _on_select_color(color_index: int):
-	if color_index in progression.active_colors:
+	if color_index in progression.active_colors or not progression.is_unlocked("color", color_index):
 		return
 	if progression.active_colors.size() >= progression.max_color_slots:
 		return
@@ -366,15 +389,108 @@ func _on_theme_clicked(theme_id: String):
 	create_themes_list()
 	create_colors_list()
 
-# === МУЗЫКА (заготовка) ===
+# === ЭФФЕКТЫ ОЧИСТКИ ===
 
-func create_music_list():
-	var container = get_node_or_null(PATH_MUSIC)
+func create_effects_list():
+	var container: GridContainer = get_node_or_null(PATH_EFFECTS)
 	if container == null:
 		return
 	for child in container.get_children():
 		child.queue_free()
-	container.add_child(make_label("🎵 Музыкальные треки появятся в следующих обновлениях.", 26, Color(0.8, 0.82, 0.95)))
+
+	for effect_id in ItemsDB.get_effect_ids():
+		var data = ItemsDB.get_effect_data(effect_id)
+		var unlocked = progression.is_unlocked("effect", effect_id)
+		var selected = effect_id == progression.player_effect
+
+		var card = Button.new()
+		card.custom_minimum_size = Vector2(262, 270)
+		card.pressed.connect(_on_effect_clicked.bind(effect_id))
+		if selected:
+			card.add_theme_stylebox_override("normal", make_highlight_box(GOLD))
+
+		var preview = EffectPreview.new()
+		preview.position = Vector2(16, 14)
+		preview.size = Vector2(230, 150)
+		preview.setup(data.get("kind", "sparks"), ThemeManager.get_block_color(effect_id))
+		if not unlocked:
+			preview.modulate = Color(0.35, 0.35, 0.4)
+		card.add_child(preview)
+
+		var title = make_label(data.get("name", "?"), 24, ItemsDB.get_rarity_color(data.get("rarity", "COMMON")))
+		title.position = Vector2(8, 170)
+		title.size = Vector2(246, 34)
+		card.add_child(title)
+
+		var status = "✓ Выбран" if selected else ("Нажмите, чтобы выбрать" if unlocked else "🔒 " + ItemsDB.get_unlock_text(data.get("unlock", {})))
+		var status_label = make_label(status, 17, GOLD if selected else Color(0.8, 0.82, 0.95))
+		status_label.position = Vector2(8, 206)
+		status_label.size = Vector2(246, 56)
+		card.add_child(status_label)
+
+		container.add_child(card)
+
+func _on_effect_clicked(effect_id: int):
+	var data = ItemsDB.get_effect_data(effect_id)
+	if not progression.is_unlocked("effect", effect_id):
+		show_info_popup(data.get("name", "?"), data.get("description", "") + "\n\n🔒 " + ItemsDB.get_unlock_text(data.get("unlock", {})))
+		return
+	progression.player_effect = effect_id
+	progression.request_save()
+	create_effects_list()
+
+# === ПУТЬ НАГРАД ===
+# Все уровни, где есть что-то кроме монет. Пройденные — отмечены, ближайший — подсвечен.
+
+func create_rewards_list():
+	var container = get_node_or_null(PATH_REWARDS)
+	if container == null:
+		return
+	for child in container.get_children():
+		child.queue_free()
+
+	var collection = progression.get_collection_progress()
+	container.add_child(make_label("Вы на уровне %d · %s" % [progression.current_level, progression.get_rank()], 30, GOLD))
+	container.add_child(make_label("🗂️ Собрано %d из %d предметов" % [collection["have"], collection["total"]], 22, Color(0.8, 0.84, 0.98)))
+
+	var next_row = null
+	for level in range(2, Progression.MAX_LEVEL + 1):
+		var lines = progression.get_level_reward_lines(level, false)
+		if lines.is_empty():
+			continue
+		var reached = level <= progression.current_level
+		var is_next = next_row == null and not reached
+
+		var panel = PanelContainer.new()
+		var accent = GOLD if is_next else (Color(0.45, 0.85, 0.55) if reached else Color(0.35, 0.38, 0.6))
+		panel.add_theme_stylebox_override("panel", make_highlight_box(accent, 0.25 if is_next else 0.12))
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 16)
+		panel.add_child(row)
+
+		var level_label = make_label(str(level), 34, accent)
+		level_label.custom_minimum_size = Vector2(90, 0)
+		row.add_child(level_label)
+
+		var text = make_label("\n".join(lines), 22, Color.WHITE if reached or is_next else Color(0.75, 0.77, 0.9), HORIZONTAL_ALIGNMENT_LEFT)
+		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(text)
+
+		var status = make_label("✓" if reached else ("Следующая" if is_next else "🔒"), 22, accent)
+		status.custom_minimum_size = Vector2(130, 0)
+		row.add_child(status)
+
+		container.add_child(panel)
+		if is_next:
+			next_row = panel
+
+	# Прокручиваем к ближайшей награде
+	if next_row:
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var scroll = get_node_or_null("CustomizeContainer/🎁 Rewards")
+		if scroll and is_instance_valid(next_row):
+			scroll.scroll_vertical = maxi(0, int(next_row.position.y) - 140)
 
 # === АВАТАРКИ И РАМКИ ===
 

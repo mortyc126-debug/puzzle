@@ -322,6 +322,125 @@ AVATARS[16] = svg(
     d,
 )
 
+# 17. Кексик
+d, b = background("#ff9ac8", "#8a4fd8")
+AVATARS[17] = svg(
+    b + "".join(f'<circle cx="{x}" cy="{y}" r="5" fill="#fff" opacity="0.35"/>' for x, y in ((30, 40), (220, 50), (40, 190), (214, 200)))
+    + '<path d="M70 132 L186 132 L170 204 L86 204 Z" fill="#ff7eb6"/>'
+    + '<path d="M96 132 L104 204 M128 132 L128 204 M160 132 L152 204" stroke="#e85a98" stroke-width="7"/>'
+    + '<ellipse cx="128" cy="126" rx="70" ry="22" fill="#fff0f6"/>'
+    + '<ellipse cx="128" cy="100" rx="56" ry="26" fill="#fff0f6"/>'
+    + '<ellipse cx="128" cy="76" rx="38" ry="22" fill="#fff6fa"/>'
+    + '<path d="M128 54 q4 -16 18 -22" fill="none" stroke="#3a8a3a" stroke-width="4" stroke-linecap="round"/>'
+    + '<circle cx="128" cy="52" r="13" fill="#ff3b5c"/><circle cx="124" cy="48" r="4" fill="#fff" opacity="0.8"/>'
+    + "".join(f'<rect x="{x}" y="{y}" width="10" height="4" rx="2" fill="{c}" transform="rotate({r} {x} {y})"/>'
+              for x, y, c, r in ((96, 98, "#5fe0b0", 20), (150, 92, "#ffd84d", -30), (120, 112, "#6ec8ff", 60), (164, 116, "#b78bff", 10), (84, 118, "#ffa45c", -15)))
+    + eyes(108, 148, 162, 9)
+    + '<path d="M116 182 q12 10 24 0" fill="none" stroke="#7a2048" stroke-width="5" stroke-linecap="round"/>',
+    d,
+)
+
+# 18. Леденец
+d, b = background("#5fe0b0", "#147a6a")
+AVATARS[18] = svg(
+    b + '<rect x="122" y="150" width="12" height="80" rx="6" fill="#f5e6c8"/>'
+    + '<circle cx="128" cy="104" r="68" fill="#ff7eb6"/>'
+    + '<path d="M128 104 m-56 0 a56 56 0 0 1 112 0 a44 44 0 0 1 -88 0 a32 32 0 0 1 64 0 a20 20 0 0 1 -40 0" fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round"/>'
+    + '<circle cx="128" cy="104" r="68" fill="none" stroke="#e85a98" stroke-width="4"/>'
+    + '<path d="M84 70 q20 -26 52 -24" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" opacity="0.6"/>'
+    + eyes(106, 150, 108, 10)
+    + '<path d="M114 132 q14 12 28 0" fill="none" stroke="#7a2048" stroke-width="5" stroke-linecap="round"/>',
+    d,
+)
+
+# 19. Рыбка
+d, b = background("#3fe0d0", "#0b4a8a")
+AVATARS[19] = svg(
+    b + '<circle cx="54" cy="58" r="8" fill="none" stroke="#fff" stroke-width="3" opacity="0.6"/>'
+    + '<circle cx="40" cy="86" r="5" fill="none" stroke="#fff" stroke-width="3" opacity="0.5"/>'
+    + '<path d="M176 120 L226 82 L222 160 Z" fill="#ff7a3d"/>'
+    + '<path d="M120 70 q20 -26 40 -4 Z" fill="#ff7a3d"/>'
+    + '<ellipse cx="124" cy="122" rx="68" ry="52" fill="#ff9a3d"/>'
+    + '<path d="M150 80 q16 40 0 84" fill="none" stroke="#ffb86b" stroke-width="10" opacity="0.8"/>'
+    + '<path d="M120 76 q14 46 0 92" fill="none" stroke="#ffb86b" stroke-width="10" opacity="0.6"/>'
+    + '<circle cx="92" cy="110" r="18" fill="#fff"/><circle cx="96" cy="112" r="10" fill="#1b1f3a"/><circle cx="99" cy="107" r="3.5" fill="#fff"/>'
+    + '<path d="M66 140 q10 8 22 2" fill="none" stroke="#a8471a" stroke-width="5" stroke-linecap="round"/>'
+    + '<path d="M118 150 q10 14 24 6" fill="none" stroke="#ff7a3d" stroke-width="8" stroke-linecap="round"/>',
+    d,
+)
+
+# 20. Осьминог
+d, b = background("#5a3fd8", "#140a4a")
+AVATARS[20] = svg(
+    b + stars(0.4)
+    + "".join(f'<path d="M{x} 150 q{dx} 30 {dx2} 56" fill="none" stroke="#b07cff" stroke-width="16" stroke-linecap="round"/>'
+              for x, dx, dx2 in ((76, -18, 0), (100, -10, 6), (124, 4, -6), (148, 10, 4), (172, 18, 0)))
+    + '<path d="M128 40 C186 40 204 92 196 132 C190 160 160 164 128 164 C96 164 66 160 60 132 C52 92 70 40 128 40 Z" fill="#b07cff"/>'
+    + '<path d="M96 54 q32 -18 64 0" fill="none" stroke="#d6b8ff" stroke-width="10" stroke-linecap="round" opacity="0.7"/>'
+    + '<circle cx="168" cy="78" r="8" fill="#9a60f0"/><circle cx="84" cy="90" r="6" fill="#9a60f0"/>'
+    + eyes(106, 150, 112, 12)
+    + '<path d="M116 140 q12 10 24 0" fill="none" stroke="#3a1a6a" stroke-width="5" stroke-linecap="round"/>'
+    + '<circle cx="88" cy="134" r="8" fill="#ff8ad5" opacity="0.6"/><circle cx="168" cy="134" r="8" fill="#ff8ad5" opacity="0.6"/>',
+    d,
+)
+
+# 21. Бобр
+d, b = background("#7cc46a", "#2a6a3a")
+AVATARS[21] = svg(
+    b + '<circle cx="70" cy="62" r="18" fill="#7a4a2a"/><circle cx="186" cy="62" r="18" fill="#7a4a2a"/>'
+    + '<circle cx="70" cy="62" r="9" fill="#5a3418"/><circle cx="186" cy="62" r="9" fill="#5a3418"/>'
+    + '<ellipse cx="128" cy="120" rx="76" ry="72" fill="#9a5f36"/>'
+    + '<ellipse cx="128" cy="146" rx="46" ry="36" fill="#d9a878"/>'
+    + '<ellipse cx="128" cy="126" rx="16" ry="11" fill="#3a2010"/>'
+    + '<rect x="114" y="150" width="13" height="22" rx="3" fill="#fff"/><rect x="129" y="150" width="13" height="22" rx="3" fill="#fff"/>'
+    + '<path d="M110 150 q18 8 36 0" fill="none" stroke="#5a3418" stroke-width="4" stroke-linecap="round"/>'
+    + eyes(100, 156, 100, 10),
+    d,
+)
+
+# 22. Жёлудь
+d, b = background("#c9b458", "#5a4a1a")
+AVATARS[22] = svg(
+    b + '<path d="M176 58 q30 -20 46 4 q-24 14 -46 -4 Z" fill="#5bd17a"/>'
+    + '<ellipse cx="128" cy="140" rx="58" ry="66" fill="#d99a4e"/>'
+    + '<path d="M86 120 q-4 50 30 74" fill="none" stroke="#f0b870" stroke-width="10" stroke-linecap="round" opacity="0.7"/>'
+    + '<path d="M62 96 Q128 42 194 96 Q190 112 128 112 Q66 112 62 96 Z" fill="#7a4a2a"/>'
+    + '<path d="M80 92 L176 92 M74 102 L182 102 M100 72 L120 106 M128 64 L144 106 M156 72 L168 104 M96 104 L108 76" stroke="#5a3418" stroke-width="3" opacity="0.6"/>'
+    + '<rect x="122" y="40" width="10" height="24" rx="4" fill="#5a3418"/>'
+    + eyes(108, 148, 148, 10)
+    + '<path d="M114 176 q14 10 28 0" fill="none" stroke="#7a3a10" stroke-width="5" stroke-linecap="round"/>',
+    d,
+)
+
+# 23. Пиксельный пришелец
+d, b = background("#3a0b52", "#0a0118")
+INVADER = ["..X.....X..", "...X...X...", "..XXXXXXX..", ".XX.XXX.XX.", "XXXXXXXXXXX", "X.XXXXXXX.X", "X.X.....X.X", "...XX.XX..."]
+px = 16
+ox = 128 - len(INVADER[0]) * px / 2
+oy = 50
+AVATARS[23] = svg(
+    b + "".join(f'<rect x="{x}" y="{y}" width="4" height="4" fill="#fff" opacity="0.7"/>' for x, y in ((30, 30), (214, 44), (40, 200), (220, 190), (190, 26)))
+    + "".join(f'<rect x="{ox + x * px}" y="{oy + y * px}" width="{px}" height="{px}" fill="#4ade3b"/>'
+              for y, row in enumerate(INVADER) for x, ch in enumerate(row) if ch == "X")
+    + "".join(f'<rect x="{ox + x * px}" y="{oy + y * px}" width="{px}" height="4" fill="#9dff8a"/>'
+              for y, row in enumerate(INVADER) for x, ch in enumerate(row) if ch == "X")
+    + '<rect x="40" y="206" width="176" height="6" fill="#ff4dd9" opacity="0.8"/>',
+    d,
+)
+
+# 24. Джойстик
+d, b = background("#e83b3b", "#4a0a1a")
+AVATARS[24] = svg(
+    b + '<rect x="48" y="132" width="160" height="70" rx="16" fill="#1f2438"/>'
+    + '<rect x="48" y="132" width="160" height="22" rx="11" fill="#33395a"/>'
+    + '<rect x="118" y="64" width="20" height="80" rx="8" fill="#9aa3c0"/>'
+    + '<circle cx="128" cy="64" r="34" fill="#ff3b5c"/><circle cx="116" cy="52" r="10" fill="#ff8a9c"/>'
+    + '<circle cx="78" cy="170" r="12" fill="#ffd23f"/><circle cx="178" cy="170" r="12" fill="#3bd6e8"/>'
+    + '<circle cx="78" cy="166" r="4" fill="#fff" opacity="0.7"/><circle cx="178" cy="166" r="4" fill="#fff" opacity="0.7"/>'
+    + sparkle(206, 50, 10, "#ffd23f") + sparkle(46, 70, 7, "#fff"),
+    d,
+)
+
 # === РАМКИ ===
 # Квадратная рамка с прозрачным центром и плашкой под имя внизу (как frame_1.png).
 
@@ -382,6 +501,26 @@ FRAMES.update({
               "#e0f7ff", "#0e3a5c", "#ffffff", "#ffffff",
               extra=(sparkle(128, 17, 8) + sparkle(17, 72, 5) + sparkle(239, 72, 5)
                      + sparkle(17, 184, 5) + sparkle(239, 184, 5) + sparkle(72, 239, 4) + sparkle(184, 239, 4))),
+})
+
+def stripes(c1, c2, n=10):
+    stops = []
+    for i in range(n):
+        a, b2 = i / n, (i + 1) / n
+        color = c1 if i % 2 == 0 else c2
+        stops += [(round(a, 3), color), (round(b2, 3), color)]
+    return stops
+
+FRAMES.update({
+    12: frame(stripes("#ff5c9a", "#fff4f8", 14), "#ff7eb6", "#c2306e", "#fff4f8", "#fff4f8"),
+    13: frame([(0, "#bff6ff"), (0.4, "#3fb8e0"), (0.7, "#0b4a8a"), (1, "#7fe3ff")], "#3fe0d0", "#073a5c", "#bff6ff", "#e0fbff",
+              extra="".join(f'<path d="M{x} 17 q8 -8 16 0 q8 8 16 0" fill="none" stroke="#e0fbff" stroke-width="3" opacity="0.8"/>' for x in (40, 104, 168))),
+    14: frame([(0, "#d9a878"), (0.35, "#9a5f36"), (0.65, "#5a3418"), (1, "#b07a4a")], "#5bd17a", "#3a2010", "#d9a878", "#d9a878",
+              extra="".join(f'<path d="M{x} 12 q4 120 -2 232" fill="none" stroke="#3a2010" stroke-width="1.5" opacity="0.5"/>' for x in (14, 20))
+              + "".join(f'<path d="M{x} 12 q-4 120 2 232" fill="none" stroke="#3a2010" stroke-width="1.5" opacity="0.5"/>' for x in (236, 242))),
+    15: frame([(0, "#ff4dd9"), (0.5, "#7a2be0"), (1, "#3bd6e8")], "#4ade3b", "#120a2a", "#ff4dd9", "#3bd6e8",
+              extra="".join(f'<rect x="{x}" y="{y}" width="6" height="6" fill="#fff" opacity="0.7"/>'
+                            for x, y in ((40, 14), (80, 14), (170, 14), (210, 14), (14, 60), (14, 190), (236, 60), (236, 190)))),
 })
 
 

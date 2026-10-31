@@ -12,7 +12,7 @@ signal daily_reward_claimed(day, reward)
 
 const SAVE_PATH = "user://progression.save"
 const OLD_BEST_SCORE_PATH = "user://best_score.save"
-const SAVE_VERSION = 2
+const SAVE_VERSION = 3
 const AUTOSAVE_DELAY_MS = 3000
 const MAX_COLOR_SLOTS = 8
 const MAX_LEVEL = 500
@@ -59,6 +59,8 @@ var has_new_items = {
 	"avatars": false,
 	"frames": false,
 	"themes": false,
+	"effects": false,
+	"colors": false,
 	"music": false,
 	"daily": false
 }
@@ -73,8 +75,11 @@ var unlocked_avatars = []
 var unlocked_frames = []
 var unlocked_themes = []
 var unlocked_music = []
+var unlocked_effects = []
+var unlocked_colors = []
 var player_avatar = 1
 var player_frame = 1
+var player_effect = 1  # Эффект очистки линий (ItemsDB.effects_data)
 var player_name = "Игрок"
 var active_theme = "classic"
 
@@ -238,6 +243,10 @@ func is_unlocked(item_type: String, item_id) -> bool:
 			return unlocked_frames.has(int(item_id))
 		"theme":
 			return unlocked_themes.has(str(item_id))
+		"effect":
+			return unlocked_effects.has(int(item_id))
+		"color":
+			return unlocked_colors.has(int(item_id))
 	return false
 
 # Открывает предмет. Возвращает true, если он открыт впервые.
@@ -256,6 +265,12 @@ func unlock_item(item_type: String, item_id, notify: bool = true) -> bool:
 		"theme":
 			unlocked_themes.append(str(item_id))
 			category = "themes"
+		"effect":
+			unlocked_effects.append(int(item_id))
+			category = "effects"
+		"color":
+			unlocked_colors.append(int(item_id))
+			category = "colors"
 		_:
 			return false
 
@@ -278,7 +293,21 @@ func find_items(unlock_type: String, key = null) -> Array:
 	for theme in ThemeManager.themes:
 		if _unlock_matches(theme.unlock, unlock_type, key):
 			result.append({"type": "theme", "id": theme.id})
+	for effect_id in ItemsDB.get_effect_ids():
+		if _unlock_matches(ItemsDB.get_effect_data(effect_id).get("unlock", {}), unlock_type, key):
+			result.append({"type": "effect", "id": effect_id})
+	for color_index in ItemsDB.get_color_ids():
+		if _unlock_matches(ItemsDB.get_color_unlock(color_index), unlock_type, key):
+			result.append({"type": "color", "id": color_index})
 	return result
+
+# Сколько предметов собрано из всех: аватарки, рамки, темы, эффекты, цвета
+func get_collection_progress() -> Dictionary:
+	var total = ItemsDB.get_avatar_ids().size() + ItemsDB.get_frame_ids().size() + ThemeManager.themes.size() \
+		+ ItemsDB.get_effect_ids().size() + ItemsDB.get_color_ids().size()
+	var have = unlocked_avatars.size() + unlocked_frames.size() + unlocked_themes.size() \
+		+ unlocked_effects.size() + unlocked_colors.size()
+	return {"have": mini(have, total), "total": total}
 
 func _unlock_matches(unlock: Dictionary, unlock_type: String, key) -> bool:
 	if unlock.get("type", "default") != unlock_type:
@@ -316,6 +345,14 @@ func sync_unlocks() -> void:
 		player_avatar = defaults[randi() % defaults.size()] if not defaults.is_empty() else 1
 	if not is_unlocked("frame", player_frame):
 		player_frame = 1
+	if not is_unlocked("effect", player_effect):
+		player_effect = 1
+	# В слотах могут стоять только открытые цвета
+	var allowed_colors = []
+	for color_index in active_colors:
+		if is_unlocked("color", color_index):
+			allowed_colors.append(color_index)
+	active_colors = allowed_colors if not allowed_colors.is_empty() else [0, 1, 2, 3]
 	max_color_slots = maxi(max_color_slots, get_color_slots_for_level(current_level))
 
 # Подпись предмета для наград: «👤 Аватарка «Космонавт»»
@@ -328,6 +365,10 @@ func get_item_label(item_type: String, item_id) -> String:
 		"theme":
 			var theme = ThemeManager.get_theme_by_id(str(item_id))
 			return "🌌 Тема «%s»" % (theme.display_name if theme else str(item_id))
+		"effect":
+			return "✨ Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
+		"color":
+			return "🎨 Цвет «%s»" % ItemsDB.color_names[int(item_id)]
 	return "🎁 Награда"
 
 func select_theme(theme_id: String) -> bool:
@@ -361,6 +402,9 @@ func save_progress():
 		"unlocked_frames": unlocked_frames,
 		"unlocked_themes": unlocked_themes,
 		"unlocked_music": unlocked_music,
+		"unlocked_effects": unlocked_effects,
+		"unlocked_colors": unlocked_colors,
+		"player_effect": player_effect,
 		"max_color_slots": max_color_slots,
 		"active_colors": active_colors,
 		"best_score": best_score,
@@ -429,6 +473,9 @@ func load_progress():
 	unlocked_frames = save_data.get("unlocked_frames", [])
 	unlocked_themes = save_data.get("unlocked_themes", [])
 	unlocked_music = save_data.get("unlocked_music", [])
+	unlocked_effects = save_data.get("unlocked_effects", [])
+	unlocked_colors = save_data.get("unlocked_colors", [])
+	player_effect = save_data.get("player_effect", 1)
 	max_color_slots = save_data.get("max_color_slots", 4)
 	active_colors = save_data.get("active_colors", [0, 1, 2, 3])
 
@@ -455,6 +502,12 @@ func load_progress():
 		has_new_items[key] = saved_flags.get(key, false)
 
 	current_level = mini(current_level, MAX_LEVEL)
+
+	if version < 3:
+		# Версия 2: все цвета были открыты — сохраняем те, что игрок уже выбрал
+		for color_index in active_colors:
+			if not unlocked_colors.has(int(color_index)):
+				unlocked_colors.append(int(color_index))
 
 	if version < 2:
 		# Версия 1: старые аватарки удалены, открытия пересчитываются заново (sync_unlocks)
