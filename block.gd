@@ -65,7 +65,11 @@ func _input(event: InputEvent) -> void:
 	var is_press_event = event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
 	if is_press_event:
 		if event.pressed:
-			if not dragging and game.dragging_block == null and is_point_inside(event.position):
+			if game.rotate_mode:
+				# Режим поворота: нажатие поворачивает фигуру, а не берёт её
+				if is_point_inside(event.position):
+					game.rotate_block(self)
+			elif not dragging and game.dragging_block == null and is_point_inside(event.position):
 				start_drag(event.position, event is InputEventScreenTouch)
 		elif dragging:
 			finish_drag(event.position)

@@ -18,7 +18,22 @@ func _ready():
 	music.toggled.connect(GameSettings.set_music)
 	vibration.toggled.connect(_on_vibration_toggled)
 
+	add_zen_toggle()
 	add_links()
+
+# Спокойный режим: переключатель добавляется кодом под остальными
+func add_zen_toggle():
+	var row = HBoxContainer.new()
+	var label = Label.new()
+	label.text = "🧘 Спокойный режим\nбез проигрыша, со следующей партии"
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label.add_theme_font_size_override("font_size", 26)
+	row.add_child(label)
+	var toggle = CheckButton.new()
+	toggle.button_pressed = GameSettings.zen_mode
+	toggle.toggled.connect(GameSettings.set_zen_mode)
+	row.add_child(toggle)
+	$OptionsContainer.add_child(row)
 
 # Оценка, обратная связь и версия — добавляются кодом под переключателями
 func add_links():

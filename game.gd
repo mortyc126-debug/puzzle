@@ -18,6 +18,10 @@ const CLUTCH_FILL = 0.75  # «На краю»: очистка при запол�
 const PRICE_HAMMER = 10
 const PRICE_SHUFFLE = 30
 const PRICE_UNDO = 20
+const PRICE_ROTATE = 15
+const ZEN_COIN_RATE = 0.5    # В спокойном режиме монет за очки вдвое меньше: проиграть нельзя
+const ZEN_REFRESH_SHARE = 0.4  # Какую долю занятых клеток убирает «освежение» поля
+const RUN_SAVE_PATH = "user://run.save"
 const CONTINUE_BASE_COST = 100
 const PLAY_TIME_STEP = 10.0
 
@@ -52,7 +56,7 @@ var pieces_this_run = 0
 # Итоги партии: пока идёт начисление наград в finish_run(), события уровня,
 # предметов и достижений собираются сюда, а не показываются уведомлениями
 var collecting_summary = false
-var summary = {"levels": [], "level_coins": 0, "slots": 0, "ranks": [], "items": [], "achievements": []}
+var summary = {"levels": [], "level_coins": 0, "slots": 0, "ranks": [], "items": [], "achievements": [], "missions": []}
 var tutorial_label: Label = null
 
 # Continue
@@ -64,6 +68,13 @@ var hammer_mode = false
 var last_move = null  # Для Undo: ход без очистки линий
 
 var game_timer = 0.0
+
+# Режимы и статистика партии
+var zen = false               # Спокойный режим: вместо проигрыша поле освежается
+var rotate_mode = false       # Бонус «Поворот» ждёт нажатия на фигуру
+var run_max_streak = 0
+var run_max_combo = 0
+var record_announced = false  # Баннер «Новый рекорд!» уже показан в этой партии
 
 # HUD
 var score_label: Label
@@ -80,6 +91,7 @@ func _ready():
 	progression = Progression
 	progression.reset_multiplier()
 	best_score_at_start = progression.best_score
+	zen = GameSettings.zen_mode
 	default_place_stream = sound_place.stream
 	default_clear_stream = sound_clear.stream
 
@@ -97,6 +109,8 @@ func _ready():
 	progression.daily_reward_claimed.connect(_on_daily_claimed)
 	Events.achievement_unlocked.connect(_on_achievement_unlocked)
 	Events.item_unlocked.connect(_on_item_unlocked)
+	Missions.mission_completed.connect(_on_mission_completed)
+	Missions.all_missions_completed.connect(_on_all_missions_completed)
 	ThemeManager.theme_changed.connect(apply_theme_visuals)
 
 	apply_theme_visuals(ThemeManager.current)
@@ -104,7 +118,10 @@ func _ready():
 	update_daily_button()
 
 	scoring.reset()
-	spawn_blocks()
+	if not load_run():
+		spawn_blocks()
+		save_run()
+	update_zen_display()
 	update_powerup_buttons()
 	show_tutorial_if_needed()
 	Events.game_started.emit()
@@ -184,6 +201,7 @@ func connect_buttons():
 	$SettingsButton.pressed.connect(_on_settings_pressed)
 	$RestartButton.pressed.connect(_on_restart_button_pressed)
 	$HammerButton.pressed.connect(_on_hammer_pressed)
+	$RotateButton.pressed.connect(_on_rotate_pressed)
 	$ShuffleButton.pressed.connect(_on_shuffle_pressed)
 	$UndoButton.pressed.connect(_on_undo_pressed)
 	$DailyButton.pressed.connect(_on_daily_pressed)
@@ -191,8 +209,19 @@ func connect_buttons():
 
 func update_score_display():
 	score_label.text = str(score)
+	if zen:
+		return  # Рекорды ставятся только в обычном режиме
 	if progression.update_best_score(score):
 		best_score_label.text = "Рекорд: %d" % progression.best_score
+	# Праздник в момент, когда рекорд побит (один раз за партию)
+	if not record_announced and best_score_at_start > 0 and score > best_score_at_start:
+		record_announced = true
+		show_big_text("НОВЫЙ РЕКОРД!", Color(1, 0.84, 0), 8.0)
+		GameSettings.vibrate(60)
+
+func update_zen_display():
+	if zen:
+		best_score_label.text = "🧘 Спокойный режим"
 
 func update_xp_display():
 	var xp_bar = get_node_or_null("XPBar")
@@ -272,7 +301,9 @@ func spawn_blocks():
 	# Ход из прошлого набора отменить уже нельзя
 	last_move = null
 
-	var difficulty = PieceGenerator.difficulty_for_score(score)
+	# Первые партии легче: резкий рост сложности — частая причина бросить игру
+	var ramp = clampf(0.4 + 0.15 * progression.total_games_played, 0.4, 1.0)
+	var difficulty = PieceGenerator.difficulty_for_score(score) * ramp
 	var shapes = generator.generate_set(grid.board, difficulty)
 	var colors = ThemeManager.get_spawn_color_indices()
 	for i in range(shapes.size()):
@@ -312,9 +343,11 @@ func try_place_piece(block, grid_x: int, grid_y: int) -> bool:
 	update_streak_display(result["streak"])
 	show_points_popup(placed, result["points"])
 
+	sound_place.pitch_scale = randf_range(0.94, 1.06)
 	sound_place.play()
 	GameSettings.vibrate(15)
 	pieces_this_run += 1
+	run_max_streak = maxi(run_max_streak, result["streak"])
 	hide_tutorial()
 	progression.record_piece_placed()
 	Events.piece_placed.emit(placed.size())
@@ -340,10 +373,14 @@ func try_place_piece(block, grid_x: int, grid_y: int) -> bool:
 		refresh_tray()
 	update_powerup_buttons()
 	check_game_over()
+	save_run()
 	return true
 
 func on_lines_cleared(count: int, result: Dictionary, fill_before: float):
+	# Звук очистки становится выше с каждым шагом серии — отклик растёт вместе с успехом
+	sound_clear.pitch_scale = minf(1.0 + 0.07 * (result["streak"] - 1), 1.5)
 	sound_clear.play()
+	run_max_combo = maxi(run_max_combo, count)
 	GameSettings.vibrate(30 + 15 * count)
 
 	progression.record_lines_cleared(count)
@@ -381,14 +418,37 @@ func check_game_over():
 	for block in active_blocks:
 		if is_instance_valid(block) and grid.board.can_place_anywhere(block.shape):
 			return
+	if zen:
+		refresh_board()
+		return
 	game_over = true
 	show_game_over()
+
+# Спокойный режим: вместо проигрыша убираем часть блоков и даём новые фигуры
+func refresh_board():
+	var filled = []
+	for y in range(Board.SIZE):
+		for x in range(Board.SIZE):
+			if grid.board.get_cell(x, y) != Board.EMPTY:
+				filled.append(Vector2i(x, y))
+	filled.shuffle()
+	var removed = []
+	for i in range(int(ceil(filled.size() * ZEN_REFRESH_SHARE))):
+		var pos: Vector2i = filled[i]
+		removed.append({"pos": pos, "color": grid.board.remove_cell(pos.x, pos.y)})
+	grid.play_clear_effect(removed, {"rows": [], "cols": []})
+	sound_clear.pitch_scale = 0.8
+	sound_clear.play()
+	show_big_text("ПОЛЕ ОСВЕЖЕНО", Color(0.6, 1, 0.85), 0.0)
+	last_move = null
+	spawn_blocks()
 
 # === POWER-UPS ===
 
 func update_powerup_buttons():
 	var coins = progression.total_coins
 	$HammerButton.disabled = (coins < PRICE_HAMMER and not hammer_mode) or game_over
+	$RotateButton.disabled = (coins < PRICE_ROTATE and not rotate_mode) or game_over
 	$ShuffleButton.disabled = coins < PRICE_SHUFFLE or game_over
 	$UndoButton.disabled = coins < PRICE_UNDO or last_move == null or game_over
 
@@ -405,6 +465,8 @@ func _on_hammer_pressed():
 		return
 	if dragging_block != null or not progression.spend_coins(PRICE_HAMMER):
 		return
+	if rotate_mode:
+		reset_rotate_button()
 	hammer_mode = true
 	$HammerButton.text = "🔨 Нажми\nна блок\n(отмена)"
 	$HammerButton.modulate = Color(1, 1, 0)
@@ -417,6 +479,7 @@ func use_hammer_on_cell(x: int, y: int):
 		return
 	grid.play_clear_effect([{"pos": Vector2i(x, y), "color": color}], {"rows": [], "cols": []})
 	grid.queue_redraw()
+	sound_place.pitch_scale = 0.85
 	sound_place.play()
 	GameSettings.vibrate(25)
 	mark_powerup_used("hammer")
@@ -425,6 +488,7 @@ func use_hammer_on_cell(x: int, y: int):
 	last_move = null
 	reset_hammer_button()
 	refresh_tray()
+	save_run()
 
 func reset_hammer_button():
 	hammer_mode = false
@@ -438,6 +502,45 @@ func _on_shuffle_pressed():
 	mark_powerup_used("shuffle")
 	spawn_blocks()
 	check_game_over()
+	save_run()
+
+# Поворот: кнопка включает режим, нажатие на фигуру в лотке поворачивает её на 90°.
+# Монеты списываются за сам поворот; повторное нажатие на кнопку — отмена.
+func _on_rotate_pressed():
+	if rotate_mode:
+		reset_rotate_button()
+		return
+	if game_over or dragging_block != null or progression.total_coins < PRICE_ROTATE:
+		return
+	if hammer_mode:
+		progression.add_coins(PRICE_HAMMER)
+		reset_hammer_button()
+	rotate_mode = true
+	$RotateButton.text = "🔃 Нажми\nна фигуру"
+	$RotateButton.modulate = Color(1, 1, 0)
+
+func rotate_block(block):
+	if not rotate_mode or not progression.spend_coins(PRICE_ROTATE):
+		reset_rotate_button()
+		return
+	block.shape = Shapes.rotate_cw(block.shape)
+	block.return_to_tray()
+	block.queue_redraw()
+	sound_place.pitch_scale = 1.2
+	sound_place.play()
+	GameSettings.vibrate(15)
+	mark_powerup_used("rotate")
+	last_move = null
+	reset_rotate_button()
+	refresh_tray()
+	check_game_over()
+	save_run()
+
+func reset_rotate_button():
+	rotate_mode = false
+	$RotateButton.text = "🔃\n%d" % PRICE_ROTATE
+	$RotateButton.modulate = Color.WHITE
+	update_powerup_buttons()
 
 func _on_undo_pressed():
 	if last_move == null or game_over or dragging_block != null:
@@ -458,6 +561,7 @@ func _on_undo_pressed():
 	grid.queue_redraw()
 	refresh_tray()
 	update_powerup_buttons()
+	save_run()
 
 # === МОДАЛЬНЫЕ ОКНА ===
 
@@ -599,6 +703,21 @@ func _on_level_up(new_level: int):
 	else:
 		show_toast("🎉 Уровень %d!" % new_level, Color(1, 0.84, 0))
 
+func _on_mission_completed(text: String, coins: int, xp: int):
+	var line = "📋 Задание: %s (+%d 💰, +%d XP)" % [text, coins, xp]
+	if collecting_summary:
+		summary["missions"].append(line)
+	else:
+		show_toast(line, Color(0.55, 0.9, 1))
+	update_daily_button()
+
+func _on_all_missions_completed(bonus: int):
+	var line = "🏁 Все задания дня выполнены! +%d 💰" % bonus
+	if collecting_summary:
+		summary["missions"].append(line)
+	else:
+		show_toast(line, Color(0.55, 0.9, 1))
+
 # Монеты, слоты и звания за уровень (предметы приходят через Events.item_unlocked)
 func _on_reward_unlocked(reward_type: String, reward_data):
 	if not collecting_summary:
@@ -621,8 +740,9 @@ func _on_coins_changed(new_amount: int):
 
 func update_daily_button():
 	var daily_btn = $DailyButton
-	daily_btn.disabled = not progression.can_claim_daily
-	daily_btn.modulate = Color(1, 1, 0) if progression.can_claim_daily else Color(0.7, 0.7, 0.7)
+	var has_news = progression.can_claim_daily
+	daily_btn.text = "📋 Задания %d/3" % Missions.count_done()
+	daily_btn.modulate = Color(1, 1, 0) if has_news else Color.WHITE
 
 func _on_daily_available():
 	update_daily_button()
@@ -631,53 +751,44 @@ func _on_daily_claimed(_day: int, _reward: Dictionary):
 	update_daily_button()
 
 func _on_daily_pressed():
+	if is_input_blocked():
+		return
+	show_tasks_popup()
+
+# Задания на сегодня + награда дня в одном окне
+func show_tasks_popup():
+	Missions.ensure_today()
+	var box = open_modal(640)
+	modal_title(box, "ЗАДАНИЯ НА СЕГОДНЯ", Color(0.55, 0.9, 1), 38)
+
+	for mission in Missions.missions:
+		var done: bool = mission["done"]
+		var text = "%s %s" % ["✅" if done else "⬜", Missions.get_text(mission)]
+		if not done:
+			text += "  (%d/%d)" % [mission["progress"], mission["target"]]
+		var line = modal_text(box, text, 26, Color(0.6, 1, 0.7) if done else Color.WHITE)
+		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var reward = modal_text(box, "      " + Missions.get_reward_text(mission), 20, Color(1, 0.84, 0))
+		reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	modal_text(box, "Все три — ещё +%d 💰. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
+
+	box.add_child(HSeparator.new())
+	modal_title(box, "НАГРАДА ДНЯ", Color(1, 0.84, 0), 34)
 	if progression.can_claim_daily:
-		show_daily_reward_popup()
-
-func show_daily_reward_popup():
-	var box = open_modal(560)
-	modal_title(box, "НАГРАДА ДНЯ")
-
-	for day in range(1, 8):
-		var row = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
-
-		var day_label = Label.new()
-		day_label.text = "День %d" % day
-		day_label.custom_minimum_size = Vector2(110, 44)
-		day_label.add_theme_font_size_override("font_size", 24)
-
-		var reward = progression.get_daily_reward_for_day(day)
-		var reward_text = "%d 💰" % reward.get("coins", 0)
-		if reward.has("xp"):
-			reward_text += " + %d XP" % reward["xp"]
-		var reward_label = Label.new()
-		reward_label.text = reward_text
-		reward_label.custom_minimum_size = Vector2(300, 44)
-		reward_label.add_theme_font_size_override("font_size", 24)
-
-		var status_label = Label.new()
-		status_label.custom_minimum_size = Vector2(60, 44)
-		status_label.add_theme_font_size_override("font_size", 26)
 		var next_day = progression.daily_streak % 7 + 1
-		if day < next_day:
-			status_label.text = "✓"
-			status_label.add_theme_color_override("font_color", Color.GREEN)
-		elif day == next_day:
-			status_label.text = "→"
-			status_label.add_theme_color_override("font_color", Color.YELLOW)
-		else:
-			status_label.text = "🔒"
-
-		row.add_child(day_label)
-		row.add_child(reward_label)
-		row.add_child(status_label)
-		box.add_child(row)
-
-	modal_buttons(box, [
-		["ЗАКРЫТЬ", close_modal.bind(box)],
-		["ЗАБРАТЬ", _on_claim_daily_reward.bind(box)],
-	])
+		var reward = progression.get_daily_reward_for_day(next_day)
+		var reward_text = "День %d: +%d 💰" % [next_day, reward.get("coins", 0)]
+		if reward.has("xp"):
+			reward_text += " +%d XP" % reward["xp"]
+		modal_text(box, reward_text, 28, Color.WHITE)
+		modal_text(box, "Заходите каждый день: на 7-й день — 300 💰 и 200 XP.", 20)
+		modal_buttons(box, [
+			["ЗАКРЫТЬ", close_modal.bind(box)],
+			["ЗАБРАТЬ", _on_claim_daily_reward.bind(box)],
+		])
+	else:
+		modal_text(box, "Награда получена. Следующая — завтра.", 24)
+		modal_buttons(box, [["ЗАКРЫТЬ", close_modal.bind(box)]])
 
 func _on_claim_daily_reward(box):
 	var reward = progression.claim_daily_reward()
@@ -695,6 +806,7 @@ func _on_restart_button_pressed():
 	if is_input_blocked():
 		return
 	if score == 0:
+		clear_saved_run()
 		get_tree().reload_current_scene()
 		return
 	var box = open_modal(520)
@@ -733,14 +845,15 @@ func get_game_xp_for_score(value: int) -> int:
 # «Продолжить?» награды ещё не выданы, поэтому продолжение оплачивается монетами,
 # накопленными до этой партии. Уровни и их награды тоже приходят здесь, в конце.
 func award_game_over_rewards():
-	var final_coins = int(int(score / 10.0) * progression.score_multiplier)
+	var coin_rate = ZEN_COIN_RATE if zen else 1.0
+	var final_coins = int(int(score / 10.0) * progression.score_multiplier * coin_rate)
 	if final_coins > 0:
 		progression.add_coins(final_coins)
 		progression.record_coins_earned(final_coins)
 		run_coins += final_coins
 
 	# Бонус за побитие рекорда (без мультипликатора)
-	if score > best_score_at_start and score > 0:
+	if not zen and score > best_score_at_start and score > 0:
 		record_bonus_given = true
 		progression.add_coins(20)
 		progression.record_coins_earned(20)
@@ -758,10 +871,18 @@ func finish_run():
 
 	collecting_summary = true
 	award_game_over_rewards()
+	if pieces_this_run > 0:
+		Missions.record_run({
+			"lines": run_lines, "pieces": pieces_this_run, "score": score,
+			"streak": run_max_streak, "combo": run_max_combo,
+			"used_powerups": used_powerups, "zen": zen,
+		})
 	if score > 0:
-		progression.record_game_finished(score, used_powerups, ThemeManager.current.id, run_lines)
+		# Спокойный режим не участвует в «Без подсказок»: проиграть в нём нельзя
+		progression.record_game_finished(score, used_powerups or zen, ThemeManager.current.id, run_lines)
 	Events.game_finished.emit(score, used_powerups)
 	collecting_summary = false
+	clear_saved_run()
 
 	progression.reset_multiplier()
 	progression.save_progress()
@@ -806,6 +927,7 @@ func _on_continue_game(box):
 	game_over = false
 	spawn_blocks()
 	check_game_over()
+	save_run()
 
 func _on_give_up(box):
 	close_modal(box)
@@ -839,7 +961,10 @@ func show_final_game_over():
 func get_summary_lines() -> Array:
 	var gold = Color(1, 0.84, 0)
 	var lines = []
-	lines.append(["💰 За очки: +%d" % run_coins, gold])
+	var coins_text = "💰 За очки: +%d" % run_coins
+	if zen:
+		coins_text += " (спокойный режим: ×0.5)"
+	lines.append([coins_text, gold])
 	lines.append(["✨ Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
 	var levels: Array = summary["levels"]
 	if not levels.is_empty():
@@ -851,8 +976,11 @@ func get_summary_lines() -> Array:
 		lines.append(["🎨 +%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
 	for item_text in summary["items"]:
 		lines.append([item_text, Color(0.6, 1, 0.7)])
+	for mission_text in summary["missions"]:
+		lines.append([mission_text, Color(0.55, 0.9, 1)])
 	for achievement in summary["achievements"]:
 		lines.append(achievement)
+	lines.append(["📋 Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():
@@ -867,6 +995,98 @@ func should_ask_for_rating() -> bool:
 
 func _on_restart_pressed():
 	get_tree().reload_current_scene()
+
+# === СОХРАНЕНИЕ НЕЗАКОНЧЕННОЙ ПАРТИИ ===
+# Партию могут прервать звонком или свернуть — при следующем запуске она продолжится.
+
+func _notification(what: int):
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT \
+			or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_run()
+
+func save_run():
+	if run_finished or not is_inside_tree():
+		return
+	var tray = []
+	for block in active_blocks:
+		if is_instance_valid(block):
+			var cells = []
+			for cell in block.shape:
+				cells.append([int(cell.x), int(cell.y)])
+			tray.append({"shape": cells, "color": block.color_index, "slot": block.slot_index})
+	var data = {
+		"version": 1,
+		"board": grid.board.to_array(),
+		"tray": tray,
+		"score": score,
+		"scoring": scoring.get_state(),
+		"run_xp": run_xp,
+		"run_lines": run_lines,
+		"pieces": pieces_this_run,
+		"used_powerups": used_powerups,
+		"continue_cost": continue_cost,
+		"best_at_start": best_score_at_start,
+		"zen": zen,
+		"multiplier": progression.score_multiplier,
+		"max_streak": run_max_streak,
+		"max_combo": run_max_combo,
+		"record_announced": record_announced,
+	}
+	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_var(data)
+		file.close()
+
+# Возвращает true, если партия восстановлена
+func load_run() -> bool:
+	if not FileAccess.file_exists(RUN_SAVE_PATH):
+		return false
+	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.READ)
+	if file == null:
+		return false
+	var data = file.get_var()
+	file.close()
+	if not data is Dictionary or not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
+		return false
+
+	grid.board.from_array(data["board"])
+	score = data.get("score", 0)
+	scoring.set_state(data.get("scoring", {}))
+	run_xp = data.get("run_xp", 0)
+	run_lines = data.get("run_lines", 0)
+	pieces_this_run = data.get("pieces", 0)
+	used_powerups = data.get("used_powerups", false)
+	continue_cost = data.get("continue_cost", CONTINUE_BASE_COST)
+	best_score_at_start = data.get("best_at_start", progression.best_score)
+	zen = data.get("zen", false)
+	progression.score_multiplier = data.get("multiplier", 1.0)
+	run_max_streak = data.get("max_streak", 0)
+	run_max_combo = data.get("max_combo", 0)
+	record_announced = data.get("record_announced", false)
+
+	for item in data.get("tray", []):
+		var shape = []
+		for cell in item["shape"]:
+			shape.append(Vector2(cell[0], cell[1]))
+		create_block(shape, item["color"], item["slot"])
+	if active_blocks.is_empty():
+		spawn_blocks()
+
+	score_label.text = str(score)
+	update_streak_display(scoring.streak)
+	update_xp_display()
+	var multiplier_label = get_node_or_null("MultiplierLabel")
+	if multiplier_label:
+		multiplier_label.text = "x" + str(progression.score_multiplier)
+		multiplier_label.visible = progression.score_multiplier > 1.0
+	grid.queue_redraw()
+	refresh_tray()
+	check_game_over()
+	return true
+
+func clear_saved_run():
+	if FileAccess.file_exists(RUN_SAVE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(RUN_SAVE_PATH))
 
 # === ПОДСКАЗКА НОВИЧКУ ===
 
@@ -911,32 +1131,32 @@ func show_combo_text(lines_count: int, result: Dictionary):
 		2:
 			combo_text = "ДВОЙНОЙ!"
 			combo_color = Color.YELLOW
-			shake_strength = 5.0
+			shake_strength = 3.0
 		3:
 			combo_text = "ТРОЙНОЙ!"
 			combo_color = Color.ORANGE
-			shake_strength = 10.0
+			shake_strength = 5.0
 		4:
 			combo_text = "МЕГА!"
 			combo_color = Color.RED
-			shake_strength = 15.0
+			shake_strength = 7.0
 		5:
 			combo_text = "БЕЗУМИЕ!"
 			combo_color = Color.MAGENTA
-			shake_strength = 20.0
+			shake_strength = 9.0
 		6:
 			combo_text = "ЛЕГЕНДА!"
 			combo_color = Color(1, 0.84, 0)
-			shake_strength = 25.0
+			shake_strength = 11.0
 		_:
 			combo_text = "НЕВЕРОЯТНО!"
 			combo_color = Color(0.5, 1, 1)
-			shake_strength = 30.0
+			shake_strength = 13.0
 
 	if result["perfect"]:
 		combo_text = "ЧИСТОЕ ПОЛЕ!"
 		combo_color = Color(0.6, 1, 0.8)
-		shake_strength = maxf(shake_strength, 20.0)
+		shake_strength = maxf(shake_strength, 9.0)
 	elif combo_text == "" and result["streak"] >= 3:
 		combo_text = "СЕРИЯ ×%d" % result["streak"]
 		combo_color = Color(1, 0.6, 0.2)
@@ -944,12 +1164,15 @@ func show_combo_text(lines_count: int, result: Dictionary):
 	if combo_text == "":
 		return
 
-	combo_label.text = combo_text
-	combo_label.add_theme_color_override("font_color", combo_color)
+	show_big_text(combo_text, combo_color, shake_strength)
+
+func show_big_text(text: String, color: Color, shake_strength: float):
+	combo_label.text = text
+	combo_label.add_theme_color_override("font_color", color)
 	animate_combo_label()
 	if shake_strength > 0:
 		screen_shake(shake_strength)
-	spawn_combo_particles(combo_color)
+	spawn_combo_particles(color)
 
 func animate_combo_label():
 	combo_label.position = Vector2(250, 480)

@@ -14,6 +14,7 @@ var _stars: Array = []
 var _nebulas: Array = []
 var _comet = null
 var _time := 0.0
+var _since_redraw := 0.0
 
 func _ready() -> void:
 	_area = get_viewport_rect().size
@@ -47,7 +48,12 @@ func _process(delta: float) -> void:
 		if _comet["life"] > 2.5:
 			_comet = null
 
-	queue_redraw()
+	# Мерцание звёзд не требует 60 кадров — экономим батарею
+	_since_redraw += delta
+	var frame_time = 1.0 / 30.0 if _comet != null else 1.0 / 20.0
+	if _since_redraw >= frame_time:
+		_since_redraw = 0.0
+		queue_redraw()
 
 func _draw() -> void:
 	# Градиент сверху вниз

@@ -24,6 +24,8 @@ boot_splash/image="res://assets/icon/icon_192.png"
 boot_splash/fullsize=false
 config/icon="res://icon.svg"
 
+run/low_processor_mode=true
+
 [autoload]
 
 ItemsDB="*res://autoload/items_db.gd"
@@ -32,6 +34,7 @@ GameSettings="*res://autoload/game_settings.gd"
 ThemeManager="*res://autoload/theme_manager.gd"
 Progression="*res://autoload/progression.gd"
 Achievements="*res://autoload/achievements.gd"
+Missions="*res://autoload/missions.gd"
 
 [display]
 

@@ -58,6 +58,14 @@ static func get_size(shape: Array) -> Vector2i:
 		max_y = maxi(max_y, int(cell.y))
 	return Vector2i(max_x + 1, max_y + 1)
 
+# Поворот на 90° по часовой стрелке; результат снова начинается с (0, 0)
+static func rotate_cw(shape: Array) -> Array:
+	var height = get_size(shape).y
+	var rotated = []
+	for cell in shape:
+		rotated.append(Vector2(height - 1 - int(cell.y), int(cell.x)))
+	return rotated
+
 # Формы, сгруппированные по числу клеток: {1: [...], 2: [...], 3: [...], 4: [...]}
 static func by_cell_count() -> Dictionary:
 	var groups = {}

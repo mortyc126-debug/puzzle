@@ -15,6 +15,7 @@ func _init() -> void:
 	test_generator_difficulty_bias()
 	test_scoring_streak()
 	test_scoring_perfect()
+	test_rotation()
 
 	print("")
 	print("Проверок: %d, ошибок: %d" % [checks, failures])
@@ -100,6 +101,25 @@ func test_scoring_streak() -> void:
 	check(scoring.streak == 0, "третий пустой ход рвёт серию")
 	var double = scoring.register_move(4, 2, false)
 	check(double["clear"] == 40, "2 линии: 10 × 2 × 2 = 40")
+
+func test_rotation() -> void:
+	var line3 = [Vector2(0, 0), Vector2(1, 0), Vector2(2, 0)]
+	var vertical = Shapes.rotate_cw(line3)
+	check(Shapes.get_size(vertical) == Vector2i(1, 3), "горизонтальная линия становится вертикальной")
+	for shape in Shapes.LIST:
+		var full_turn = Shapes.rotate_cw(Shapes.rotate_cw(Shapes.rotate_cw(Shapes.rotate_cw(shape))))
+		var same = full_turn.size() == shape.size()
+		for cell in shape:
+			if not full_turn.has(cell):
+				same = false
+		check(same, "четыре поворота возвращают фигуру %s" % [shape])
+		var turned = Shapes.rotate_cw(shape)
+		var min_x = 99
+		var min_y = 99
+		for cell in turned:
+			min_x = mini(min_x, int(cell.x))
+			min_y = mini(min_y, int(cell.y))
+		check(min_x == 0 and min_y == 0, "повёрнутая фигура начинается с (0, 0)")
 
 func test_scoring_perfect() -> void:
 	var scoring = Scoring.new()

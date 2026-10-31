@@ -15,6 +15,7 @@ var sound_enabled := true
 var music_enabled := true
 var vibration_enabled := true
 var rated := false  # Игрок уже нажимал «Оценить»
+var zen_mode := false  # Спокойный режим: без проигрыша (действует со следующей партии)
 
 func _ready() -> void:
 	load_settings()
@@ -33,6 +34,7 @@ func load_settings() -> void:
 		music_enabled = data.get("music", true)
 		vibration_enabled = data.get("vibration", true)
 		rated = data.get("rated", false)
+		zen_mode = data.get("zen_mode", false)
 
 func save_settings() -> void:
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -43,6 +45,7 @@ func save_settings() -> void:
 		"music": music_enabled,
 		"vibration": vibration_enabled,
 		"rated": rated,
+		"zen_mode": zen_mode,
 	})
 	file.close()
 
@@ -59,6 +62,10 @@ func set_music(enabled: bool) -> void:
 	music_enabled = enabled
 	save_settings()
 	apply()
+
+func set_zen_mode(enabled: bool) -> void:
+	zen_mode = enabled
+	save_settings()
 
 func set_vibration(enabled: bool) -> void:
 	vibration_enabled = enabled
