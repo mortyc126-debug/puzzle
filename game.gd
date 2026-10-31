@@ -45,6 +45,7 @@ var record_bonus_given = false  # Бонус за рекорд уже выдан
 var run_finished = false        # Партия уже записана в статистику
 var best_score_at_start = 0     # Рекорд на момент начала партии
 var used_powerups = false       # Были ли бонусы или продолжение (для «Без подсказок»)
+var run_coins = 0               # Монеты, выданные за эту партию (для финального экрана)
 
 # Continue
 var continue_cost = CONTINUE_BASE_COST
@@ -677,8 +678,9 @@ func get_game_xp_for_score(value: int) -> int:
 		xp += 100
 	return xp
 
-# Начисляет награды за очки, за которые ещё ничего не выдано.
-# Повторный вызов (после Continue или Restart) не выдаёт награды дважды.
+# Начисляет монеты и XP за очки партии. Вызывается только из finish_run(), когда партия
+# действительно закончилась: на экране «Продолжить?» награды ещё не выданы, поэтому
+# оплатить продолжение можно только монетами, накопленными до этой партии.
 func award_game_over_rewards():
 	if score <= rewarded_score:
 		return
@@ -693,12 +695,14 @@ func award_game_over_rewards():
 	if final_coins > 0:
 		progression.add_coins(final_coins)
 		progression.record_coins_earned(final_coins)
+		run_coins += final_coins
 
 	# Бонус за побитие рекорда (без мультипликатора, один раз за партию)
 	if not record_bonus_given and score > best_score_at_start:
 		record_bonus_given = true
 		progression.add_coins(20)
 		progression.record_coins_earned(20)
+		run_coins += 20
 
 	rewarded_score = score
 
@@ -721,7 +725,6 @@ func show_game_over():
 	if hammer_mode:
 		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
-	award_game_over_rewards()
 	update_powerup_buttons()
 	sound_game_over.play()
 	GameSettings.vibrate(120)
@@ -736,6 +739,7 @@ func show_continue_screen():
 	modal_title(box, "CONTINUE?", Color.YELLOW, 52)
 	modal_text(box, "Score: %d" % score, 34, Color.WHITE)
 	modal_text(box, "Три новые фигуры за 💰 %d" % continue_cost, 30, Color(1, 0.84, 0))
+	modal_text(box, "У вас 💰 %d. Монеты за очки начислятся, когда партия закончится." % progression.total_coins, 22)
 	modal_buttons(box, [
 		["GIVE UP", _on_give_up.bind(box)],
 		["CONTINUE", _on_continue_game.bind(box)],
@@ -771,6 +775,7 @@ func show_final_game_over():
 		modal_text(box, "Новый рекорд! +20 💰", 28, Color(1, 0.84, 0))
 	else:
 		modal_text(box, "Best: %d" % progression.best_score, 28, Color(1, 0.84, 0))
+	modal_text(box, "За партию: +%d 💰" % run_coins, 28, Color(1, 0.84, 0))
 	modal_buttons(box, [["RESTART", _on_restart_pressed]])
 
 func _on_restart_pressed():
