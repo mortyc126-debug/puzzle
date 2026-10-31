@@ -74,7 +74,7 @@ func update_profile():
 
 	var best_label = get_node_or_null("BestScoreLabel")
 	if best_label:
-		best_label.text = "🏆 Best: %d" % progression.best_score
+		best_label.text = "🏆 Рекорд: %d" % progression.best_score
 
 	var coins_label = get_node_or_null("CoinsLabel")
 	if coins_label:
@@ -107,14 +107,16 @@ func update_tab_titles():
 	if tabs == null:
 		return
 	var flags = progression.has_new_items
-	var new_mark = func(key): return " NEW!" if flags.get(key, false) else ""
-	tabs.set_tab_title(TAB_STATS, "📊 Stats")
-	tabs.set_tab_title(TAB_COLORS, "🎨 Colors")
+	var new_mark = func(key): return " НОВОЕ" if flags.get(key, false) else ""
+	tabs.set_tab_title(TAB_STATS, "📊 Статистика")
+	tabs.set_tab_title(TAB_COLORS, "🎨 Цвета")
 	tabs.set_tab_title(TAB_THEMES, "🌌 Темы" + new_mark.call("themes"))
-	tabs.set_tab_title(TAB_MUSIC, "🎵 Music")
-	tabs.set_tab_title(TAB_AVATARS, "👤 Avatars" + new_mark.call("avatars"))
-	tabs.set_tab_title(TAB_FRAMES, "🖼️ Frames" + new_mark.call("frames"))
-	tabs.set_tab_title(TAB_ACHIEVEMENTS, "🏆 Achievements" + new_mark.call("achievements"))
+	tabs.set_tab_title(TAB_MUSIC, "🎵 Музыка")
+	# Музыки пока нет — вкладку не показываем
+	tabs.set_tab_hidden(TAB_MUSIC, true)
+	tabs.set_tab_title(TAB_AVATARS, "👤 Аватарки" + new_mark.call("avatars"))
+	tabs.set_tab_title(TAB_FRAMES, "🖼️ Рамки" + new_mark.call("frames"))
+	tabs.set_tab_title(TAB_ACHIEVEMENTS, "🏆 Достижения" + new_mark.call("achievements"))
 
 # Открытая вкладка считается просмотренной
 func _on_tab_changed(tab: int):
@@ -157,6 +159,19 @@ func create_stats_list():
 	var stats_content = get_node_or_null(PATH_STATS)
 	if stats_content == null:
 		return
+	# Прогресс уровня — первым блоком вкладки
+	if stats_content.get_node_or_null("ProgressBox") == null:
+		var progress_box = VBoxContainer.new()
+		progress_box.name = "ProgressBox"
+		progress_box.add_theme_constant_override("separation", 6)
+		for node_name in ["RankLabel", "XPProgressLabel", "NextRewardLabel"]:
+			var label = make_label("", 26, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
+			label.name = node_name
+			progress_box.add_child(label)
+		progress_box.add_child(HSeparator.new())
+		stats_content.add_child(progress_box)
+		stats_content.move_child(progress_box, 0)
+
 	# Новые строки статистики добавляются кодом к строкам из сцены
 	for extra in ["PiecesPlacedLabel", "BestStreakLabel", "PerfectClearsLabel", "ThemeGamesLabel"]:
 		if stats_content.get_node_or_null(extra) == null:
@@ -171,22 +186,40 @@ func update_stats_labels():
 	if stats_content == null:
 		return
 	var texts = {
-		"GamesPlayedLabel": "🎮 Games Played: %d" % progression.total_games_played,
-		"LinesClearedLabel": "⭐ Lines Cleared: %d" % progression.total_lines_cleared,
-		"TimePlayedLabel": "⏱️ Time Played: %s" % progression.format_play_time(),
-		"BestScoreLabel": "🏆 Best Score: %d" % progression.best_score,
-		"AverageScoreLabel": "📈 Average Score: %d" % progression.get_average_score(),
-		"MaxComboLabel": "💥 Max Lines in One Move: %d" % progression.max_combo_achieved,
-		"TotalCoinsLabel": "💰 Total Coins Earned: %d" % progression.total_coins_earned,
-		"PiecesPlacedLabel": "🧱 Pieces Placed: %d" % progression.total_pieces_placed,
-		"BestStreakLabel": "🔥 Best Streak: ×%d" % progression.max_streak,
-		"PerfectClearsLabel": "✨ Perfect Clears: %d" % progression.perfect_clears,
-		"ThemeGamesLabel": "🌌 Games in Space: %d" % int(progression.theme_games.get("space", 0)),
+		"GamesPlayedLabel": "🎮 Сыграно партий: %d" % progression.total_games_played,
+		"LinesClearedLabel": "⭐ Очищено линий: %d" % progression.total_lines_cleared,
+		"TimePlayedLabel": "⏱️ Время в игре: %s" % progression.format_play_time(),
+		"BestScoreLabel": "🏆 Рекорд: %d" % progression.best_score,
+		"AverageScoreLabel": "📈 Средний счёт: %d" % progression.get_average_score(),
+		"MaxComboLabel": "💥 Больше всего линий за ход: %d" % progression.max_combo_achieved,
+		"TotalCoinsLabel": "💰 Заработано монет: %d" % progression.total_coins_earned,
+		"PiecesPlacedLabel": "🧱 Поставлено фигур: %d" % progression.total_pieces_placed,
+		"BestStreakLabel": "🔥 Лучшая серия: ×%d" % progression.max_streak,
+		"PerfectClearsLabel": "✨ Чистых полей: %d" % progression.perfect_clears,
+		"ThemeGamesLabel": "🌌 Партий в «Космосе»: %d" % int(progression.theme_games.get("space", 0)),
 	}
 	for node_name in texts.keys():
 		var label = stats_content.get_node_or_null(node_name)
 		if label:
 			label.text = texts[node_name]
+
+	var progress_box = stats_content.get_node_or_null("ProgressBox")
+	if progress_box:
+		var rank_label = progress_box.get_node("RankLabel")
+		rank_label.text = "🏅 Уровень %d · %s" % [progression.current_level, progression.get_rank()]
+		rank_label.add_theme_color_override("font_color", GOLD)
+		var xp_label = progress_box.get_node("XPProgressLabel")
+		var next_label = progress_box.get_node("NextRewardLabel")
+		if progression.is_max_level():
+			xp_label.text = "Максимальный уровень — вы прошли всю игру!"
+			next_label.text = ""
+		else:
+			xp_label.text = "✨ Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
+			var next = progression.get_next_special_reward()
+			next_label.text = "" if next.is_empty() else \
+				"🎁 На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
+		next_label.add_theme_font_size_override("font_size", 22)
+		next_label.add_theme_color_override("font_color", Color(0.8, 0.84, 0.98))
 
 # === ЦВЕТА БЛОКОВ (тема «Классика») ===
 
@@ -202,7 +235,7 @@ func create_colors_list():
 
 	var active_count = progression.active_colors.size()
 	var max_slots = progression.max_color_slots
-	slots_label.text = "Active Slots: %d/%d" % [active_count, max_slots]
+	slots_label.text = "Слоты: %d/%d" % [active_count, max_slots]
 	if not ThemeManager.current.use_player_colors:
 		slots_label.text += "  (цвета действуют в теме «Классика»)"
 
@@ -409,7 +442,7 @@ func show_item_card(item_type: String, item_id: int):
 
 	var rarity = data.get("rarity", "COMMON")
 	box.add_child(make_label(data.get("name", "?"), 36, Color.WHITE))
-	box.add_child(make_label(rarity + " " + ItemsDB.get_rarity_stars(rarity), 22, ItemsDB.get_rarity_color(rarity)))
+	box.add_child(make_label(ItemsDB.get_rarity_name(rarity) + " " + ItemsDB.get_rarity_stars(rarity), 22, ItemsDB.get_rarity_color(rarity)))
 	box.add_child(HSeparator.new())
 	box.add_child(make_label(data.get("description", ""), 22, Color(0.88, 0.9, 1)))
 	if not unlocked:
@@ -427,18 +460,18 @@ func show_item_card(item_type: String, item_id: int):
 	select_btn.custom_minimum_size = Vector2(240, 76)
 	select_btn.add_theme_font_size_override("font_size", 28)
 	if selected:
-		select_btn.text = "SELECTED ✓"
+		select_btn.text = "ВЫБРАНО ✓"
 		select_btn.disabled = true
 	elif not unlocked:
-		select_btn.text = "🔒 LOCKED"
+		select_btn.text = "🔒 ЗАКРЫТО"
 		select_btn.disabled = true
 	else:
-		select_btn.text = "SELECT"
+		select_btn.text = "ВЫБРАТЬ"
 		select_btn.pressed.connect(_on_select_item.bind(item_type, item_id, box))
 	row.add_child(select_btn)
 
 	var close_btn = Button.new()
-	close_btn.text = "CLOSE"
+	close_btn.text = "ЗАКРЫТЬ"
 	close_btn.custom_minimum_size = Vector2(240, 76)
 	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.pressed.connect(close_popup.bind(box))
@@ -468,7 +501,7 @@ func create_achievements_list():
 	var total = Achievements.get_total_progress()
 	var progress_label = content.get_node_or_null("ProgressLabel")
 	if progress_label:
-		progress_label.text = "Progress: %d / %d (%.0f%%)" % [total["unlocked"], total["total"], total["percent"]]
+		progress_label.text = "Получено ступеней: %d из %d (%.0f%%)" % [total["unlocked"], total["total"], total["percent"]]
 	var progress_bar = content.get_node_or_null("TotalProgressBar")
 	if progress_bar:
 		progress_bar.value = total["percent"]
@@ -544,7 +577,7 @@ func show_achievement_popup(def: Dictionary):
 		box.add_child(panel)
 
 	var close_btn = Button.new()
-	close_btn.text = "CLOSE"
+	close_btn.text = "ЗАКРЫТЬ"
 	close_btn.custom_minimum_size = Vector2(260, 70)
 	close_btn.pressed.connect(close_popup.bind(box))
 	box.add_child(close_btn)
@@ -553,12 +586,12 @@ func show_achievement_popup(def: Dictionary):
 
 func show_name_edit_popup():
 	var box = open_popup(520)
-	box.add_child(make_label("Change Your Name", 34, GOLD))
+	box.add_child(make_label("Ваше имя", 34, GOLD))
 
 	var line_edit = LineEdit.new()
 	line_edit.text = progression.player_name
 	line_edit.max_length = 10
-	line_edit.placeholder_text = "Enter name..."
+	line_edit.placeholder_text = "Введите имя"
 	line_edit.custom_minimum_size = Vector2(460, 64)
 	line_edit.add_theme_font_size_override("font_size", 28)
 	line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -570,13 +603,13 @@ func show_name_edit_popup():
 	box.add_child(row)
 
 	var cancel_btn = Button.new()
-	cancel_btn.text = "CANCEL"
+	cancel_btn.text = "ОТМЕНА"
 	cancel_btn.custom_minimum_size = Vector2(200, 64)
 	cancel_btn.pressed.connect(close_popup.bind(box))
 	row.add_child(cancel_btn)
 
 	var save_btn = Button.new()
-	save_btn.text = "SAVE"
+	save_btn.text = "СОХРАНИТЬ"
 	save_btn.custom_minimum_size = Vector2(200, 64)
 	save_btn.pressed.connect(_on_name_save.bind(line_edit, box))
 	row.add_child(save_btn)
@@ -586,7 +619,7 @@ func show_name_edit_popup():
 func _on_name_save(line_edit: LineEdit, box):
 	var new_name = line_edit.text.strip_edges()
 	if new_name == "":
-		new_name = "Player"
+		new_name = "Игрок"
 	progression.player_name = new_name
 	progression.request_save()
 	update_profile()

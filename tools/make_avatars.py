@@ -251,6 +251,77 @@ AVATARS[12] = svg(
 )
 
 
+# 13. Сова
+d, b = background("#3b3f8f", "#141638")
+AVATARS[13] = svg(
+    b + stars(0.5)
+    + '<circle cx="206" cy="46" r="18" fill="#fff6c9" opacity="0.8"/>'
+    + '<path d="M70 70 L80 30 L104 60 Z" fill="#6e4229"/><path d="M186 70 L176 30 L152 60 Z" fill="#6e4229"/>'
+    + '<ellipse cx="128" cy="128" rx="72" ry="80" fill="#8b5a3c"/>'
+    + '<ellipse cx="62" cy="140" rx="18" ry="44" fill="#6e4229"/><ellipse cx="194" cy="140" rx="18" ry="44" fill="#6e4229"/>'
+    + '<ellipse cx="128" cy="160" rx="46" ry="44" fill="#e8c9a0"/>'
+    + '<path d="M108 150 q6 6 12 0 M136 150 q6 6 12 0 M120 168 q6 6 12 0" fill="none" stroke="#b9895f" stroke-width="4" stroke-linecap="round"/>'
+    + '<circle cx="100" cy="104" r="30" fill="#f3dcb8"/><circle cx="156" cy="104" r="30" fill="#f3dcb8"/>'
+    + '<circle cx="100" cy="104" r="21" fill="#ffd23f"/><circle cx="156" cy="104" r="21" fill="#ffd23f"/>'
+    + '<circle cx="102" cy="106" r="11" fill="#1b1f3a"/><circle cx="154" cy="106" r="11" fill="#1b1f3a"/>'
+    + '<circle cx="106" cy="101" r="4" fill="#fff"/><circle cx="158" cy="101" r="4" fill="#fff"/>'
+    + '<path d="M119 122 H137 L128 140 Z" fill="#ff8a2b"/>',
+    d,
+)
+
+# 14. Пингвин в шарфе
+d, b = background("#5ec8ff", "#1c5fa8")
+AVATARS[14] = svg(
+    b + "".join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="#fff" opacity="0.7"/>' for x, y, r in
+                ((30, 40, 4), (220, 60, 3), (200, 30, 5), (44, 110, 3), (226, 140, 4), (30, 180, 3)))
+    + '<ellipse cx="54" cy="150" rx="16" ry="40" fill="#1f2438" transform="rotate(18 54 150)"/>'
+    + '<ellipse cx="202" cy="150" rx="16" ry="40" fill="#1f2438" transform="rotate(-18 202 150)"/>'
+    + '<ellipse cx="128" cy="132" rx="74" ry="90" fill="#1f2438"/>'
+    + '<ellipse cx="128" cy="160" rx="50" ry="60" fill="#fff"/>'
+    + '<circle cx="104" cy="104" r="30" fill="#fff"/><circle cx="152" cy="104" r="30" fill="#fff"/>'
+    + '<circle cx="108" cy="104" r="9" fill="#1b1f3a"/><circle cx="148" cy="104" r="9" fill="#1b1f3a"/>'
+    + '<circle cx="111" cy="100" r="3" fill="#fff"/><circle cx="151" cy="100" r="3" fill="#fff"/>'
+    + '<path d="M116 120 H140 L128 136 Z" fill="#ff9a3d"/>'
+    + '<circle cx="90" cy="126" r="8" fill="#ffb3c0" opacity="0.8"/><circle cx="166" cy="126" r="8" fill="#ffb3c0" opacity="0.8"/>'
+    + '<rect x="74" y="150" width="108" height="18" rx="9" fill="#ff4d5e"/>'
+    + '<rect x="146" y="160" width="18" height="40" rx="7" fill="#ff4d5e"/>'
+    + '<path d="M150 192 h10 M150 184 h10" stroke="#fff" stroke-width="3" opacity="0.6"/>',
+    d,
+)
+
+# 15. Призрак
+d, b = background("#5a2a9a", "#1a0a3a")
+AVATARS[15] = svg(
+    b + stars(0.7)
+    + '<path d="M64 196 L64 110 C64 62 96 40 128 40 C160 40 192 62 192 110 L192 196 '
+      'Q176 178 160 196 Q144 214 128 196 Q112 178 96 196 Q80 214 64 196 Z" fill="#f4f1ff"/>'
+    + '<path d="M160 50 C182 64 192 86 192 110 L192 196 Q176 178 160 196 Z" fill="#d9d0ff" opacity="0.7"/>'
+    + '<path d="M64 140 q-18 -6 -22 -26 q14 4 22 10 Z" fill="#f4f1ff"/><path d="M192 140 q18 -6 22 -26 q-14 4 -22 10 Z" fill="#d9d0ff"/>'
+    + '<ellipse cx="104" cy="108" rx="11" ry="15" fill="#1b1f3a"/><ellipse cx="152" cy="108" rx="11" ry="15" fill="#1b1f3a"/>'
+    + '<circle cx="107" cy="102" r="4" fill="#fff"/><circle cx="155" cy="102" r="4" fill="#fff"/>'
+    + '<ellipse cx="128" cy="142" rx="9" ry="11" fill="#2a1f4a"/>'
+    + '<circle cx="88" cy="130" r="8" fill="#ff9ad5" opacity="0.6"/><circle cx="168" cy="130" r="8" fill="#ff9ad5" opacity="0.6"/>',
+    d,
+)
+
+# 16. Король блоков
+d, b = background("#c0392b", "#4a0f2a")
+d += ('<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1a8"/>'
+      '<stop offset="1" stop-color="#e0a21a"/></linearGradient>')
+AVATARS[16] = svg(
+    b + sparkle(40, 50, 8, "#ffe9a3") + sparkle(214, 70, 6, "#ffe9a3")
+    + '<rect x="66" y="92" width="128" height="116" rx="18" fill="#5a2aa8"/>'
+    + '<rect x="62" y="86" width="128" height="116" rx="18" fill="#9d5cff"/>'
+    + '<path d="M80 86 H172 a18 18 0 0 1 18 18 V140 H62 V104 a18 18 0 0 1 18 -18 Z" fill="#b98aff"/>'
+    + '<rect x="62" y="86" width="128" height="116" rx="18" fill="none" stroke="#fff" stroke-width="6"/>'
+    + '<path d="M68 90 L78 38 L104 66 L126 26 L148 66 L174 38 L184 90 Z" fill="url(#gold)" stroke="#b07a0c" stroke-width="4" stroke-linejoin="round"/>'
+    + '<circle cx="78" cy="38" r="7" fill="#ff4d5e"/><circle cx="126" cy="26" r="8" fill="#4170ff"/><circle cx="174" cy="38" r="7" fill="#33c770"/>'
+    + '<rect x="70" y="76" width="112" height="14" rx="4" fill="#e0a21a"/>'
+    + eyes(102, 150, 136, 11)
+    + '<path d="M106 170 Q126 184 150 166" fill="none" stroke="#1b1f3a" stroke-width="7" stroke-linecap="round"/>',
+    d,
+)
+
 # === РАМКИ ===
 # Квадратная рамка с прозрачным центром и плашкой под имя внизу (как frame_1.png).
 
@@ -291,6 +362,27 @@ FRAMES = {
                  + sparkle(128, 17, 7) + sparkle(64, 17, 4) + sparkle(192, 17, 4)
              )),
 }
+
+
+FRAMES.update({
+    5: frame([(0, "#b8ffd6"), (0.45, "#2ecc71"), (0.6, "#0e7a43"), (1, "#8affc1")],
+             "#00e676", "#0b5d33", "#7dffb0", "#9dffcc"),
+    6: frame([(0, "#ffd0d6"), (0.45, "#ff3b5c"), (0.6, "#a3122e"), (1, "#ff8a9c")],
+             "#ff1744", "#6d0a1f", "#ff8a9c", "#ffb3c0"),
+    7: frame([(0, "#cfe3ff"), (0.45, "#3a7bff"), (0.6, "#123a9c"), (1, "#8fb8ff")],
+             "#2979ff", "#0d2a6e", "#8fb8ff", "#b3d1ff"),
+    8: frame([(0, "#f0d9ff"), (0.45, "#9d5cff"), (0.6, "#4a1d8a"), (1, "#d1a8ff")],
+             "#b388ff", "#3a1470", "#d1a8ff", "#e3c9ff"),
+    9: frame([(0, "#8a8fa8"), (0.45, "#2a2d3e"), (0.6, "#0b0c14"), (1, "#5a5f78")],
+             "#ff6a00", "#0b0c14", "#ff8a2b", "#5a5f78",
+             extra='<path fill="none" stroke="#ff6a00" stroke-opacity="0.55" stroke-width="2" d="M17 17 V239 H239 V17 Z"/>'),
+    10: frame([(0, "#ff4d5e"), (0.2, "#ff8a2b"), (0.4, "#ffd23f"), (0.6, "#33c770"), (0.8, "#4170ff"), (1, "#9d5cff")],
+              "#ffffff", "#1a1040", "#ffd23f", "#ffffff"),
+    11: frame([(0, "#ffffff"), (0.4, "#cdeffd"), (0.6, "#7fd6ff"), (1, "#ffffff")],
+              "#e0f7ff", "#0e3a5c", "#ffffff", "#ffffff",
+              extra=(sparkle(128, 17, 8) + sparkle(17, 72, 5) + sparkle(239, 72, 5)
+                     + sparkle(17, 184, 5) + sparkle(239, 184, 5) + sparkle(72, 239, 4) + sparkle(184, 239, 4))),
+})
 
 
 def main():

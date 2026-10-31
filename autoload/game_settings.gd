@@ -5,9 +5,16 @@ extends Node
 
 const SAVE_PATH = "user://settings.save"
 
+# === ДАННЫЕ ДЛЯ ВЫПУСКА — заполните перед публикацией ===
+# Страница игры в магазине (кнопка «Оценить»). Пусто — кнопка не показывается.
+const STORE_URL = "https://play.google.com/store/apps/details?id=com.mortyc126.blockpuzzle"
+# Почта для отзывов (кнопка «Написать разработчику»). Пусто — кнопка не показывается.
+const FEEDBACK_EMAIL = ""
+
 var sound_enabled := true
 var music_enabled := true
 var vibration_enabled := true
+var rated := false  # Игрок уже нажимал «Оценить»
 
 func _ready() -> void:
 	load_settings()
@@ -25,6 +32,7 @@ func load_settings() -> void:
 		sound_enabled = data.get("sound", true)
 		music_enabled = data.get("music", true)
 		vibration_enabled = data.get("vibration", true)
+		rated = data.get("rated", false)
 
 func save_settings() -> void:
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -34,6 +42,7 @@ func save_settings() -> void:
 		"sound": sound_enabled,
 		"music": music_enabled,
 		"vibration": vibration_enabled,
+		"rated": rated,
 	})
 	file.close()
 
@@ -59,6 +68,27 @@ func set_vibration(enabled: bool) -> void:
 func vibrate(duration_ms: int) -> void:
 	if vibration_enabled and OS.has_feature("mobile"):
 		Input.vibrate_handheld(duration_ms)
+
+func get_version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", ""))
+
+func has_store_page() -> bool:
+	return STORE_URL != ""
+
+func open_store_page() -> void:
+	if not has_store_page():
+		return
+	rated = true
+	save_settings()
+	OS.shell_open(STORE_URL)
+
+func has_feedback_email() -> bool:
+	return FEEDBACK_EMAIL != ""
+
+func open_feedback_email() -> void:
+	if has_feedback_email():
+		var subject = "Block Puzzle %s" % get_version()
+		OS.shell_open("mailto:%s?subject=%s" % [FEEDBACK_EMAIL, subject.uri_encode()])
 
 func _set_bus_mute(bus_name: String, mute: bool) -> void:
 	var index = AudioServer.get_bus_index(bus_name)

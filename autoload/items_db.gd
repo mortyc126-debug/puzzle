@@ -5,7 +5,7 @@ extends Node
 ##
 ## Поле "unlock" описывает, как предмет открывается — один источник правды для всей игры:
 ##   {"type": "default"}                              — доступен сразу
-##   {"type": "level", "level": 5}                    — награда уровня Battle Pass
+##   {"type": "level", "level": 5}                    — награда за достижение уровня
 ##   {"type": "achievement", "id": "lines", "tier": 2} — награда ступени достижения (см. Achievements)
 ## Progression сам выдаёт предметы, когда условие выполнено.
 
@@ -35,7 +35,7 @@ var frames_data = {
 		"rarity": "UNCOMMON",
 		"description": "Холодный блеск серебра для тех, кто уже освоился на поле.",
 		"texture": "res://assets/frames/frame_2.svg",
-		"unlock": {"type": "level", "level": 8},
+		"unlock": {"type": "level", "level": 12},
 	},
 	3: {
 		"name": "Золото",
@@ -50,6 +50,55 @@ var frames_data = {
 		"description": "Светится, как облако звёздного газа. Для мастеров очистки линий.",
 		"texture": "res://assets/frames/frame_4.svg",
 		"unlock": {"type": "achievement", "id": "lines", "tier": 4},
+	},
+	5: {
+		"name": "Изумруд",
+		"rarity": "UNCOMMON",
+		"description": "Зелёный камень для тех, кто уверенно держит поле в порядке.",
+		"texture": "res://assets/frames/frame_5.svg",
+		"unlock": {"type": "level", "level": 35},
+	},
+	6: {
+		"name": "Рубин",
+		"rarity": "RARE",
+		"description": "Горячий красный блеск. Видно, что игрок не новичок.",
+		"texture": "res://assets/frames/frame_6.svg",
+		"unlock": {"type": "level", "level": 60},
+	},
+	7: {
+		"name": "Сапфир",
+		"rarity": "RARE",
+		"description": "Глубокий синий камень на сотом уровне — серьёзная заявка.",
+		"texture": "res://assets/frames/frame_7.svg",
+		"unlock": {"type": "level", "level": 100},
+	},
+	8: {
+		"name": "Аметист",
+		"rarity": "EPIC",
+		"description": "Фиолетовая огранка для настоящих виртуозов.",
+		"texture": "res://assets/frames/frame_8.svg",
+		"unlock": {"type": "level", "level": 150},
+	},
+	9: {
+		"name": "Обсидиан",
+		"rarity": "EPIC",
+		"description": "Тёмное вулканическое стекло. Холодно, строго, красиво.",
+		"texture": "res://assets/frames/frame_9.svg",
+		"unlock": {"type": "level", "level": 250},
+	},
+	10: {
+		"name": "Радуга",
+		"rarity": "LEGENDARY",
+		"description": "Все цвета блоков сразу. Для тех, кто прошёл больше половины пути.",
+		"texture": "res://assets/frames/frame_10.svg",
+		"unlock": {"type": "level", "level": 350},
+	},
+	11: {
+		"name": "Алмаз",
+		"rarity": "MYTHIC",
+		"description": "Высшая награда: 500-й уровень. Таких рамок почти ни у кого нет.",
+		"texture": "res://assets/frames/frame_11.svg",
+		"unlock": {"type": "level", "level": 500},
 	},
 }
 
@@ -130,6 +179,30 @@ var avatars_data = {
 		"description": "Четыре линии за один ход — и она проносится по небу.",
 		"unlock": {"type": "achievement", "id": "quad", "tier": 1},
 	},
+	13: {
+		"name": "Сова",
+		"rarity": "UNCOMMON",
+		"description": "Не спит по ночам и считает линии. Мудрая птица для мудрых ходов.",
+		"unlock": {"type": "level", "level": 20},
+	},
+	14: {
+		"name": "Пингвин",
+		"rarity": "RARE",
+		"description": "Скользит по полю так же ловко, как по льду.",
+		"unlock": {"type": "level", "level": 45},
+	},
+	15: {
+		"name": "Призрак",
+		"rarity": "EPIC",
+		"description": "Появляется там, где только что исчезла линия. Бу!",
+		"unlock": {"type": "level", "level": 80},
+	},
+	16: {
+		"name": "Король блоков",
+		"rarity": "LEGENDARY",
+		"description": "Корона по праву: триста уровней на поле.",
+		"unlock": {"type": "level", "level": 300},
+	},
 }
 
 # === ФОНЫ И МУЗЫКА ===
@@ -184,12 +257,21 @@ func get_unlock_text(unlock: Dictionary) -> String:
 		"achievement":
 			var achievements = get_node_or_null("/root/Achievements")
 			if achievements:
-				return "Достижение «%s», ступень «%s»" % [
-					achievements.get_title(unlock.get("id", "")),
-					achievements.get_tier_name(unlock.get("tier", 1)),
-				]
+				var def = achievements.get_definition(unlock.get("id", ""))
+				var text = "Достижение «%s»" % def.get("title", "?")
+				if def.get("tiers", []).size() > 1:
+					text += ", ступень «%s»" % achievements.get_tier_name(unlock.get("tier", 1))
+				return text
 			return "Награда за достижение"
 	return ""
+
+const RARITY_NAMES = {
+	"COMMON": "Обычная", "UNCOMMON": "Необычная", "RARE": "Редкая",
+	"EPIC": "Эпическая", "LEGENDARY": "Легендарная", "MYTHIC": "Мифическая",
+}
+
+func get_rarity_name(rarity: String) -> String:
+	return RARITY_NAMES.get(rarity, rarity)
 
 # Получить цвет редкости
 func get_rarity_color(rarity: String) -> Color:

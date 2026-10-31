@@ -98,28 +98,20 @@ text = "↩️
 20"
 
 [node name="RestartButton" type="Button" parent="."]
-offset_left = 60.0
+offset_left = 90.0
 offset_top = 1395.0
-offset_right = 300.0
+offset_right = 430.0
 offset_bottom = 1475.0
-theme_override_font_sizes/font_size = 24
-text = "🔄 RESTART"
-
-[node name="BattlePassButton" type="Button" parent="."]
-offset_left = 330.0
-offset_top = 1395.0
-offset_right = 570.0
-offset_bottom = 1475.0
-theme_override_font_sizes/font_size = 24
-text = "🎁 BATTLE PASS"
+theme_override_font_sizes/font_size = 26
+text = "🔄 Заново"
 
 [node name="DailyButton" type="Button" parent="."]
-offset_left = 600.0
+offset_left = 470.0
 offset_top = 1395.0
-offset_right = 840.0
+offset_right = 810.0
 offset_bottom = 1475.0
-theme_override_font_sizes/font_size = 24
-text = "🎁 DAILY"
+theme_override_font_sizes/font_size = 26
+text = "🎁 Награда дня"
 
 [node name="ProfileButton" type="TextureButton" parent="."]
 offset_left = 20.0
@@ -160,6 +152,6 @@ offset_left = 27.0
 offset_top = 120.0
 offset_right = 107.0
 offset_bottom = 145.0
-text = "Player"
+text = "Игрок"
 horizontal_alignment = 1
 vertical_alignment = 1

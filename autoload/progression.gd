@@ -15,6 +15,16 @@ const OLD_BEST_SCORE_PATH = "user://best_score.save"
 const SAVE_VERSION = 2
 const AUTOSAVE_DELAY_MS = 3000
 const MAX_COLOR_SLOTS = 8
+const MAX_LEVEL = 500
+const SLOT_LEVELS = [10, 20, 30, 40]  # +1 слот цветов (4 → 8)
+
+# Звания: уровень, с которого действует, и название
+const RANKS = [
+	[1, "Новичок"], [5, "Ученик"], [10, "Укладчик"], [20, "Сборщик"], [30, "Строитель"],
+	[40, "Инженер"], [50, "Архитектор"], [75, "Мастер блоков"], [100, "Знаток"], [125, "Эксперт"],
+	[150, "Виртуоз"], [200, "Гроссмейстер"], [250, "Стратег"], [300, "Мудрец"], [350, "Титан"],
+	[400, "Хранитель поля"], [450, "Повелитель линий"], [500, "Легенда"],
+]
 
 # Мультипликатор наград текущей партии (растёт со счётом)
 var score_multiplier = 1.0
@@ -40,6 +50,8 @@ var best_clean_score = 0    # Лучший счёт без бонусов и п�
 var continues_used = 0
 var powerups_used = 0
 var theme_games = {}        # {"space": 12, ...}
+var total_daily_claims = 0  # Сколько раз забрана ежедневная награда
+var best_run_lines = 0      # Больше всего линий за одну партию
 
 # Индикаторы новых предметов
 var has_new_items = {
@@ -63,21 +75,17 @@ var unlocked_themes = []
 var unlocked_music = []
 var player_avatar = 1
 var player_frame = 1
-var player_name = "Player"
+var player_name = "Игрок"
 var active_theme = "classic"
 
 # Цвета блоков (тема «Классика»)
 var max_color_slots = 4  # Растёт до 8 с уровнями
 var active_colors = [0, 1, 2, 3]  # Индексы ItemsDB.block_colors
 
-# Награды Battle Pass за уровень (монеты и слоты). Предметы за уровень описаны в ItemsDB и темах.
-var level_rewards = {}
-
 var _dirty := false
 var _last_save_ms := 0
 
 func _ready() -> void:
-	setup_battle_pass()
 	load_progress()
 	sync_unlocks()
 
@@ -99,74 +107,79 @@ func _notification(what: int) -> void:
 		if _dirty:
 			save_progress()
 
-# === BATTLE PASS ===
+# === УРОВНИ (1–500) ===
+# Награда за уровень: монеты (больше на каждом 5-м и 25-м), слоты цветов, звания и предметы.
+# Предметы за уровень описаны у самих предметов (ItemsDB, темы) через unlock {"type": "level"}.
 
-func setup_battle_pass():
-	level_rewards = {
-		1: {"type": "coins", "amount": 10},
-		2: {"type": "coins", "amount": 10},
-		3: {"type": "coins", "amount": 15},
-		4: {"type": "coins", "amount": 15},
-		5: {"type": "coins", "amount": 20},
-		6: {"type": "coins", "amount": 10},
-		7: {"type": "coins", "amount": 20},
-		8: {"type": "coins", "amount": 15},
-		9: {"type": "coins", "amount": 15},
-		10: {"type": "slot", "amount": 1},
-	}
+# Опыт, нужный для перехода с уровня level на следующий
+func get_xp_for_level(level: int) -> int:
+	return 120 + 10 * (level - 1)
 
-	# Уровни 11-300
-	for i in range(11, 301):
-		if i % 10 == 0:
-			level_rewards[i] = {"type": "slot", "amount": 1}
-		elif i % 5 == 0:
-			level_rewards[i] = {"type": "coins", "amount": 25}
-		else:
-			level_rewards[i] = {"type": "coins", "amount": 10}
+func get_xp_for_next_level() -> int:
+	return get_xp_for_level(current_level)
 
-func get_reward_for_level(level: int):
-	if level_rewards.has(level):
-		return level_rewards[level]
-	elif level > 300:
-		# Бесконечные уровни — цикл монет
-		var pattern = [5, 10, 5, 10, 15]
-		var index = (level - 301) % 5
-		return {"type": "coins", "amount": pattern[index]}
-	return null
+func is_max_level() -> bool:
+	return current_level >= MAX_LEVEL
 
-# Строки наград уровня для экрана Battle Pass
-func get_level_reward_lines(level: int) -> Array:
+func get_level_coins(level: int) -> int:
+	var coins = 10 + 5 * (level / 25)
+	if level % 5 == 0:
+		coins *= 2
+	if level % 25 == 0:
+		coins += 100
+	return coins
+
+func get_rank_for_level(level: int) -> String:
+	var rank = RANKS[0][1]
+	for entry in RANKS:
+		if level >= entry[0]:
+			rank = entry[1]
+	return rank
+
+func get_rank() -> String:
+	return get_rank_for_level(current_level)
+
+# Новое звание, которое даёт именно этот уровень (или "")
+func get_rank_unlocked_at(level: int) -> String:
+	for entry in RANKS:
+		if entry[0] == level and level > 1:
+			return entry[1]
+	return ""
+
+# Строки наград уровня: для итогов партии и подсказки «следующая награда»
+func get_level_reward_lines(level: int, include_coins: bool = true) -> Array:
 	var lines = []
-	var reward = get_reward_for_level(level)
-	if reward != null:
-		match reward["type"]:
-			"coins":
-				lines.append("💰 %d монет" % reward["amount"])
-			"slot":
-				if get_color_slots_for_level(level) > get_color_slots_for_level(level - 1):
-					lines.append("⭐ +1 слот для цветов")
-				else:
-					lines.append("⭐ Слоты цветов: максимум")
+	if include_coins:
+		lines.append("💰 %d монет" % get_level_coins(level))
+	if level in SLOT_LEVELS:
+		lines.append("🎨 +1 слот для цветов")
+	var rank = get_rank_unlocked_at(level)
+	if rank != "":
+		lines.append("🏅 Звание «%s»" % rank)
 	for item in find_items("level", level):
 		lines.append(get_item_label(item["type"], item["id"]))
 	return lines
 
+# Ближайший уровень, где кроме монет есть что-то ещё: {"level": int, "lines": Array} или {}
+func get_next_special_reward() -> Dictionary:
+	for level in range(current_level + 1, MAX_LEVEL + 1):
+		var lines = get_level_reward_lines(level, false)
+		if not lines.is_empty():
+			return {"level": level, "lines": lines}
+	return {}
+
 func gain_xp(amount: int):
+	if is_max_level():
+		return
 	current_xp += amount
 	xp_gained.emit(amount)
 
-	while current_xp >= get_xp_for_next_level():
+	while not is_max_level() and current_xp >= get_xp_for_next_level():
 		level_up_check()
+	if is_max_level():
+		current_xp = 0
 
 	request_save()
-
-func get_xp_for_next_level() -> int:
-	if current_level <= 50:
-		return 250
-	elif current_level <= 150:
-		return 375
-	else:
-		return 500
 
 func level_up_check():
 	current_xp -= get_xp_for_next_level()
@@ -176,26 +189,28 @@ func level_up_check():
 	save_progress()
 
 func give_level_reward(level: int):
-	var reward = get_reward_for_level(level)
-	if reward != null:
-		match reward["type"]:
-			"coins":
-				add_coins(reward["amount"])
-			"slot":
-				max_color_slots = mini(MAX_COLOR_SLOTS, max_color_slots + reward["amount"])
-		reward_unlocked.emit(reward["type"], reward.get("data", reward.get("amount")))
+	var coins = get_level_coins(level)
+	add_coins(coins)
+	reward_unlocked.emit("coins", coins)
+
+	if level in SLOT_LEVELS:
+		max_color_slots = mini(MAX_COLOR_SLOTS, max_color_slots + 1)
+		reward_unlocked.emit("slot", 1)
+
+	var rank = get_rank_unlocked_at(level)
+	if rank != "":
+		reward_unlocked.emit("rank", rank)
 
 	for item in find_items("level", level):
 		if unlock_item(item["type"], item["id"]):
 			reward_unlocked.emit(item["type"], item["id"])
 
-# Сколько слотов цветов положено на этом уровне (по наградам "slot")
+# Сколько слотов цветов положено на этом уровне
 func get_color_slots_for_level(level: int) -> int:
 	var slots = 4
-	for i in range(2, level + 1):
-		var reward = get_reward_for_level(i)
-		if reward != null and reward["type"] == "slot":
-			slots += reward["amount"]
+	for slot_level in SLOT_LEVELS:
+		if level >= slot_level:
+			slots += 1
 	return mini(MAX_COLOR_SLOTS, slots)
 
 # === МОНЕТЫ ===
@@ -363,6 +378,8 @@ func save_progress():
 		"continues_used": continues_used,
 		"powerups_used": powerups_used,
 		"theme_games": theme_games,
+		"total_daily_claims": total_daily_claims,
+		"best_run_lines": best_run_lines,
 		"has_new_items": has_new_items,
 	}
 
@@ -406,7 +423,7 @@ func load_progress():
 	can_claim_daily = save_data.get("can_claim_daily", true)
 	player_avatar = save_data.get("player_avatar", 1)
 	player_frame = save_data.get("player_frame", 1)
-	player_name = save_data.get("player_name", "Player")
+	player_name = save_data.get("player_name", "Игрок")
 	active_theme = save_data.get("active_theme", "classic")
 	unlocked_avatars = save_data.get("unlocked_avatars", [])
 	unlocked_frames = save_data.get("unlocked_frames", [])
@@ -430,10 +447,14 @@ func load_progress():
 	continues_used = save_data.get("continues_used", 0)
 	powerups_used = save_data.get("powerups_used", 0)
 	theme_games = save_data.get("theme_games", {})
+	total_daily_claims = save_data.get("total_daily_claims", 0)
+	best_run_lines = save_data.get("best_run_lines", 0)
 
 	var saved_flags = save_data.get("has_new_items", {})
 	for key in has_new_items.keys():
 		has_new_items[key] = saved_flags.get(key, false)
+
+	current_level = mini(current_level, MAX_LEVEL)
 
 	if version < 2:
 		# Версия 1: старые аватарки удалены, открытия пересчитываются заново (sync_unlocks)
@@ -508,6 +529,7 @@ func claim_daily_reward() -> Dictionary:
 
 	last_claim_date = get_current_date()
 	can_claim_daily = false
+	total_daily_claims += 1
 	has_new_items["daily"] = false
 
 	save_progress()
@@ -575,6 +597,12 @@ func get_stat(stat_id: String) -> int:
 			return total_time_played
 		"level":
 			return current_level
+		"daily_claims":
+			return total_daily_claims
+		"best_run_lines":
+			return best_run_lines
+		"avatars_unlocked":
+			return unlocked_avatars.size()
 	if stat_id.begins_with("theme_games:"):
 		return int(theme_games.get(stat_id.trim_prefix("theme_games:"), 0))
 	return 0
@@ -587,9 +615,10 @@ func update_best_score(score: int) -> bool:
 		return true
 	return false
 
-func record_game_finished(final_score: int, used_powerups: bool = true, theme_id: String = ""):
+func record_game_finished(final_score: int, used_powerups: bool = true, theme_id: String = "", run_lines: int = 0):
 	total_games_played += 1
 	total_score_sum += final_score
+	best_run_lines = maxi(best_run_lines, run_lines)
 	if not used_powerups:
 		best_clean_score = maxi(best_clean_score, final_score)
 	if theme_id != "":
@@ -646,7 +675,7 @@ func get_average_score() -> int:
 func format_play_time() -> String:
 	var hours = total_time_played / 3600
 	var minutes = (total_time_played % 3600) / 60
-	return "%dh %dm" % [hours, minutes]
+	return "%d ч %d мин" % [hours, minutes]
 
 # === ИНДИКАТОРЫ НОВОГО ===
 

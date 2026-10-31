@@ -40,12 +40,20 @@ var game_over = false
 var dragging_block = null  # Фигура, которую сейчас тянут (одна за раз)
 
 # Награды за партию
-var rewarded_score = 0          # Очки, за которые уже выданы монеты и XP
 var record_bonus_given = false  # Бонус за рекорд уже выдан
 var run_finished = false        # Партия уже записана в статистику
 var best_score_at_start = 0     # Рекорд на момент начала партии
 var used_powerups = false       # Были ли бонусы или продолжение (для «Без подсказок»)
-var run_coins = 0               # Монеты, выданные за эту партию (для финального экрана)
+var run_coins = 0               # Монеты за очки этой партии (для итогов)
+var run_xp = 0                  # Опыт, накопленный за партию: начисляется в конце
+var run_lines = 0               # Линий очищено за партию
+var pieces_this_run = 0
+
+# Итоги партии: пока идёт начисление наград в finish_run(), события уровня,
+# предметов и достижений собираются сюда, а не показываются уведомлениями
+var collecting_summary = false
+var summary = {"levels": [], "level_coins": 0, "slots": 0, "ranks": [], "items": [], "achievements": []}
+var tutorial_label: Label = null
 
 # Continue
 var continue_cost = CONTINUE_BASE_COST
@@ -83,6 +91,7 @@ func _ready():
 
 	progression.xp_gained.connect(_on_xp_gained)
 	progression.level_up.connect(_on_level_up)
+	progression.reward_unlocked.connect(_on_reward_unlocked)
 	progression.coins_changed.connect(_on_coins_changed)
 	progression.daily_reward_available.connect(_on_daily_available)
 	progression.daily_reward_claimed.connect(_on_daily_claimed)
@@ -97,11 +106,19 @@ func _ready():
 	scoring.reset()
 	spawn_blocks()
 	update_powerup_buttons()
+	show_tutorial_if_needed()
 	Events.game_started.emit()
 
 	# Имя подгоняется под ширину после того, как шрифт посчитан
 	await get_tree().process_frame
 	update_profile_name_display()
+
+# F12 в отладочной сборке сохраняет снимок экрана 900×1600 — для скриншотов в магазин
+func _unhandled_input(event: InputEvent):
+	if OS.is_debug_build() and event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+		var path = "user://screenshot_%d.png" % Time.get_unix_time_from_system()
+		get_viewport().get_texture().get_image().save_png(path)
+		show_toast("Снимок: " + ProjectSettings.globalize_path(path))
 
 func _process(delta):
 	if not game_over:
@@ -130,7 +147,7 @@ func make_label(text: String, font_size: int, color: Color, pos: Vector2, label_
 	return label
 
 func build_hud():
-	best_score_label = make_label("Best: %d" % progression.best_score, 30, Color(1, 0.84, 0),
+	best_score_label = make_label("Рекорд: %d" % progression.best_score, 30, Color(1, 0.84, 0),
 		Vector2(300, 20), Vector2(300, 40))
 	score_label = make_label("0", 72, Color.WHITE, Vector2(250, 60), Vector2(400, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
 
@@ -151,7 +168,7 @@ func build_hud():
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(xp_bar)
 
-	var xp_label = make_label("", 18, Color.WHITE, Vector2(300, 222), Vector2(300, 26), HORIZONTAL_ALIGNMENT_CENTER, 2)
+	var xp_label = make_label("", 18, Color.WHITE, Vector2(50, 222), Vector2(520, 26), HORIZONTAL_ALIGNMENT_LEFT, 2)
 	xp_label.name = "XPLabel"
 	update_xp_display()
 
@@ -166,7 +183,6 @@ func build_hud():
 func connect_buttons():
 	$SettingsButton.pressed.connect(_on_settings_pressed)
 	$RestartButton.pressed.connect(_on_restart_button_pressed)
-	$BattlePassButton.pressed.connect(_on_battle_pass_pressed)
 	$HammerButton.pressed.connect(_on_hammer_pressed)
 	$ShuffleButton.pressed.connect(_on_shuffle_pressed)
 	$UndoButton.pressed.connect(_on_undo_pressed)
@@ -176,7 +192,7 @@ func connect_buttons():
 func update_score_display():
 	score_label.text = str(score)
 	if progression.update_best_score(score):
-		best_score_label.text = "Best: %d" % progression.best_score
+		best_score_label.text = "Рекорд: %d" % progression.best_score
 
 func update_xp_display():
 	var xp_bar = get_node_or_null("XPBar")
@@ -185,8 +201,14 @@ func update_xp_display():
 		xp_bar.max_value = progression.get_xp_for_next_level()
 		xp_bar.value = progression.current_xp
 	if xp_label:
-		xp_label.text = "Lv %d • %d / %d XP" % [progression.current_level, progression.current_xp,
-			progression.get_xp_for_next_level()]
+		var text = "Ур. %d · %s" % [progression.current_level, progression.get_rank()]
+		if progression.is_max_level():
+			text += " · максимум"
+		else:
+			text += " · %d / %d XP" % [progression.current_xp, progression.get_xp_for_next_level()]
+		if run_xp > 0 and not run_finished:
+			text += "  (+%d за партию)" % run_xp
+		xp_label.text = text
 
 func update_streak_display(streak: int):
 	streak_label.visible = streak >= 2
@@ -292,6 +314,8 @@ func try_place_piece(block, grid_x: int, grid_y: int) -> bool:
 
 	sound_place.play()
 	GameSettings.vibrate(15)
+	pieces_this_run += 1
+	hide_tutorial()
 	progression.record_piece_placed()
 	Events.piece_placed.emit(placed.size())
 
@@ -330,19 +354,23 @@ func on_lines_cleared(count: int, result: Dictionary, fill_before: float):
 	if fill_before >= CLUTCH_FILL:
 		progression.record_clutch_clear()
 
-	# Множитель наград растёт со счётом
+	run_lines += count
+
+	# Множитель монет растёт со счётом
 	progression.score_multiplier = progression.calculate_multiplier(score)
 	var multiplier_label = get_node_or_null("MultiplierLabel")
 	if multiplier_label:
 		multiplier_label.text = "x" + str(progression.score_multiplier)
 		multiplier_label.visible = progression.score_multiplier > 1.0
 
-	# XP за линии: база, бонус за несколько линий, бонус за серию
+	# XP за линии копится и начисляется в конце партии. Множитель счёта на опыт не влияет:
+	# иначе сильные игроки проходили бы 500 уровней в разы быстрее, чем новички.
 	var base_xp = count * 5 + count * 2 * count
 	if count >= 2:
 		base_xp += 10
 	base_xp += maxi(result["streak"] - 1, 0) * 3
-	progression.gain_xp(int(base_xp * progression.score_multiplier))
+	run_xp += base_xp
+	update_xp_display()
 
 	show_combo_text(count, result)
 	Events.lines_cleared.emit(count, result["streak"], result["perfect"], fill_before)
@@ -509,9 +537,6 @@ func open_scene_modal(path: String):
 func _on_settings_pressed():
 	open_scene_modal("res://settings.tscn")
 
-func _on_battle_pass_pressed():
-	open_scene_modal("res://battle_pass.tscn")
-
 func _on_profile_pressed():
 	open_scene_modal("res://profile.tscn")
 
@@ -545,14 +570,21 @@ func show_toast(text: String, color: Color = Color.WHITE):
 
 func _on_achievement_unlocked(achievement_id: String, tier: int):
 	var def = Achievements.get_definition(achievement_id)
-	var text = "%s %s — %s\n+%d 💰" % [def.get("icon", "🏆"), def.get("title", achievement_id),
+	var text = "%s %s — %s (+%d 💰)" % [def.get("icon", "🏆"), def.get("title", achievement_id),
 		Achievements.get_tier_label(def, tier), Achievements.get_reward_coins(def, tier)]
-	show_toast(text, Achievements.get_tier_color(tier))
 	update_achievements_indicator()
+	if collecting_summary:
+		summary["achievements"].append([text, Achievements.get_tier_color(tier)])
+	else:
+		show_toast(text, Achievements.get_tier_color(tier))
 
 func _on_item_unlocked(item_type: String, item_id):
-	show_toast("🎁 Открыто: " + progression.get_item_label(item_type, item_id), Color(0.6, 1, 0.7))
+	var text = "🎁 Открыто: " + progression.get_item_label(item_type, item_id)
 	update_achievements_indicator()
+	if collecting_summary:
+		summary["items"].append(text)
+	else:
+		show_toast(text, Color(0.6, 1, 0.7))
 
 # === ПРОГРЕСС ===
 
@@ -562,7 +594,22 @@ func _on_xp_gained(_amount: int):
 func _on_level_up(new_level: int):
 	update_xp_display()
 	refresh_profile_button()
-	show_toast("🎉 Уровень %d!" % new_level, Color(1, 0.84, 0))
+	if collecting_summary:
+		summary["levels"].append(new_level)
+	else:
+		show_toast("🎉 Уровень %d!" % new_level, Color(1, 0.84, 0))
+
+# Монеты, слоты и звания за уровень (предметы приходят через Events.item_unlocked)
+func _on_reward_unlocked(reward_type: String, reward_data):
+	if not collecting_summary:
+		return
+	match reward_type:
+		"coins":
+			summary["level_coins"] += int(reward_data)
+		"slot":
+			summary["slots"] += 1
+		"rank":
+			summary["ranks"].append(str(reward_data))
 
 func _on_coins_changed(new_amount: int):
 	var coins_label = get_node_or_null("CoinsLabel")
@@ -589,14 +636,14 @@ func _on_daily_pressed():
 
 func show_daily_reward_popup():
 	var box = open_modal(560)
-	modal_title(box, "DAILY REWARD")
+	modal_title(box, "НАГРАДА ДНЯ")
 
 	for day in range(1, 8):
 		var row = HBoxContainer.new()
 		row.add_theme_constant_override("separation", 12)
 
 		var day_label = Label.new()
-		day_label.text = "Day %d" % day
+		day_label.text = "День %d" % day
 		day_label.custom_minimum_size = Vector2(110, 44)
 		day_label.add_theme_font_size_override("font_size", 24)
 
@@ -628,8 +675,8 @@ func show_daily_reward_popup():
 		box.add_child(row)
 
 	modal_buttons(box, [
-		["CLOSE", close_modal.bind(box)],
-		["CLAIM!", _on_claim_daily_reward.bind(box)],
+		["ЗАКРЫТЬ", close_modal.bind(box)],
+		["ЗАБРАТЬ", _on_claim_daily_reward.bind(box)],
 	])
 
 func _on_claim_daily_reward(box):
@@ -637,12 +684,12 @@ func _on_claim_daily_reward(box):
 	close_modal(box)
 	if reward.is_empty():
 		return
-	var text = "🎁 Day %d: +%d 💰" % [progression.daily_streak, reward.get("coins", 0)]
+	var text = "🎁 День %d: +%d 💰" % [progression.daily_streak, reward.get("coins", 0)]
 	if reward.has("xp"):
 		text += " +%d XP" % reward["xp"]
 	show_toast(text, Color(0.5, 1, 0.5))
 
-# === RESTART ===
+# === ЗАКОНЧИТЬ ПАРТИЮ (кнопка «Заново») ===
 
 func _on_restart_button_pressed():
 	if is_input_blocked():
@@ -651,21 +698,25 @@ func _on_restart_button_pressed():
 		get_tree().reload_current_scene()
 		return
 	var box = open_modal(520)
-	modal_title(box, "RESTART?", Color.YELLOW)
-	modal_text(box, "Партия закончится. Монеты и XP за набранные очки вы получите.")
+	modal_title(box, "ЗАКОНЧИТЬ ПАРТИЮ?", Color.YELLOW, 40)
+	modal_text(box, "Монеты и опыт за набранные очки вы получите.")
 	modal_buttons(box, [
-		["CANCEL", close_modal.bind(box)],
-		["RESTART", _on_restart_confirm.bind(box)],
+		["ОТМЕНА", close_modal.bind(box)],
+		["ЗАКОНЧИТЬ", _on_restart_confirm.bind(box)],
 	])
 
 func _on_restart_confirm(box):
 	close_modal(box)
-	finish_run()
-	get_tree().reload_current_scene()
+	if hammer_mode:
+		progression.add_coins(PRICE_HAMMER)
+		reset_hammer_button()
+	game_over = true
+	update_powerup_buttons()
+	show_final_game_over()
 
 # === НАГРАДЫ ЗА ПАРТИЮ ===
 
-# XP за партию с таким счётом (без мультипликатора)
+# XP за партию с таким счётом
 func get_game_xp_for_score(value: int) -> int:
 	if value <= 0:
 		return 0
@@ -678,46 +729,43 @@ func get_game_xp_for_score(value: int) -> int:
 		xp += 100
 	return xp
 
-# Начисляет монеты и XP за очки партии. Вызывается только из finish_run(), когда партия
-# действительно закончилась: на экране «Продолжить?» награды ещё не выданы, поэтому
-# оплатить продолжение можно только монетами, накопленными до этой партии.
+# Начисляет монеты и опыт за партию. Вызывается только из finish_run(): на экране
+# «Продолжить?» награды ещё не выданы, поэтому продолжение оплачивается монетами,
+# накопленными до этой партии. Уровни и их награды тоже приходят здесь, в конце.
 func award_game_over_rewards():
-	if score <= rewarded_score:
-		return
-
-	var base_xp = get_game_xp_for_score(score) - get_game_xp_for_score(rewarded_score)
-	var final_xp = int(base_xp * progression.score_multiplier)
-	if final_xp > 0:
-		progression.gain_xp(final_xp)
-
-	var base_coins = int(score / 10.0) - int(rewarded_score / 10.0)
-	var final_coins = int(base_coins * progression.score_multiplier)
+	var final_coins = int(int(score / 10.0) * progression.score_multiplier)
 	if final_coins > 0:
 		progression.add_coins(final_coins)
 		progression.record_coins_earned(final_coins)
 		run_coins += final_coins
 
-	# Бонус за побитие рекорда (без мультипликатора, один раз за партию)
-	if not record_bonus_given and score > best_score_at_start:
+	# Бонус за побитие рекорда (без мультипликатора)
+	if score > best_score_at_start and score > 0:
 		record_bonus_given = true
 		progression.add_coins(20)
 		progression.record_coins_earned(20)
 		run_coins += 20
 
-	rewarded_score = score
+	run_xp += get_game_xp_for_score(score)
+	if run_xp > 0:
+		progression.gain_xp(run_xp)
 
-# Завершает партию: выдаёт оставшиеся награды и записывает статистику (один раз)
+# Завершает партию: выдаёт награды, записывает статистику, проверяет достижения (один раз)
 func finish_run():
 	if run_finished:
 		return
 	run_finished = true
 
+	collecting_summary = true
 	award_game_over_rewards()
 	if score > 0:
-		progression.record_game_finished(score, used_powerups, ThemeManager.current.id)
+		progression.record_game_finished(score, used_powerups, ThemeManager.current.id, run_lines)
 	Events.game_finished.emit(score, used_powerups)
+	collecting_summary = false
+
 	progression.reset_multiplier()
 	progression.save_progress()
+	update_xp_display()
 
 # === GAME OVER И CONTINUE ===
 
@@ -736,13 +784,13 @@ func show_game_over():
 
 func show_continue_screen():
 	var box = open_modal(540)
-	modal_title(box, "CONTINUE?", Color.YELLOW, 52)
-	modal_text(box, "Score: %d" % score, 34, Color.WHITE)
+	modal_title(box, "ПРОДОЛЖИТЬ?", Color.YELLOW, 52)
+	modal_text(box, "Очки: %d" % score, 34, Color.WHITE)
 	modal_text(box, "Три новые фигуры за 💰 %d" % continue_cost, 30, Color(1, 0.84, 0))
-	modal_text(box, "У вас 💰 %d. Монеты за очки начислятся, когда партия закончится." % progression.total_coins, 22)
+	modal_text(box, "У вас 💰 %d. Монеты и опыт за партию начислятся, когда она закончится." % progression.total_coins, 22)
 	modal_buttons(box, [
-		["GIVE UP", _on_give_up.bind(box)],
-		["CONTINUE", _on_continue_game.bind(box)],
+		["СДАТЬСЯ", _on_give_up.bind(box)],
+		["ПРОДОЛЖИТЬ", _on_continue_game.bind(box)],
 	])
 
 func _on_continue_game(box):
@@ -768,18 +816,71 @@ func show_final_game_over():
 	continue_cost = CONTINUE_BASE_COST
 	continue_used_count = 0
 
-	var box = open_modal(540)
-	modal_title(box, "GAME OVER", Color(1, 0.35, 0.35), 60)
-	modal_text(box, "Score: %d" % score, 44, Color.WHITE)
+	var box = open_modal(600)
+	modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
+	modal_text(box, "Очки: %d" % score, 44, Color.WHITE)
 	if record_bonus_given:
 		modal_text(box, "Новый рекорд! +20 💰", 28, Color(1, 0.84, 0))
 	else:
-		modal_text(box, "Best: %d" % progression.best_score, 28, Color(1, 0.84, 0))
-	modal_text(box, "За партию: +%d 💰" % run_coins, 28, Color(1, 0.84, 0))
-	modal_buttons(box, [["RESTART", _on_restart_pressed]])
+		modal_text(box, "Рекорд: %d" % progression.best_score, 28, Color(1, 0.84, 0))
+
+	box.add_child(HSeparator.new())
+	modal_text(box, "Итоги партии", 30, Color.WHITE)
+	for line in get_summary_lines():
+		modal_text(box, line[0], 24, line[1])
+
+	if should_ask_for_rating():
+		modal_text(box, "Нравится игра? Оценка в магазине очень поможет.", 22)
+		modal_buttons(box, [["⭐ ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
+	else:
+		modal_buttons(box, [["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
+
+# Строки итогов: [текст, цвет]
+func get_summary_lines() -> Array:
+	var gold = Color(1, 0.84, 0)
+	var lines = []
+	lines.append(["💰 За очки: +%d" % run_coins, gold])
+	lines.append(["✨ Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
+	var levels: Array = summary["levels"]
+	if not levels.is_empty():
+		var level_text = "🎉 Уровень %d!" % levels[-1] if levels.size() == 1 else "🎉 Уровни %d → %d!" % [levels[0], levels[-1]]
+		lines.append(["%s  +%d 💰" % [level_text, summary["level_coins"]], gold])
+	for rank in summary["ranks"]:
+		lines.append(["🏅 Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
+	if summary["slots"] > 0:
+		lines.append(["🎨 +%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
+	for item_text in summary["items"]:
+		lines.append([item_text, Color(0.6, 1, 0.7)])
+	for achievement in summary["achievements"]:
+		lines.append(achievement)
+	if not progression.is_max_level():
+		var next = progression.get_next_special_reward()
+		if not next.is_empty():
+			lines.append(["Дальше: уровень %d — %s" % [next["level"], ", ".join(next["lines"])], Color(0.75, 0.78, 0.92)])
+	return lines
+
+# Просим оценку после 5-й и 20-й партии, если игрок ещё не оценивал
+func should_ask_for_rating() -> bool:
+	if GameSettings.rated or not GameSettings.has_store_page():
+		return false
+	return progression.total_games_played in [5, 20]
 
 func _on_restart_pressed():
 	get_tree().reload_current_scene()
+
+# === ПОДСКАЗКА НОВИЧКУ ===
+
+func show_tutorial_if_needed():
+	if progression.total_pieces_placed > 0:
+		return
+	tutorial_label = make_label("Перетащите фигуру на поле.\nЗаполните ряд или столбец — он исчезнет.",
+		28, Color.WHITE, Vector2(50, 550), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
+	tutorial_label.z_index = 30
+
+func hide_tutorial():
+	if tutorial_label and is_instance_valid(tutorial_label):
+		tutorial_label.queue_free()
+	tutorial_label = null
 
 # === ЭФФЕКТЫ ===
 
@@ -808,32 +909,32 @@ func show_combo_text(lines_count: int, result: Dictionary):
 		1:
 			combo_text = ""
 		2:
-			combo_text = "DOUBLE!"
+			combo_text = "ДВОЙНОЙ!"
 			combo_color = Color.YELLOW
 			shake_strength = 5.0
 		3:
-			combo_text = "TRIPLE!"
+			combo_text = "ТРОЙНОЙ!"
 			combo_color = Color.ORANGE
 			shake_strength = 10.0
 		4:
-			combo_text = "MEGA!"
+			combo_text = "МЕГА!"
 			combo_color = Color.RED
 			shake_strength = 15.0
 		5:
-			combo_text = "INSANE!"
+			combo_text = "БЕЗУМИЕ!"
 			combo_color = Color.MAGENTA
 			shake_strength = 20.0
 		6:
-			combo_text = "LEGENDARY!"
+			combo_text = "ЛЕГЕНДА!"
 			combo_color = Color(1, 0.84, 0)
 			shake_strength = 25.0
 		_:
-			combo_text = "GODLIKE!"
+			combo_text = "НЕВЕРОЯТНО!"
 			combo_color = Color(0.5, 1, 1)
 			shake_strength = 30.0
 
 	if result["perfect"]:
-		combo_text = "PERFECT!"
+		combo_text = "ЧИСТОЕ ПОЛЕ!"
 		combo_color = Color(0.6, 1, 0.8)
 		shake_strength = maxf(shake_strength, 20.0)
 	elif combo_text == "" and result["streak"] >= 3:

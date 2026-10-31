@@ -27,7 +27,7 @@ offset_top = 50.0
 offset_right = 150.0
 offset_bottom = 100.0
 theme_override_font_sizes/font_size = 24
-text = "← Back"
+text = "← Назад"
 
 [node name="AvatarDisplay" type="TextureRect" parent="."]
 layout_mode = 0
@@ -53,7 +53,7 @@ offset_left = 225.0
 offset_top = 387.0
 offset_right = 725.0
 offset_bottom = 687.0
-text = "Player"
+text = "Игрок"
 
 [node name="EditNameButton" type="Button" parent="."]
 layout_mode = 0
@@ -148,7 +148,7 @@ layout_mode = 2
 [node name="SlotsLabel" type="Label" parent="CustomizeContainer/🎨 Colors/ColorsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "Active Slots: 4/8"
+text = "Слоты: 4/8"
 
 [node name="ActiveSlots" type="HBoxContainer" parent="CustomizeContainer/🎨 Colors/ColorsContent"]
 custom_minimum_size = Vector2(700, 100)
@@ -157,7 +157,7 @@ layout_mode = 2
 [node name="Label" type="Label" parent="CustomizeContainer/🎨 Colors/ColorsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
-text = "Available Colors:"
+text = "Все цвета:"
 
 [node name="AllColors" type="GridContainer" parent="CustomizeContainer/🎨 Colors/ColorsContent"]
 layout_mode = 2
@@ -224,7 +224,7 @@ theme_override_constants/separation = 20
 [node name="ProgressLabel" type="Label" parent="CustomizeContainer/🏆 Achievements/AchievementsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "Progress: 0 / 608 (0%)"
+text = "Получено: 0"
 horizontal_alignment = 1
 
 [node name="TotalProgressBar" type="ProgressBar" parent="CustomizeContainer/🏆 Achievements/AchievementsContent"]
