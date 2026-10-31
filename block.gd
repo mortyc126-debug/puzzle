@@ -15,6 +15,7 @@ var slot_size := Vector2(300, 250)  # Размер слота — за любо�
 
 var dragging := false
 var drag_offset := Vector2.ZERO
+var touch_index := -1  # Палец, который держит фигуру (-1 — мышь). Остальные касания не мешают
 var placeable := true  # Есть ли для фигуры место на поле (иначе рисуется тусклой)
 
 var game = null
@@ -34,10 +35,11 @@ func _on_theme_changed(_theme: BlockTheme) -> void:
 func get_pixel_size() -> Vector2:
 	return Vector2(Shapes.get_size(shape)) * cell_size
 
+# slot_center — в координатах сцены Game (она сдвигается к центру длинного экрана)
 func return_to_tray() -> void:
 	dragging = false
 	scale = Vector2.ONE * TRAY_SCALE
-	global_position = slot_center - get_pixel_size() * TRAY_SCALE / 2.0
+	position = slot_center - get_pixel_size() * TRAY_SCALE / 2.0
 	z_index = 0
 
 func set_placeable(value: bool) -> void:
@@ -64,19 +66,26 @@ func _input(event: InputEvent) -> void:
 
 	var is_press_event = event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)
 	if is_press_event:
+		var index = event.index if event is InputEventScreenTouch else -1
 		if event.pressed:
 			if game.rotate_mode:
 				# Режим поворота: нажатие поворачивает фигуру, а не берёт её
 				if is_point_inside(event.position):
 					game.rotate_block(self)
 			elif not dragging and game.dragging_block == null and is_point_inside(event.position):
-				start_drag(event.position, event is InputEventScreenTouch)
-		elif dragging:
-			finish_drag(event.position)
+				start_drag(event.position, index)
+		elif dragging and index == touch_index:
+			if event is InputEventScreenTouch and event.canceled:
+				# Касание отменила система (шторка, жест) — фигура возвращается, а не ставится
+				cancel_drag()
+			else:
+				finish_drag(event.position)
 
 	elif dragging and (event is InputEventScreenDrag or event is InputEventMouseMotion):
-		global_position = event.position - drag_offset
-		update_ghost(event.position)
+		var index = event.index if event is InputEventScreenDrag else -1
+		if index == touch_index:
+			global_position = event.position - drag_offset
+			update_ghost(event.position)
 
 func is_input_blocked() -> bool:
 	return game == null or game.is_input_blocked() or game.hammer_mode
@@ -84,10 +93,12 @@ func is_input_blocked() -> bool:
 # Брать фигуру можно за любое место её слота — так удобнее пальцем
 func is_point_inside(point: Vector2) -> bool:
 	var half = slot_size / 2.0
-	return Rect2(slot_center - half, half * 2.0).has_point(point)
+	return Rect2(slot_center - half, half * 2.0).has_point(game.to_local(point))
 
-func start_drag(pointer: Vector2, is_touch: bool) -> void:
+func start_drag(pointer: Vector2, index: int) -> void:
+	var is_touch = index >= 0
 	dragging = true
+	touch_index = index
 	game.dragging_block = self
 	scale = Vector2.ONE
 	z_index = 10
@@ -102,12 +113,23 @@ func start_drag(pointer: Vector2, is_touch: bool) -> void:
 
 func finish_drag(pointer: Vector2) -> void:
 	dragging = false
+	touch_index = -1
 	game.dragging_block = null
 	grid_reference.hide_ghost()
 	var target = get_target_cell(pointer)
 	if not game.try_place_piece(self, target.x, target.y):
 		return_to_tray()
 		queue_redraw()
+
+# Фигура возвращается в лоток без попытки поставить (сворачивание игры, «Назад»)
+func cancel_drag() -> void:
+	if not dragging:
+		return
+	touch_index = -1
+	game.dragging_block = null
+	grid_reference.hide_ghost()
+	return_to_tray()
+	queue_redraw()
 
 # Клетка поля под левым верхним углом фигуры (ближайшая)
 func get_target_cell(pointer: Vector2) -> Vector2i:

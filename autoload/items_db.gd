@@ -238,8 +238,8 @@ var avatars_data = {
 	12: {
 		"name": "Комета",
 		"rarity": "EPIC",
-		"description": "Четыре линии за один ход — и она проносится по небу.",
-		"unlock": {"type": "achievement", "id": "quad", "tier": 1},
+		"description": "Три линии за один ход — и она проносится по небу.",
+		"unlock": {"type": "achievement", "id": "triple", "tier": 1},
 	},
 	13: {
 		"name": "Сова",

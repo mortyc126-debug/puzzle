@@ -25,6 +25,7 @@ boot_splash/fullsize=false
 config/icon="res://icon.svg"
 
 run/low_processor_mode=true
+config/quit_on_go_back=false
 
 [autoload]
 
@@ -43,7 +44,7 @@ window/size/viewport_height=1600
 window/size/window_width_override=450
 window/size/window_height_override=800
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 window/handheld/orientation=1
 
 [gui]

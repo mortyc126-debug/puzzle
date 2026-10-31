@@ -31,7 +31,7 @@ grid.gd               Вид поля (рисует Board)
 block.gd              Фигура в лотке (перетаскивание)
 profile.gd            Профиль и кастомизация
 assets/avatars        Аватарки (SVG), assets/frames — рамки
-tools/                Генераторы аватарок, рамок, иконки (SVG)
+tools/                Генераторы аватарок, рамок, иконок (SVG); balance_sim.py — стресс-тест и баланс без Godot
 tests/test_core.gd    Тесты логики
 docs/                 План развития и инструкции по контенту
 ```
@@ -73,6 +73,12 @@ docs/                 План развития и инструкции по к�
 godot --headless --path . -s tests/test_core.gd
 ```
 
+Баланс и стресс-тест без Godot (бот играет сотни партий по тем же правилам):
+
+```
+python3 tools/balance_sim.py 200
+```
+
 ## Сборка
 
 Пресеты экспорта уже настроены (`export_presets.cfg`): **Android** (AAB, target API 36, разрешение VIBRATE) и **Web** (без потоков — подходит для itch.io и Яндекс Игр). Нужны шаблоны экспорта Godot 4.7; для Android — Project → Install Android Build Template и свой ключ подписи.
@@ -80,6 +86,7 @@ godot --headless --path . -s tests/test_core.gd
 ## Документы
 
 - [docs/GODOT_SETUP.md](docs/GODOT_SETUP.md) — перенос в Godot, настройка Android, сборка APK/AAB и веб-версии
+- [docs/QA.md](docs/QA.md) — результаты тестирования, баланс и чек-лист проверки на телефоне
 - [docs/RELEASE.md](docs/RELEASE.md) — план выпуска, тексты для магазина, как понять, зашла ли игра
 - [docs/MARKET.md](docs/MARKET.md) — за что хвалят и ругают похожие игры
 - [docs/ROADMAP.md](docs/ROADMAP.md) — исследование, что сделано, планы

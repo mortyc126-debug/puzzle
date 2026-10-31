@@ -95,6 +95,12 @@ var combo_label: Label
 var streak_label: Label
 var toast_offset = 0
 
+# Экран длиннее макета 900×1600: всё игровое — по центру, фон — на весь экран.
+# Окна, профиль, настройки и уведомления живут на отдельном слое ui_layer поверх игры.
+var layout_offset := Vector2.ZERO
+var ui_layer: CanvasLayer
+var shake_tween: Tween
+
 # Звуки по умолчанию (тема может подменить)
 var default_place_stream: AudioStream
 var default_clear_stream: AudioStream
@@ -109,6 +115,12 @@ func _ready():
 
 	grid.position = GRID_POSITION
 	grid.cell_tapped.connect(use_hammer_on_cell)
+
+	ui_layer = CanvasLayer.new()
+	ui_layer.layer = 10
+	add_child(ui_layer)
+	update_layout()
+	get_viewport().size_changed.connect(update_layout)
 
 	build_hud()
 	connect_buttons()
@@ -144,10 +156,36 @@ func _ready():
 
 # F12 в отладочной сборке сохраняет снимок экрана 900×1600 — для скриншотов в магазин
 func _unhandled_input(event: InputEvent):
-	if OS.is_debug_build() and event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if OS.is_debug_build() and event.keycode == KEY_F12:
 		var path = "user://screenshot_%d.png" % Time.get_unix_time_from_system()
 		get_viewport().get_texture().get_image().save_png(path)
 		show_toast("Снимок: " + ProjectSettings.globalize_path(path))
+	elif event.keycode == KEY_ESCAPE and not OS.has_feature("mobile"):
+		# На ПК Esc работает как кнопка «Назад» телефона — удобно проверять
+		handle_back()
+
+# Экран длиннее (или шире) макета: сдвигаем игру к центру, фон растягиваем на весь экран
+func update_layout():
+	var view_size = get_viewport_rect().size
+	layout_offset = Vector2(floorf(maxf(view_size.x - SCREEN_SIZE.x, 0.0) / 2.0),
+		floorf(maxf(view_size.y - SCREEN_SIZE.y, 0.0) / 2.0))
+	if shake_tween:
+		shake_tween.kill()
+	position = layout_offset
+	theme_background.position = -layout_offset
+	fit_background_sprite()
+
+func fit_background_sprite():
+	var texture = background_sprite.texture
+	if texture == null:
+		return
+	var view_size = get_viewport_rect().size
+	var texture_size = texture.get_size()
+	var cover = maxf(view_size.x / texture_size.x, view_size.y / texture_size.y)
+	background_sprite.scale = Vector2(cover, cover)
+	background_sprite.position = view_size / 2.0 - layout_offset
 
 func _process(delta):
 	if not game_over:
@@ -412,10 +450,7 @@ func apply_theme_visuals(theme: BlockTheme):
 
 	if theme.background_texture:
 		background_sprite.texture = theme.background_texture
-		var texture_size = theme.background_texture.get_size()
-		var cover = maxf(SCREEN_SIZE.x / texture_size.x, SCREEN_SIZE.y / texture_size.y)
-		background_sprite.scale = Vector2(cover, cover)
-		background_sprite.position = SCREEN_SIZE / 2.0
+		fit_background_sprite()
 		background_sprite.visible = true
 	else:
 		background_sprite.visible = false
@@ -612,13 +647,13 @@ func mark_powerup_used(powerup_id: String):
 	progression.record_powerup()
 	Events.powerup_used.emit(powerup_id)
 
+# Молоток, как и поворот, списывает монеты за сам удар: кнопка только включает режим,
+# повторное нажатие — отмена (ничего не списано)
 func _on_hammer_pressed():
-	# Повторное нажатие — отмена, монеты возвращаются
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
 		return
-	if dragging_block != null or not progression.spend_coins(PRICE_HAMMER):
+	if game_over or dragging_block != null or progression.total_coins < PRICE_HAMMER:
 		return
 	if rotate_mode:
 		reset_rotate_button()
@@ -626,11 +661,12 @@ func _on_hammer_pressed():
 	set_tool_active($HammerButton, true, PRICE_HAMMER)
 
 func use_hammer_on_cell(x: int, y: int):
-	if not hammer_mode:
+	if not hammer_mode or grid.board.get_cell(x, y) == Board.EMPTY:
+		return
+	if not progression.spend_coins(PRICE_HAMMER):
+		reset_hammer_button()
 		return
 	var color = grid.board.remove_cell(x, y)
-	if color == Board.EMPTY:
-		return
 	grid.play_clear_effect([{"pos": Vector2i(x, y), "color": color}], {"rows": [], "cols": []})
 	grid.queue_redraw()
 	sound_place.pitch_scale = 0.85
@@ -666,7 +702,6 @@ func _on_rotate_pressed():
 	if game_over or dragging_block != null or progression.total_coins < PRICE_ROTATE:
 		return
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
 	rotate_mode = true
 	set_tool_active($RotateButton, true, PRICE_ROTATE)
@@ -705,6 +740,9 @@ func _on_undo_pressed():
 	scoring.set_state(last_move["state"]["scoring"])
 	create_block(last_move["shape"], last_move["color_index"], last_move["slot"])
 	last_move = null
+	# Отменённая фигура не считается поставленной (задания «Поставьте N фигур»)
+	pieces_this_run = maxi(pieces_this_run - 1, 0)
+	progression.total_pieces_placed = maxi(progression.total_pieces_placed - 1, 0)
 
 	mark_powerup_used("undo")
 	score_label.text = str(score)
@@ -718,28 +756,38 @@ func _on_undo_pressed():
 
 # Затемнение на весь экран и панель по центру. Возвращает VBox для содержимого.
 # Закрыть: close_modal(box). Пока окно открыто, поле не реагирует (группа "modal").
-func open_modal(min_width: float = 560.0) -> VBoxContainer:
+# back_action — что делает кнопка «Назад» телефона (по умолчанию закрывает окно).
+# Если содержимое выше экрана (много наград за партию), оно прокручивается.
+func open_modal(min_width: float = 560.0, back_action: Callable = Callable()) -> VBoxContainer:
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.78)
-	overlay.position = Vector2.ZERO
-	overlay.size = SCREEN_SIZE
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.z_index = 100
 	overlay.add_to_group("modal")
-	add_child(overlay)
+	ui_layer.add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center = CenterContainer.new()
-	center.size = SCREEN_SIZE
 	overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var panel = PanelContainer.new()
 	center.add_child(panel)
 
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(min_width + 20.0, 0)
+	panel.add_child(scroll)
+
 	var box = VBoxContainer.new()
 	box.custom_minimum_size = Vector2(min_width, 0)
 	box.add_theme_constant_override("separation", 18)
-	panel.add_child(box)
+	scroll.add_child(box)
+	var max_height = get_viewport_rect().size.y - 160.0
+	box.resized.connect(func(): scroll.custom_minimum_size.y = minf(box.size.y, max_height))
+
 	box.set_meta("overlay", overlay)
+	overlay.set_meta("back_action", back_action if back_action.is_valid() else close_modal.bind(box))
 	return box
 
 func close_modal(box: Control):
@@ -793,13 +841,58 @@ func open_scene_modal(path: String):
 	var instance = load(path).instantiate()
 	instance.add_to_group("modal")
 	instance.z_index = 100
-	add_child(instance)
+	ui_layer.add_child(instance)
 
 func _on_settings_pressed():
+	if is_input_blocked() or dragging_block != null:
+		return
 	open_scene_modal("res://settings.tscn")
 
 func _on_profile_pressed():
+	if is_input_blocked() or dragging_block != null:
+		return
 	open_scene_modal("res://profile.tscn")
+
+# === КНОПКА «НАЗАД» ТЕЛЕФОНА ===
+# В project.godot выключено quit_on_go_back: иначе «Назад» сразу закрывал бы игру.
+# Порядок: верхнее окно → режим молотка или поворота → вопрос «Выйти из игры?»
+
+func handle_back():
+	if dragging_block != null and is_instance_valid(dragging_block):
+		dragging_block.cancel_drag()
+		return
+	for i in range(ui_layer.get_child_count() - 1, -1, -1):
+		var node = ui_layer.get_child(i)
+		if not node.is_in_group("modal") or node.is_queued_for_deletion():
+			continue
+		if node.has_method("handle_back"):
+			node.handle_back()
+		else:
+			var action: Callable = node.get_meta("back_action", Callable())
+			if action.is_valid():
+				action.call()
+		return
+	if hammer_mode:
+		reset_hammer_button()
+		return
+	if rotate_mode:
+		reset_rotate_button()
+		return
+	show_exit_popup()
+
+func show_exit_popup():
+	var box = open_modal(520)
+	modal_title(box, "ВЫЙТИ ИЗ ИГРЫ?", Color.WHITE, 40)
+	modal_text(box, "Партия сохранится — продолжите с того же места.")
+	modal_buttons(box, [
+		["ВЫЙТИ", _on_exit_confirm],
+		["ИГРАТЬ", close_modal.bind(box)],
+	])
+
+func _on_exit_confirm():
+	save_run()
+	progression.save_progress()
+	get_tree().quit()
 
 # === TOASTS (уведомления сверху) ===
 
@@ -816,11 +909,11 @@ func show_toast(text: String, color: Color = Color.WHITE):
 	label.add_theme_font_size_override("font_size", 26)
 	label.add_theme_color_override("font_color", color)
 	panel.add_child(label)
-	add_child(panel)
+	ui_layer.add_child(panel)
 
-	var slot_y = 30.0 + toast_offset * 130.0
+	var slot_y = layout_offset.y + 30.0 + toast_offset * 130.0
 	toast_offset += 1
-	panel.position = Vector2((SCREEN_SIZE.x - 680) / 2.0, -200)
+	panel.position = Vector2((get_viewport_rect().size.x - 680) / 2.0, -200)
 
 	var tween = create_tween()
 	tween.tween_property(panel, "position:y", slot_y, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -909,7 +1002,7 @@ func _on_daily_claimed(_day: int, _reward: Dictionary):
 	update_daily_button()
 
 func _on_daily_pressed():
-	if is_input_blocked():
+	if is_input_blocked() or dragging_block != null:
 		return
 	show_tasks_popup()
 
@@ -961,7 +1054,7 @@ func _on_claim_daily_reward(box):
 # === ЗАКОНЧИТЬ ПАРТИЮ (кнопка «Заново») ===
 
 func _on_restart_button_pressed():
-	if is_input_blocked():
+	if is_input_blocked() or dragging_block != null:
 		return
 	if score == 0:
 		clear_saved_run()
@@ -978,8 +1071,9 @@ func _on_restart_button_pressed():
 func _on_restart_confirm(box):
 	close_modal(box)
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
+	if rotate_mode:
+		reset_rotate_button()
 	game_over = true
 	update_powerup_buttons()
 	show_final_game_over()
@@ -1050,8 +1144,9 @@ func finish_run():
 
 func show_game_over():
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
+	if rotate_mode:
+		reset_rotate_button()
 	update_powerup_buttons()
 	sound_game_over.play()
 	GameSettings.vibrate(120)
@@ -1062,7 +1157,8 @@ func show_game_over():
 		show_final_game_over()
 
 func show_continue_screen():
-	var box = open_modal(540)
+	# «Назад» здесь ничего не делает: случайно сдаться обиднее, чем нажать кнопку
+	var box = open_modal(540, func(): pass)
 	modal_title(box, "ПРОДОЛЖИТЬ?", Color.YELLOW, 52)
 	modal_text(box, "Очки: %d" % score, 34, Color.WHITE)
 	modal_text(box, "Три новые фигуры за %d монет" % continue_cost, 30, GOLD)
@@ -1096,7 +1192,7 @@ func show_final_game_over():
 	continue_cost = CONTINUE_BASE_COST
 	continue_used_count = 0
 
-	var box = open_modal(600)
+	var box = open_modal(600, _on_restart_pressed)
 	modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
 	modal_text(box, "Очки: %d" % score, 44, Color.WHITE)
 	if record_bonus_given:
@@ -1246,9 +1342,20 @@ func _on_restart_pressed():
 # Партию могут прервать звонком или свернуть — при следующем запуске она продолжится.
 
 func _notification(what: int):
-	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT \
-			or what == NOTIFICATION_WM_CLOSE_REQUEST:
-		save_run()
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_CLOSE_REQUEST:
+			# Звонок, шторка уведомлений, сворачивание: фигуру — в лоток, партию — на диск
+			if dragging_block != null and is_instance_valid(dragging_block):
+				dragging_block.cancel_drag()
+			save_run()
+		NOTIFICATION_APPLICATION_RESUMED, NOTIFICATION_APPLICATION_FOCUS_IN:
+			# Игру могли свернуть вчера, а развернуть сегодня — обновляем награду дня и задания
+			if progression != null and is_inside_tree():
+				progression.check_daily_reward()
+				Missions.ensure_today()
+				update_daily_button()
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			handle_back()
 
 func save_run():
 	if run_finished or not is_inside_tree():
@@ -1278,21 +1385,12 @@ func save_run():
 		"max_combo": run_max_combo,
 		"record_announced": record_announced,
 	}
-	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_var(data)
-		file.close()
+	SafeFile.save_var(RUN_SAVE_PATH, data)
 
 # Возвращает true, если партия восстановлена
 func load_run() -> bool:
-	if not FileAccess.file_exists(RUN_SAVE_PATH):
-		return false
-	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return false
-	var data = file.get_var()
-	file.close()
-	if not data is Dictionary or not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
+	var data = SafeFile.load_dict(RUN_SAVE_PATH)
+	if not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
 		return false
 
 	grid.board.from_array(data["board"])
@@ -1312,9 +1410,10 @@ func load_run() -> bool:
 
 	for item in data.get("tray", []):
 		var shape = []
-		for cell in item["shape"]:
+		for cell in item.get("shape", []):
 			shape.append(Vector2(cell[0], cell[1]))
-		create_block(shape, item["color"], item["slot"])
+		if not shape.is_empty():
+			create_block(shape, int(item.get("color", 0)), clampi(int(item.get("slot", 0)), 0, 2))
 	if active_blocks.is_empty():
 		spawn_blocks()
 
@@ -1328,8 +1427,7 @@ func load_run() -> bool:
 	return true
 
 func clear_saved_run():
-	if FileAccess.file_exists(RUN_SAVE_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(RUN_SAVE_PATH))
+	SafeFile.remove(RUN_SAVE_PATH)
 
 # === ПОДСКАЗКА НОВИЧКУ ===
 
@@ -1433,39 +1531,18 @@ func animate_combo_label():
 	tween.parallel().tween_property(combo_label, "position:y", 430.0, 0.3)
 
 func screen_shake(strength: float):
-	var original_pos = Vector2.ZERO
+	if shake_tween:
+		shake_tween.kill()
+	shake_tween = create_tween()
 	for i in range(10):
-		position = original_pos + Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
-		await get_tree().create_timer(0.02).timeout
-	position = original_pos
+		var jitter = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
+		shake_tween.tween_property(self, "position", layout_offset + jitter, 0.02)
+	shake_tween.tween_property(self, "position", layout_offset, 0.02)
 
+# Салют из центра поля — теми же частицами, что и эффекты очистки (без GPU-частиц:
+# на телефоне их первая компиляция шейдера даёт заметный рывок)
 func spawn_combo_particles(color: Color):
-	var particles = GPUParticles2D.new()
-	particles.position = GRID_POSITION + grid.get_pixel_size() / 2.0
-	particles.amount = 50
-	particles.lifetime = 1.0
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.randomness = 0.5
-	particles.z_index = 45
-
-	var process_material = ParticleProcessMaterial.new()
-	process_material.particle_flag_disable_z = true
-	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process_material.emission_sphere_radius = 20.0
-	process_material.direction = Vector3(0, -1, 0)
-	process_material.spread = 180.0
-	process_material.initial_velocity_min = 200.0
-	process_material.initial_velocity_max = 400.0
-	process_material.gravity = Vector3(0, 500, 0)
-	process_material.scale_min = 4.0
-	process_material.scale_max = 8.0
-	process_material.color = color
-
-	particles.process_material = process_material
-	particles.emitting = true
-	add_child(particles)
-	get_tree().create_timer(2.0).timeout.connect(particles.queue_free)
+	grid.play_celebration(color)
 
 # === ПРОФИЛЬ (кнопка в углу) ===
 

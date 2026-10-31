@@ -28,6 +28,8 @@ var progression = null
 var all_colors = ItemsDB.block_colors
 var best_value_label: Label
 var coins_value_label: Label
+var built_tabs = {}  # Вкладки строятся при первом открытии — профиль открывается быстрее
+var popups: Array = []  # Открытые окна поверх профиля (закрываются кнопкой «Назад» по очереди)
 
 func _ready():
 	progression = Progression
@@ -42,17 +44,34 @@ func _ready():
 	if tabs:
 		tabs.tab_changed.connect(_on_tab_changed)
 
+	ScreenStyle.fit_to_screen(self, 0.25, get_node_or_null(PATH_TABS))
 	update_profile()
-	create_stats_list()
-	create_colors_list()
-	create_themes_list()
-	create_effects_list()
-	create_rewards_list()
-	create_avatars_list()
-	create_frames_list()
-	create_achievements_list()
 	update_tab_titles()
 	auto_open_new_items_tab()
+	if tabs:
+		ensure_tab_built(tabs.current_tab)
+
+func ensure_tab_built(tab: int):
+	if built_tabs.has(tab):
+		return
+	built_tabs[tab] = true
+	match tab:
+		TAB_STATS:
+			create_stats_list()
+		TAB_REWARDS:
+			create_rewards_list()
+		TAB_COLORS:
+			create_colors_list()
+		TAB_THEMES:
+			create_themes_list()
+		TAB_EFFECTS:
+			create_effects_list()
+		TAB_AVATARS:
+			create_avatars_list()
+		TAB_FRAMES:
+			create_frames_list()
+		TAB_ACHIEVEMENTS:
+			create_achievements_list()
 
 # === ШАПКА ===
 
@@ -168,6 +187,7 @@ func update_tab_titles():
 
 # Открытая вкладка считается просмотренной
 func _on_tab_changed(tab: int):
+	ensure_tab_built(tab)
 	var category = ""
 	match tab:
 		TAB_THEMES:
@@ -433,7 +453,8 @@ func _on_theme_clicked(theme_id: String):
 		return
 	progression.select_theme(theme_id)
 	create_themes_list()
-	create_colors_list()
+	if built_tabs.has(TAB_COLORS):
+		create_colors_list()
 
 # === ЭФФЕКТЫ ОЧИСТКИ ===
 
@@ -747,7 +768,8 @@ func show_achievement_popup(def: Dictionary):
 # === ИМЯ ===
 
 func show_name_edit_popup():
-	var box = open_popup(520)
+	# Окно выше центра: снизу его закроет экранная клавиатура
+	var box = open_popup(520, 0.55)
 	box.add_child(make_label("Ваше имя", 34, GOLD))
 
 	var line_edit = LineEdit.new()
@@ -757,6 +779,7 @@ func show_name_edit_popup():
 	line_edit.custom_minimum_size = Vector2(460, 64)
 	line_edit.add_theme_font_size_override("font_size", 28)
 	line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	line_edit.text_submitted.connect(func(_text): _on_name_save(line_edit, box))
 	box.add_child(line_edit)
 
 	var row = HBoxContainer.new()
@@ -811,16 +834,18 @@ func make_highlight_box(color: Color, fill_alpha: float = 0.2) -> StyleBoxFlat:
 	return box
 
 # Окно поверх профиля: затемнение + панель по центру. Возвращает VBox для содержимого.
-func open_popup(min_width: float) -> VBoxContainer:
+# area_bottom < 1 — окно центрируется в верхней части экрана (например, над клавиатурой).
+func open_popup(min_width: float, area_bottom: float = 1.0) -> VBoxContainer:
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center = CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.anchor_bottom = area_bottom
 
 	var panel = PanelContainer.new()
 	center.add_child(panel)
@@ -838,9 +863,11 @@ func open_popup(min_width: float) -> VBoxContainer:
 	# Высоту ограничиваем экраном: длинные списки прокручиваются
 	box.resized.connect(func(): scroll.custom_minimum_size.y = minf(box.size.y, size.y - 220))
 	box.set_meta("overlay", overlay)
+	popups.append(box)
 	return box
 
 func close_popup(box: Control):
+	popups.erase(box)
 	if box and is_instance_valid(box):
 		var overlay = box.get_meta("overlay", null)
 		if overlay and is_instance_valid(overlay):
@@ -861,3 +888,13 @@ func _on_back_pressed():
 	if game:
 		game.update_achievements_indicator()
 	queue_free()
+
+# Кнопка «Назад» на телефоне (вызывает Game): сначала закрывает окно поверх профиля
+func handle_back() -> bool:
+	while not popups.is_empty():
+		var box = popups.pop_back()
+		if is_instance_valid(box):
+			close_popup(box)
+			return true
+	_on_back_pressed()
+	return true

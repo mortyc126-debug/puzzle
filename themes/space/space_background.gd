@@ -15,6 +15,12 @@ var _nebulas: Array = []
 var _comet = null
 var _time := 0.0
 var _since_redraw := 0.0
+var _backdrop: Texture2D
+
+# Градиент с туманностями запекается в маленькую картинку один раз за запуск игры:
+# раньше это было 18 полупрозрачных кругов на весь экран 20 раз в секунду — тяжело для
+# видеочипа телефона. Картинка растягивается с фильтрацией, края туманностей остаются мягкими.
+static var _backdrop_cache: Dictionary = {}
 
 func _ready() -> void:
 	_area = get_viewport_rect().size
@@ -35,6 +41,31 @@ func _ready() -> void:
 			"radius": rng.randf_range(0.35, 0.6) * _area.x,
 			"color": nebula_colors[i % nebula_colors.size()] if not nebula_colors.is_empty() else Color(1, 1, 1, 0.03),
 		})
+	_backdrop = _get_backdrop()
+
+func _get_backdrop() -> Texture2D:
+	var key = "%s|%s|%s|%s" % [_area, top_color, bottom_color, nebula_colors]
+	if _backdrop_cache.has(key):
+		return _backdrop_cache[key]
+	var width = 60
+	var height = maxi(int(round(width * _area.y / _area.x)), 2)
+	var image = Image.create_empty(width, height, false, Image.FORMAT_RGB8)
+	for y in range(height):
+		var base = top_color.lerp(bottom_color, float(y) / float(height - 1))
+		for x in range(width):
+			var point = Vector2((x + 0.5) / width * _area.x, (y + 0.5) / height * _area.y)
+			var color = base
+			for nebula in _nebulas:
+				var distance = point.distance_to(nebula["pos"]) / nebula["radius"]
+				if distance < 1.0:
+					# Как 6 вложенных кругов: чем ближе к центру, тем больше слоёв
+					var layers = 6.0 * clampf((1.0 - distance) / 0.8, 0.0, 1.0)
+					var tint: Color = nebula["color"]
+					color = color.lerp(Color(tint.r, tint.g, tint.b), 1.0 - pow(1.0 - tint.a, layers))
+			image.set_pixel(x, y, color)
+	var texture = ImageTexture.create_from_image(image)
+	_backdrop_cache[key] = texture
+	return texture
 
 func _process(delta: float) -> void:
 	_time += delta
@@ -56,16 +87,8 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	# Градиент сверху вниз
-	var points = PackedVector2Array([Vector2.ZERO, Vector2(_area.x, 0), _area, Vector2(0, _area.y)])
-	var colors = PackedColorArray([top_color, top_color, bottom_color, bottom_color])
-	draw_polygon(points, colors)
-
-	# Туманности: несколько полупрозрачных кругов дают мягкий край
-	for nebula in _nebulas:
-		for ring in range(6):
-			var t = float(ring) / 6.0
-			draw_circle(nebula["pos"], nebula["radius"] * (1.0 - t * 0.8), nebula["color"])
+	# Градиент и туманности — одной запечённой картинкой
+	draw_texture_rect(_backdrop, Rect2(Vector2.ZERO, _area), false)
 
 	# Звёзды
 	for star in _stars:

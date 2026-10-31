@@ -21,8 +21,12 @@ func _ready():
 	music.toggled.connect(GameSettings.set_music)
 	vibration.toggled.connect(_on_vibration_toggled)
 
+	# Музыки в игре пока нет — переключатель вернётся вместе с ней
+	$OptionsContainer/MusicOption.visible = false
+
 	add_zen_toggle()
 	add_links()
+	ScreenStyle.fit_to_screen(self, 0.5)
 
 # Спокойный режим: переключатель добавляется кодом под остальными
 func add_zen_toggle():
@@ -79,3 +83,8 @@ func _on_vibration_toggled(enabled: bool):
 
 func _on_back_pressed():
 	queue_free()
+
+# Кнопка «Назад» на телефоне (вызывает Game)
+func handle_back() -> bool:
+	_on_back_pressed()
+	return true

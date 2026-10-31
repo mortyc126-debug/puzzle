@@ -23,9 +23,16 @@ var ghost_lines = {"rows": [], "cols": []}
 var flashes: Array = []
 # Частицы выбранного эффекта очистки (см. ui/effect_painter.gd)
 var particles: Array = []
+# Вспышки и частицы рисуются на отдельном слое: пока идёт анимация, каждый кадр
+# перерисовывается только он, а не всё поле из 64 блоков
+var fx_layer: Node2D
 
 func _ready() -> void:
 	ThemeManager.theme_changed.connect(_on_theme_changed)
+	fx_layer = Node2D.new()
+	fx_layer.z_index = 5
+	add_child(fx_layer)
+	fx_layer.draw.connect(_draw_fx)
 
 func _on_theme_changed(_theme: BlockTheme) -> void:
 	queue_redraw()
@@ -43,7 +50,7 @@ func _process(delta: float) -> void:
 		flash["time"] += delta
 	flashes = flashes.filter(func(flash): return flash["time"] < FLASH_TIME)
 	EffectPainter.update(particles, delta)
-	queue_redraw()
+	fx_layer.queue_redraw()
 
 func _draw() -> void:
 	var theme: BlockTheme = ThemeManager.current
@@ -74,12 +81,13 @@ func _draw() -> void:
 			else:
 				draw_rect(cell_rect(x, y).grow(-4), theme.ghost_invalid_color)
 
+func _draw_fx() -> void:
+	var theme: BlockTheme = ThemeManager.current
 	for flash in flashes:
 		var t = flash["time"] / FLASH_TIME
 		var pos: Vector2i = flash["pos"]
-		BlockRenderer.draw_flash(self, cell_rect(pos.x, pos.y), ThemeManager.get_block_color(flash["color"]), theme, t)
-
-	EffectPainter.draw(self, particles)
+		BlockRenderer.draw_flash(fx_layer, cell_rect(pos.x, pos.y), ThemeManager.get_block_color(flash["color"]), theme, t)
+	EffectPainter.draw(fx_layer, particles)
 
 # === GHOST PREVIEW ===
 
@@ -116,6 +124,12 @@ func play_clear_effect(cleared: Array, _lines: Dictionary = {}) -> void:
 		var color = ThemeManager.current.particle_color if kind == "sparks" else ThemeManager.get_block_color(item["color"])
 		EffectPainter.burst(particles, kind, cell_rect(item["pos"].x, item["pos"].y).get_center(), color, per_cell, CELL_SIZE)
 	queue_redraw()
+	fx_layer.queue_redraw()
+
+# Салют из центра поля для больших надписей (комбо, рекорд, чистое поле)
+func play_celebration(color: Color) -> void:
+	EffectPainter.burst(particles, "sparks", get_pixel_size() / 2.0, color, 36, CELL_SIZE * 1.4)
+	fx_layer.queue_redraw()
 
 # === МОЛОТОК: нажатие по клетке ===
 
