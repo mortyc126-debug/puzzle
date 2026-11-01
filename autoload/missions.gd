@@ -94,7 +94,7 @@ static func plural(n: int, forms: Array) -> String:
 
 func get_reward_text(mission: Dictionary) -> String:
 	var difficulty = mission["difficulty"]
-	return "+%d 💰  +%d XP" % [REWARD_COINS[difficulty], REWARD_XP[difficulty]]
+	return "+%d монет · +%d XP" % [REWARD_COINS[difficulty], REWARD_XP[difficulty]]
 
 func count_done() -> int:
 	var done = 0
@@ -153,20 +153,10 @@ func _reward(mission: Dictionary) -> void:
 	mission_completed.emit(get_text(mission), coins, xp)
 
 func save_state() -> void:
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_var({"date": date, "missions": missions, "bonus_given": bonus_given})
-		file.close()
+	SafeFile.save_var(SAVE_PATH, {"date": date, "missions": missions, "bonus_given": bonus_given})
 
 func load_state() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return
-	var data = file.get_var()
-	file.close()
-	if data is Dictionary:
-		date = data.get("date", "")
-		missions = data.get("missions", [])
-		bonus_given = data.get("bonus_given", false)
+	var data = SafeFile.load_dict(SAVE_PATH)
+	date = data.get("date", "")
+	missions = data.get("missions", [])
+	bonus_given = data.get("bonus_given", false)

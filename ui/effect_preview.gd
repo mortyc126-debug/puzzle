@@ -19,6 +19,9 @@ func setup(effect_kind: String, base_color: Color) -> void:
 	_timer = 1.0
 
 func _process(delta: float) -> void:
+	# Превью на скрытой вкладке профиля не тратит кадры
+	if not is_visible_in_tree():
+		return
 	_timer += delta
 	if _timer >= 1.0:
 		_timer = 0.0

@@ -6,12 +6,15 @@ extends Node2D
 ## - Прогресс, темы, достижения, настройки — автозагрузки Progression, ThemeManager,
 ##   Achievements, GameSettings. О событиях партии игра сообщает через Events.
 
-# === РАСКЛАДКА ЭКРАНА 900×1600 ===
+# === РАСКЛАДКА ===
+# Ширина макета 900, высота — сколько даёт экран (не меньше 1600). Зоны сверху вниз:
+# верхняя строка (аватарка, монеты, настройки) → счёт → поле → лоток с фигурами →
+# бонусы → нижняя строка («Заново», уровень и опыт, «Задания»). Свободная высота длинных
+# экранов уходит в просветы вокруг счёта и поля — см. arrange_hud().
 const SCREEN_SIZE = Vector2(900, 1600)
-const GRID_POSITION = Vector2(130, 280)
-const TRAY_CENTER_Y = 1090.0
-const TRAY_HEIGHT = 250.0
+const TRAY_HEIGHT = 280.0
 const SLOT_WIDTH = 300.0
+const MAX_BOARD_SCALE = 1.25  # поле 8×80 px × 1.25 = 800 px из 900
 
 # === ПРАВИЛА ===
 const CLUTCH_FILL = 0.75  # «На краю»: очистка при заполнении поля от 75%
@@ -95,6 +98,18 @@ var combo_label: Label
 var streak_label: Label
 var toast_offset = 0
 
+# Экран длиннее макета 900×1600: всё игровое — по центру, фон — на весь экран.
+# Окна, профиль, настройки и уведомления живут на отдельном слое ui_layer поверх игры.
+var layout_offset := Vector2.ZERO
+var ui_layer: CanvasLayer
+var shake_tween: Tween
+var board_scale := MAX_BOARD_SCALE
+var tray_center_y := 1100.0
+var combo_base := Vector2(250, 480)
+var score_panel: Control
+var coin_pill: Control
+var level_panel: Control
+
 # Звуки по умолчанию (тема может подменить)
 var default_place_stream: AudioStream
 var default_clear_stream: AudioStream
@@ -107,10 +122,16 @@ func _ready():
 	default_place_stream = sound_place.stream
 	default_clear_stream = sound_clear.stream
 
-	grid.position = GRID_POSITION
 	grid.cell_tapped.connect(use_hammer_on_cell)
 
+	ui_layer = CanvasLayer.new()
+	ui_layer.layer = 10
+	add_child(ui_layer)
+	update_layout()
+	get_viewport().size_changed.connect(update_layout)
+
 	build_hud()
+	arrange_hud()
 	connect_buttons()
 
 	progression.xp_gained.connect(_on_xp_gained)
@@ -144,10 +165,38 @@ func _ready():
 
 # F12 в отладочной сборке сохраняет снимок экрана 900×1600 — для скриншотов в магазин
 func _unhandled_input(event: InputEvent):
-	if OS.is_debug_build() and event is InputEventKey and event.pressed and event.keycode == KEY_F12:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	if OS.is_debug_build() and event.keycode == KEY_F12:
 		var path = "user://screenshot_%d.png" % Time.get_unix_time_from_system()
 		get_viewport().get_texture().get_image().save_png(path)
 		show_toast("Снимок: " + ProjectSettings.globalize_path(path))
+	elif event.keycode == KEY_ESCAPE and not OS.has_feature("mobile"):
+		# На ПК Esc работает как кнопка «Назад» телефона — удобно проверять
+		handle_back()
+
+# Экран шире макета (планшет) — игра по центру; по высоте раскладывает arrange_hud().
+# Фон растягивается на весь экран.
+func update_layout():
+	var view_size = get_viewport_rect().size
+	layout_offset = Vector2(floorf(maxf(view_size.x - SCREEN_SIZE.x, 0.0) / 2.0), 0.0)
+	if shake_tween:
+		shake_tween.kill()
+	position = layout_offset
+	theme_background.position = -layout_offset
+	fit_background_sprite()
+	if score_panel != null:
+		arrange_hud()
+
+func fit_background_sprite():
+	var texture = background_sprite.texture
+	if texture == null:
+		return
+	var view_size = get_viewport_rect().size
+	var texture_size = texture.get_size()
+	var cover = maxf(view_size.x / texture_size.x, view_size.y / texture_size.y)
+	background_sprite.scale = Vector2(cover, cover)
+	background_sprite.position = view_size / 2.0 - layout_offset
 
 func _process(delta):
 	if not game_over:
@@ -209,7 +258,7 @@ func styled_label(text: String, font_size: int, color: Color, variation: StringN
 # Шапка: счёт в панели по центру, монеты и множитель справа, уровень с полоской опыта ниже.
 # Всё лежит на полупрозрачных панелях, чтобы читаться на любом фоне темы.
 func build_hud():
-	var score_panel = make_panel(&"HudPanel", Vector2(270, 20))
+	score_panel = make_panel(&"HudPanel", Vector2.ZERO)
 	score_panel.custom_minimum_size = Vector2(320, 128)
 	var score_box = VBoxContainer.new()
 	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -229,8 +278,8 @@ func build_hud():
 	best_row.add_child(best_score_label)
 	score_box.add_child(best_row)
 
-	var coin_pill = make_panel(&"Pill", Vector2(606, 32))
-	coin_pill.custom_minimum_size = Vector2(164, 0)
+	coin_pill = make_panel(&"Pill", Vector2.ZERO)
+	coin_pill.custom_minimum_size = Vector2(170, 0)
 	var coin_row = HBoxContainer.new()
 	coin_row.add_theme_constant_override("separation", 8)
 	coin_row.add_child(icon_rect("coin", 34))
@@ -238,45 +287,132 @@ func build_hud():
 	coin_row.add_child(coins_label)
 	coin_pill.add_child(coin_row)
 
-	multiplier_pill = make_panel(&"Pill", Vector2(606, 96))
-	multiplier_label = styled_label("×1.0", 22, Color(1, 0.62, 0.25), &"DisplayLabel")
+	# Множитель и серия — по бокам от счёта
+	multiplier_pill = make_panel(&"Pill", Vector2.ZERO)
+	multiplier_label = styled_label("×1.0", 24, Color(1, 0.62, 0.25), &"DisplayLabel")
 	multiplier_pill.add_child(multiplier_label)
 	multiplier_pill.visible = false
 
-	var level_badge = make_panel(&"Pill", Vector2(34, 172))
+	streak_pill = make_panel(&"Pill", Vector2.ZERO)
+	var streak_row = HBoxContainer.new()
+	streak_row.add_theme_constant_override("separation", 6)
+	streak_row.add_child(icon_rect("flame", 26, Color(1, 0.6, 0.25)))
+	streak_label = styled_label("×2", 24, Color(1, 0.7, 0.35), &"DisplayLabel")
+	streak_row.add_child(streak_label)
+	streak_pill.add_child(streak_row)
+	streak_pill.visible = false
+
+	# Уровень и опыт — в нижней строке, между «Заново» и «Заданиями»: всё про прогресс игрока
+	# собрано внизу, а верх экрана отдан текущей партии. Тёмная подложка — чтобы текст
+	# читался на светлых фонах (тема «Конфеты»).
+	var panel = Panel.new()
+	panel.theme_type_variation = &"HudPanel"
+	panel.size = Vector2(524, 96)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(panel)
+	level_panel = panel
+
+	var level_badge = PanelContainer.new()
+	level_badge.theme_type_variation = &"Pill"
+	level_badge.position = Vector2(12, 14)
 	level_badge.custom_minimum_size = Vector2(68, 68)
+	level_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(level_badge)
 	level_label = styled_label("1", 30, GOLD, &"DisplayLabel")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	level_badge.add_child(level_label)
 
-	xp_label = make_label("", 20, Color.WHITE, Vector2(118, 168), Vector2(560, 28), HORIZONTAL_ALIGNMENT_LEFT)
+	xp_label = styled_label("", 19, Color.WHITE)
+	xp_label.position = Vector2(94, 4)
+	xp_label.size = Vector2(418, 28)
+	xp_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	panel.add_child(xp_label)
 	xp_bar = ProgressBar.new()
-	xp_bar.position = Vector2(118, 200)
-	xp_bar.size = Vector2(742, 14)
+	xp_bar.position = Vector2(94, 36)
+	xp_bar.custom_minimum_size = Vector2(418, 0)
+	xp_bar.size = Vector2(418, 14)
 	xp_bar.show_percentage = false
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(xp_bar)
-	next_reward_label = make_label("", 18, Color(0.72, 0.76, 0.95), Vector2(118, 220), Vector2(742, 26), HORIZONTAL_ALIGNMENT_LEFT)
-
-	streak_pill = make_panel(&"Pill", Vector2(700, 160))
-	var streak_row = HBoxContainer.new()
-	streak_row.add_theme_constant_override("separation", 6)
-	streak_row.add_child(icon_rect("flame", 24, Color(1, 0.6, 0.25)))
-	streak_label = styled_label("×2", 22, Color(1, 0.7, 0.35), &"DisplayLabel")
-	streak_row.add_child(streak_label)
-	streak_pill.add_child(streak_row)
-	streak_pill.visible = false
+	panel.add_child(xp_bar)
+	var gift = icon_rect("gift", 20, Color(0.72, 0.76, 0.95))
+	gift.position = Vector2(94, 67)
+	gift.size = Vector2(20, 20)
+	panel.add_child(gift)
+	next_reward_label = styled_label("", 17, Color(0.72, 0.76, 0.95))
+	next_reward_label.position = Vector2(120, 64)
+	next_reward_label.size = Vector2(392, 26)
+	next_reward_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	panel.add_child(next_reward_label)
 
 	update_xp_display()
 
-	combo_label = make_label("", 72, Color.WHITE, Vector2(250, 480), Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 10)
+	combo_label = make_label("", 72, Color.WHITE, combo_base, Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 10)
 	combo_label.theme_type_variation = &"DisplayLabel"
 	combo_label.pivot_offset = combo_label.size / 2.0
 	combo_label.modulate = Color(1, 1, 1, 0)
 	combo_label.z_index = 50
 
 	setup_buttons_style()
+
+# Раскладка по высоте экрана. На 9:16 всё плотно, на вытянутых экранах (20:9) свободное место
+# делится между просветами: больше всего — вокруг счёта, немного — между полем и лотком
+# (фигуры тянуть недалеко), остальное — над бонусами.
+func arrange_hud():
+	var height = get_viewport_rect().size.y
+	var top = 24.0
+	var bottom = height - 24.0
+
+	# Верхняя строка: аватарка — монеты — настройки
+	place($ProfileButton, Vector2(30, top + 10), Vector2(104, 104))
+	place($SettingsButton, Vector2(790, top + 18), Vector2(86, 86))
+	coin_pill.position = Vector2(602, top + 33)
+	var zone_top = top + 132.0
+
+	# Нижняя строка и бонусы над ней
+	var footer_y = bottom - 96.0
+	place($RestartButton, Vector2(24, footer_y), Vector2(100, 96))
+	level_panel.position = Vector2(136, footer_y)
+	place($DailyButton, Vector2(672, footer_y), Vector2(204, 96))
+	var tools_y = footer_y - 116.0
+	var tools = [$HammerButton, $RotateButton, $ShuffleButton, $UndoButton]
+	for i in range(tools.size()):
+		place(tools[i], Vector2(24 + i * 218, tools_y), Vector2(198, 100))
+	var zone_bottom = tools_y - 12.0
+
+	# Середина: счёт, поле, лоток
+	var score_height = 128.0
+	var gap_score = 20.0
+	var gap_tray = 14.0
+	var free = zone_bottom - zone_top - score_height - gap_score - gap_tray - TRAY_HEIGHT
+	board_scale = clampf(free / 640.0, 0.9, MAX_BOARD_SCALE)
+	var board_px = 640.0 * board_scale
+	var spare = maxf(free - board_px, 0.0)
+	var grid_top = zone_top + score_height + gap_score + spare * 0.5
+	grid.scale = Vector2.ONE * board_scale
+	grid.position = Vector2(roundf((SCREEN_SIZE.x - board_px) / 2.0), roundf(grid_top))
+
+	var score_center = (zone_top + grid_top - gap_score) / 2.0
+	score_panel.position = Vector2(290, roundf(score_center - score_height / 2.0))
+	streak_pill.position = Vector2(140, roundf(score_center - 30))
+	multiplier_pill.position = Vector2(628, roundf(score_center - 30))
+
+	tray_center_y = roundf(grid_top + board_px + gap_tray + spare * 0.15 + TRAY_HEIGHT / 2.0)
+	for block in active_blocks:
+		if is_instance_valid(block):
+			block.slot_center = get_slot_center(block.slot_index)
+			if not block.dragging:
+				block.return_to_tray()
+
+	var board_center = grid.position + Vector2(board_px, board_px) / 2.0
+	combo_base = board_center - Vector2(200, 95)
+	combo_label.position = combo_base
+	if tutorial_label and is_instance_valid(tutorial_label):
+		tutorial_label.position = Vector2(50, board_center.y - 50)
+
+func place(control: Control, pos: Vector2, control_size: Vector2):
+	control.position = pos
+	control.size = control_size
 
 # Иконки и ценники на кнопках
 func setup_buttons_style():
@@ -293,12 +429,34 @@ func setup_buttons_style():
 	settings.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	settings.add_theme_constant_override("icon_max_width", 44)
 
-	for pair in [[$RestartButton, "restart", "Заново"], [$DailyButton, "tasks", "Задания"]]:
-		var button: Button = pair[0]
-		button.icon = icon(pair[1])
-		button.text = pair[2]
-		button.add_theme_constant_override("icon_max_width", 34)
-		button.add_theme_font_size_override("font_size", 26)
+	var restart: Button = $RestartButton
+	restart.text = ""
+	restart.tooltip_text = "Закончить партию"
+	restart.icon = icon("restart")
+	restart.expand_icon = true
+	restart.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	restart.theme_type_variation = &"IconButton"
+	restart.add_theme_constant_override("icon_max_width", 44)
+
+	var daily: Button = $DailyButton
+	daily.icon = icon("tasks")
+	daily.text = "Задания"
+	daily.add_theme_constant_override("icon_max_width", 32)
+	daily.add_theme_font_size_override("font_size", 24)
+
+	# Рамка вокруг аватарки — на 16% больше неё (так рамки и нарисованы); имя — только в профиле
+	var frame = $ProfileButton.get_node_or_null("ProfileFrame")
+	if frame:
+		frame.offset_left = -8.0
+		frame.offset_top = -8.0
+		frame.offset_right = 8.0
+		frame.offset_bottom = 8.0
+	var indicator = $ProfileButton.get_node_or_null("NewIndicator")
+	if indicator:
+		indicator.position = Vector2(84, -2)
+	var name_label = $ProfileButton.get_node_or_null("PlayerNameLabel")
+	if name_label:
+		name_label.visible = false
 
 func setup_tool_button(button: Button, icon_name: String, price: int):
 	button.text = ""
@@ -375,7 +533,7 @@ func update_next_reward_display():
 	if next.is_empty():
 		label.text = ""
 		return
-	var text = "🎁 Ур. %d: %s" % [next["level"], next["lines"][0]]
+	var text = "Ур. %d: %s" % [next["level"], next["lines"][0]]
 	if next["lines"].size() > 1:
 		text += " и ещё %d" % (next["lines"].size() - 1)
 	label.text = text
@@ -412,10 +570,7 @@ func apply_theme_visuals(theme: BlockTheme):
 
 	if theme.background_texture:
 		background_sprite.texture = theme.background_texture
-		var texture_size = theme.background_texture.get_size()
-		var cover = maxf(SCREEN_SIZE.x / texture_size.x, SCREEN_SIZE.y / texture_size.y)
-		background_sprite.scale = Vector2(cover, cover)
-		background_sprite.position = SCREEN_SIZE / 2.0
+		fit_background_sprite()
 		background_sprite.visible = true
 	else:
 		background_sprite.visible = false
@@ -436,7 +591,7 @@ func apply_theme_visuals(theme: BlockTheme):
 # === ФИГУРЫ ===
 
 func get_slot_center(slot: int) -> Vector2:
-	return Vector2(SLOT_WIDTH * (slot + 0.5), TRAY_CENTER_Y)
+	return Vector2(SLOT_WIDTH * (slot + 0.5), tray_center_y)
 
 func create_block(shape: Array, color_index: int, slot: int):
 	var block = block_scene.instantiate()
@@ -612,13 +767,13 @@ func mark_powerup_used(powerup_id: String):
 	progression.record_powerup()
 	Events.powerup_used.emit(powerup_id)
 
+# Молоток, как и поворот, списывает монеты за сам удар: кнопка только включает режим,
+# повторное нажатие — отмена (ничего не списано)
 func _on_hammer_pressed():
-	# Повторное нажатие — отмена, монеты возвращаются
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
 		return
-	if dragging_block != null or not progression.spend_coins(PRICE_HAMMER):
+	if game_over or dragging_block != null or progression.total_coins < PRICE_HAMMER:
 		return
 	if rotate_mode:
 		reset_rotate_button()
@@ -626,11 +781,12 @@ func _on_hammer_pressed():
 	set_tool_active($HammerButton, true, PRICE_HAMMER)
 
 func use_hammer_on_cell(x: int, y: int):
-	if not hammer_mode:
+	if not hammer_mode or grid.board.get_cell(x, y) == Board.EMPTY:
+		return
+	if not progression.spend_coins(PRICE_HAMMER):
+		reset_hammer_button()
 		return
 	var color = grid.board.remove_cell(x, y)
-	if color == Board.EMPTY:
-		return
 	grid.play_clear_effect([{"pos": Vector2i(x, y), "color": color}], {"rows": [], "cols": []})
 	grid.queue_redraw()
 	sound_place.pitch_scale = 0.85
@@ -666,7 +822,6 @@ func _on_rotate_pressed():
 	if game_over or dragging_block != null or progression.total_coins < PRICE_ROTATE:
 		return
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
 	rotate_mode = true
 	set_tool_active($RotateButton, true, PRICE_ROTATE)
@@ -705,6 +860,9 @@ func _on_undo_pressed():
 	scoring.set_state(last_move["state"]["scoring"])
 	create_block(last_move["shape"], last_move["color_index"], last_move["slot"])
 	last_move = null
+	# Отменённая фигура не считается поставленной (задания «Поставьте N фигур»)
+	pieces_this_run = maxi(pieces_this_run - 1, 0)
+	progression.total_pieces_placed = maxi(progression.total_pieces_placed - 1, 0)
 
 	mark_powerup_used("undo")
 	score_label.text = str(score)
@@ -718,28 +876,38 @@ func _on_undo_pressed():
 
 # Затемнение на весь экран и панель по центру. Возвращает VBox для содержимого.
 # Закрыть: close_modal(box). Пока окно открыто, поле не реагирует (группа "modal").
-func open_modal(min_width: float = 560.0) -> VBoxContainer:
+# back_action — что делает кнопка «Назад» телефона (по умолчанию закрывает окно).
+# Если содержимое выше экрана (много наград за партию), оно прокручивается.
+func open_modal(min_width: float = 560.0, back_action: Callable = Callable()) -> VBoxContainer:
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.78)
-	overlay.position = Vector2.ZERO
-	overlay.size = SCREEN_SIZE
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	overlay.z_index = 100
 	overlay.add_to_group("modal")
-	add_child(overlay)
+	ui_layer.add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center = CenterContainer.new()
-	center.size = SCREEN_SIZE
 	overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var panel = PanelContainer.new()
 	center.add_child(panel)
 
+	var scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(min_width + 20.0, 0)
+	panel.add_child(scroll)
+
 	var box = VBoxContainer.new()
 	box.custom_minimum_size = Vector2(min_width, 0)
 	box.add_theme_constant_override("separation", 18)
-	panel.add_child(box)
+	scroll.add_child(box)
+	var max_height = get_viewport_rect().size.y - 160.0
+	box.resized.connect(func(): scroll.custom_minimum_size.y = minf(box.size.y, max_height))
+
 	box.set_meta("overlay", overlay)
+	overlay.set_meta("back_action", back_action if back_action.is_valid() else close_modal.bind(box))
 	return box
 
 func close_modal(box: Control):
@@ -793,13 +961,58 @@ func open_scene_modal(path: String):
 	var instance = load(path).instantiate()
 	instance.add_to_group("modal")
 	instance.z_index = 100
-	add_child(instance)
+	ui_layer.add_child(instance)
 
 func _on_settings_pressed():
+	if is_input_blocked() or dragging_block != null:
+		return
 	open_scene_modal("res://settings.tscn")
 
 func _on_profile_pressed():
+	if is_input_blocked() or dragging_block != null:
+		return
 	open_scene_modal("res://profile.tscn")
+
+# === КНОПКА «НАЗАД» ТЕЛЕФОНА ===
+# В project.godot выключено quit_on_go_back: иначе «Назад» сразу закрывал бы игру.
+# Порядок: верхнее окно → режим молотка или поворота → вопрос «Выйти из игры?»
+
+func handle_back():
+	if dragging_block != null and is_instance_valid(dragging_block):
+		dragging_block.cancel_drag()
+		return
+	for i in range(ui_layer.get_child_count() - 1, -1, -1):
+		var node = ui_layer.get_child(i)
+		if not node.is_in_group("modal") or node.is_queued_for_deletion():
+			continue
+		if node.has_method("handle_back"):
+			node.handle_back()
+		else:
+			var action: Callable = node.get_meta("back_action", Callable())
+			if action.is_valid():
+				action.call()
+		return
+	if hammer_mode:
+		reset_hammer_button()
+		return
+	if rotate_mode:
+		reset_rotate_button()
+		return
+	show_exit_popup()
+
+func show_exit_popup():
+	var box = open_modal(520)
+	modal_title(box, "ВЫЙТИ ИЗ ИГРЫ?", Color.WHITE, 40)
+	modal_text(box, "Партия сохранится — продолжите с того же места.")
+	modal_buttons(box, [
+		["ВЫЙТИ", _on_exit_confirm],
+		["ИГРАТЬ", close_modal.bind(box)],
+	])
+
+func _on_exit_confirm():
+	save_run()
+	progression.save_progress()
+	get_tree().quit()
 
 # === TOASTS (уведомления сверху) ===
 
@@ -816,11 +1029,11 @@ func show_toast(text: String, color: Color = Color.WHITE):
 	label.add_theme_font_size_override("font_size", 26)
 	label.add_theme_color_override("font_color", color)
 	panel.add_child(label)
-	add_child(panel)
+	ui_layer.add_child(panel)
 
-	var slot_y = 30.0 + toast_offset * 130.0
+	var slot_y = layout_offset.y + 30.0 + toast_offset * 130.0
 	toast_offset += 1
-	panel.position = Vector2((SCREEN_SIZE.x - 680) / 2.0, -200)
+	panel.position = Vector2((get_viewport_rect().size.x - 680) / 2.0, -200)
 
 	var tween = create_tween()
 	tween.tween_property(panel, "position:y", slot_y, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
@@ -832,16 +1045,17 @@ func show_toast(text: String, color: Color = Color.WHITE):
 
 func _on_achievement_unlocked(achievement_id: String, tier: int):
 	var def = Achievements.get_definition(achievement_id)
-	var text = "%s %s — %s (+%d 💰)" % [def.get("icon", "🏆"), def.get("title", achievement_id),
+	var text = "Достижение «%s» — %s, +%d монет" % [def.get("title", achievement_id),
 		Achievements.get_tier_label(def, tier), Achievements.get_reward_coins(def, tier)]
 	update_achievements_indicator()
 	if collecting_summary:
-		summary["achievements"].append([text, Achievements.get_tier_color(tier)])
+		summary["achievements"].append({"id": achievement_id, "tier": tier,
+			"coins": Achievements.get_reward_coins(def, tier)})
 	else:
 		show_toast(text, Achievements.get_tier_color(tier))
 
 func _on_item_unlocked(item_type: String, item_id):
-	var text = "🎁 Открыто: " + progression.get_item_label(item_type, item_id)
+	var text = "Открыто: " + progression.get_item_label(item_type, item_id)
 	update_achievements_indicator()
 	if collecting_summary:
 		summary["items"].append(text)
@@ -860,10 +1074,10 @@ func _on_level_up(new_level: int):
 	if collecting_summary:
 		summary["levels"].append(new_level)
 	else:
-		show_toast("🎉 Уровень %d!" % new_level, Color(1, 0.84, 0))
+		show_toast("Уровень %d!" % new_level, Color(1, 0.84, 0))
 
 func _on_mission_completed(text: String, coins: int, xp: int):
-	var line = "📋 Задание: %s (+%d 💰, +%d XP)" % [text, coins, xp]
+	var line = "Задание выполнено: %s (+%d монет, +%d XP)" % [text, coins, xp]
 	if collecting_summary:
 		summary["missions"].append(line)
 	else:
@@ -871,7 +1085,7 @@ func _on_mission_completed(text: String, coins: int, xp: int):
 	update_daily_button()
 
 func _on_all_missions_completed(bonus: int):
-	var line = "🏁 Все задания дня выполнены! +%d 💰" % bonus
+	var line = "Все задания дня выполнены! +%d монет" % bonus
 	if collecting_summary:
 		summary["missions"].append(line)
 	else:
@@ -909,7 +1123,7 @@ func _on_daily_claimed(_day: int, _reward: Dictionary):
 	update_daily_button()
 
 func _on_daily_pressed():
-	if is_input_blocked():
+	if is_input_blocked() or dragging_block != null:
 		return
 	show_tasks_popup()
 
@@ -921,25 +1135,35 @@ func show_tasks_popup():
 
 	for mission in Missions.missions:
 		var done: bool = mission["done"]
-		var text = "%s %s" % ["✅" if done else "⬜", Missions.get_text(mission)]
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		box.add_child(row)
+		var mark = icon_rect("check" if done else "circle", 34, Color(0.6, 1, 0.7) if done else Color(0.6, 0.64, 0.85))
+		mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(mark)
+		var texts = VBoxContainer.new()
+		texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		texts.add_theme_constant_override("separation", 2)
+		row.add_child(texts)
+		var text = Missions.get_text(mission)
 		if not done:
 			text += "  (%d/%d)" % [mission["progress"], mission["target"]]
-		var line = modal_text(box, text, 26, Color(0.6, 1, 0.7) if done else Color.WHITE)
+		var line = modal_text(texts, text, 26, Color(0.6, 1, 0.7) if done else Color.WHITE)
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var reward = modal_text(box, "      " + Missions.get_reward_text(mission), 20, Color(1, 0.84, 0))
+		var reward = modal_text(texts, Missions.get_reward_text(mission), 20, Color(1, 0.84, 0))
 		reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	modal_text(box, "Все три — ещё +%d 💰. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
+	modal_text(box, "Все три — ещё +%d монет. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
 
 	box.add_child(HSeparator.new())
 	modal_title(box, "НАГРАДА ДНЯ", Color(1, 0.84, 0), 34)
 	if progression.can_claim_daily:
 		var next_day = progression.daily_streak % 7 + 1
 		var reward = progression.get_daily_reward_for_day(next_day)
-		var reward_text = "День %d: +%d 💰" % [next_day, reward.get("coins", 0)]
+		var reward_text = "День %d: +%d монет" % [next_day, reward.get("coins", 0)]
 		if reward.has("xp"):
 			reward_text += " +%d XP" % reward["xp"]
 		modal_text(box, reward_text, 28, Color.WHITE)
-		modal_text(box, "Заходите каждый день: на 7-й день — 300 💰 и 200 XP.", 20)
+		modal_text(box, "Заходите каждый день: на 7-й день — 300 монет и 200 XP.", 20)
 		modal_buttons(box, [
 			["ЗАКРЫТЬ", close_modal.bind(box)],
 			["ЗАБРАТЬ", _on_claim_daily_reward.bind(box)],
@@ -953,7 +1177,7 @@ func _on_claim_daily_reward(box):
 	close_modal(box)
 	if reward.is_empty():
 		return
-	var text = "🎁 День %d: +%d 💰" % [progression.daily_streak, reward.get("coins", 0)]
+	var text = "Награда дня %d: +%d монет" % [progression.daily_streak, reward.get("coins", 0)]
 	if reward.has("xp"):
 		text += " +%d XP" % reward["xp"]
 	show_toast(text, Color(0.5, 1, 0.5))
@@ -961,7 +1185,7 @@ func _on_claim_daily_reward(box):
 # === ЗАКОНЧИТЬ ПАРТИЮ (кнопка «Заново») ===
 
 func _on_restart_button_pressed():
-	if is_input_blocked():
+	if is_input_blocked() or dragging_block != null:
 		return
 	if score == 0:
 		clear_saved_run()
@@ -978,8 +1202,9 @@ func _on_restart_button_pressed():
 func _on_restart_confirm(box):
 	close_modal(box)
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
+	if rotate_mode:
+		reset_rotate_button()
 	game_over = true
 	update_powerup_buttons()
 	show_final_game_over()
@@ -1050,8 +1275,9 @@ func finish_run():
 
 func show_game_over():
 	if hammer_mode:
-		progression.add_coins(PRICE_HAMMER)
 		reset_hammer_button()
+	if rotate_mode:
+		reset_rotate_button()
 	update_powerup_buttons()
 	sound_game_over.play()
 	GameSettings.vibrate(120)
@@ -1062,7 +1288,8 @@ func show_game_over():
 		show_final_game_over()
 
 func show_continue_screen():
-	var box = open_modal(540)
+	# «Назад» здесь ничего не делает: случайно сдаться обиднее, чем нажать кнопку
+	var box = open_modal(540, func(): pass)
 	modal_title(box, "ПРОДОЛЖИТЬ?", Color.YELLOW, 52)
 	modal_text(box, "Очки: %d" % score, 34, Color.WHITE)
 	modal_text(box, "Три новые фигуры за %d монет" % continue_cost, 30, GOLD)
@@ -1096,11 +1323,11 @@ func show_final_game_over():
 	continue_cost = CONTINUE_BASE_COST
 	continue_used_count = 0
 
-	var box = open_modal(600)
+	var box = open_modal(600, _on_restart_pressed)
 	modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
 	modal_text(box, "Очки: %d" % score, 44, Color.WHITE)
 	if record_bonus_given:
-		modal_text(box, "Новый рекорд! +20 💰", 28, Color(1, 0.84, 0))
+		modal_text(box, "Новый рекорд! +20 монет", 28, Color(1, 0.84, 0))
 	else:
 		modal_text(box, "Рекорд: %d" % progression.best_score, 28, Color(1, 0.84, 0))
 
@@ -1112,7 +1339,7 @@ func show_final_game_over():
 
 	if should_ask_for_rating():
 		modal_text(box, "Нравится игра? Оценка в магазине очень поможет.", 22)
-		modal_buttons(box, [["⭐ ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
+		modal_buttons(box, [["ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 	else:
 		modal_buttons(box, [["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 
@@ -1122,7 +1349,7 @@ func add_reward_cards(box: Control):
 	if refs.is_empty():
 		return
 	box.add_child(HSeparator.new())
-	modal_text(box, "🎁 Новые награды", 30, Color(0.6, 1, 0.7))
+	modal_text(box, "Новые награды", 30, Color(0.6, 1, 0.7))
 	var row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 14)
@@ -1201,32 +1428,50 @@ func equip_item(item: Dictionary, button: Button):
 				progression.active_colors.append(int(item_id))
 	progression.request_save()
 	refresh_profile_button()
-	button.text = "✓ ГОТОВО"
+	button.text = "ГОТОВО"
 	button.disabled = true
 
 # Строки итогов: [текст, цвет]
 func get_summary_lines() -> Array:
 	var gold = Color(1, 0.84, 0)
 	var lines = []
-	var coins_text = "💰 За очки: +%d" % run_coins
+	var coins_text = "За очки: +%d монет" % run_coins
 	if zen:
 		coins_text += " (спокойный режим: ×0.5)"
 	lines.append([coins_text, gold])
-	lines.append(["✨ Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
+	lines.append(["Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
 	var levels: Array = summary["levels"]
 	if not levels.is_empty():
-		var level_text = "🎉 Уровень %d!" % levels[-1] if levels.size() == 1 else "🎉 Уровни %d → %d!" % [levels[0], levels[-1]]
-		lines.append(["%s  +%d 💰" % [level_text, summary["level_coins"]], gold])
+		var level_text = "Уровень %d!" % levels[-1] if levels.size() == 1 else "Уровни %d–%d!" % [levels[0], levels[-1]]
+		lines.append(["%s  +%d монет" % [level_text, summary["level_coins"]], gold])
 	for rank in summary["ranks"]:
-		lines.append(["🏅 Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
+		lines.append(["Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
 	if summary["slots"] > 0:
-		lines.append(["🎨 +%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
+		lines.append(["+%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
 	# Новые предметы показываются карточками ниже (add_reward_cards)
 	for mission_text in summary["missions"]:
 		lines.append([mission_text, Color(0.55, 0.9, 1)])
-	for achievement in summary["achievements"]:
-		lines.append(achievement)
-	lines.append(["📋 Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
+	# Достижения: по одной строке на достижение (высшая полученная ступень), не больше четырёх —
+	# за первую партию их бывает два десятка, и итоги превращались в длинный список
+	var best_tiers = {}
+	var achievement_coins = 0
+	for item in summary["achievements"]:
+		achievement_coins += int(item["coins"])
+		best_tiers[item["id"]] = maxi(int(best_tiers.get(item["id"], 0)), int(item["tier"]))
+	var shown = 0
+	for achievement_id in best_tiers.keys():
+		if shown == 4:
+			break
+		var def = Achievements.get_definition(achievement_id)
+		var tier: int = best_tiers[achievement_id]
+		lines.append(["Достижение «%s» — %s" % [def.get("title", achievement_id), Achievements.get_tier_label(def, tier)],
+			Achievements.get_tier_color(tier)])
+		shown += 1
+	if best_tiers.size() > shown:
+		lines.append(["И ещё %d — в профиле, вкладка «Достижения»" % (best_tiers.size() - shown), Color(0.75, 0.78, 0.92)])
+	if achievement_coins > 0:
+		lines.append(["За достижения: +%d монет" % achievement_coins, gold])
+	lines.append(["Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():
@@ -1246,9 +1491,20 @@ func _on_restart_pressed():
 # Партию могут прервать звонком или свернуть — при следующем запуске она продолжится.
 
 func _notification(what: int):
-	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_APPLICATION_FOCUS_OUT \
-			or what == NOTIFICATION_WM_CLOSE_REQUEST:
-		save_run()
+	match what:
+		NOTIFICATION_APPLICATION_PAUSED, NOTIFICATION_APPLICATION_FOCUS_OUT, NOTIFICATION_WM_CLOSE_REQUEST:
+			# Звонок, шторка уведомлений, сворачивание: фигуру — в лоток, партию — на диск
+			if dragging_block != null and is_instance_valid(dragging_block):
+				dragging_block.cancel_drag()
+			save_run()
+		NOTIFICATION_APPLICATION_RESUMED, NOTIFICATION_APPLICATION_FOCUS_IN:
+			# Игру могли свернуть вчера, а развернуть сегодня — обновляем награду дня и задания
+			if progression != null and is_inside_tree():
+				progression.check_daily_reward()
+				Missions.ensure_today()
+				update_daily_button()
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			handle_back()
 
 func save_run():
 	if run_finished or not is_inside_tree():
@@ -1278,21 +1534,12 @@ func save_run():
 		"max_combo": run_max_combo,
 		"record_announced": record_announced,
 	}
-	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_var(data)
-		file.close()
+	SafeFile.save_var(RUN_SAVE_PATH, data)
 
 # Возвращает true, если партия восстановлена
 func load_run() -> bool:
-	if not FileAccess.file_exists(RUN_SAVE_PATH):
-		return false
-	var file = FileAccess.open(RUN_SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return false
-	var data = file.get_var()
-	file.close()
-	if not data is Dictionary or not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
+	var data = SafeFile.load_dict(RUN_SAVE_PATH)
+	if not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
 		return false
 
 	grid.board.from_array(data["board"])
@@ -1312,9 +1559,10 @@ func load_run() -> bool:
 
 	for item in data.get("tray", []):
 		var shape = []
-		for cell in item["shape"]:
+		for cell in item.get("shape", []):
 			shape.append(Vector2(cell[0], cell[1]))
-		create_block(shape, item["color"], item["slot"])
+		if not shape.is_empty():
+			create_block(shape, int(item.get("color", 0)), clampi(int(item.get("slot", 0)), 0, 2))
 	if active_blocks.is_empty():
 		spawn_blocks()
 
@@ -1328,16 +1576,16 @@ func load_run() -> bool:
 	return true
 
 func clear_saved_run():
-	if FileAccess.file_exists(RUN_SAVE_PATH):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(RUN_SAVE_PATH))
+	SafeFile.remove(RUN_SAVE_PATH)
 
 # === ПОДСКАЗКА НОВИЧКУ ===
 
 func show_tutorial_if_needed():
 	if progression.total_pieces_placed > 0:
 		return
+	var board_center_y = grid.position.y + 320.0 * board_scale
 	tutorial_label = make_label("Перетащите фигуру на поле.\nЗаполните ряд или столбец — он исчезнет.",
-		28, Color.WHITE, Vector2(50, 550), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
+		28, Color.WHITE, Vector2(50, board_center_y - 50), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
 	tutorial_label.z_index = 30
 
 func hide_tutorial():
@@ -1353,7 +1601,7 @@ func show_points_popup(cells: Array, points: int):
 	var center = Vector2.ZERO
 	for cell in cells:
 		center += grid.cell_rect(cell.x, cell.y).get_center()
-	center = center / cells.size() + grid.position
+	center = grid.position + center / cells.size() * board_scale
 
 	var label = make_label("+%d" % points, 34, Color.WHITE, center - Vector2(80, 25), Vector2(160, 50), HORIZONTAL_ALIGNMENT_CENTER, 6)
 	label.theme_type_variation = &"DisplayLabel"
@@ -1419,7 +1667,7 @@ func show_big_text(text: String, color: Color, shake_strength: float):
 	spawn_combo_particles(color)
 
 func animate_combo_label():
-	combo_label.position = Vector2(250, 480)
+	combo_label.position = combo_base
 	combo_label.scale = Vector2(0.5, 0.5)
 	combo_label.modulate = Color(1, 1, 1, 0)
 
@@ -1430,42 +1678,21 @@ func animate_combo_label():
 	tween.chain().tween_interval(0.8)
 	tween.chain().tween_property(combo_label, "modulate", Color(1, 1, 1, 0), 0.3)
 	tween.parallel().tween_property(combo_label, "scale", Vector2(1.5, 1.5), 0.3)
-	tween.parallel().tween_property(combo_label, "position:y", 430.0, 0.3)
+	tween.parallel().tween_property(combo_label, "position:y", combo_base.y - 50.0, 0.3)
 
 func screen_shake(strength: float):
-	var original_pos = Vector2.ZERO
+	if shake_tween:
+		shake_tween.kill()
+	shake_tween = create_tween()
 	for i in range(10):
-		position = original_pos + Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
-		await get_tree().create_timer(0.02).timeout
-	position = original_pos
+		var jitter = Vector2(randf_range(-strength, strength), randf_range(-strength, strength))
+		shake_tween.tween_property(self, "position", layout_offset + jitter, 0.02)
+	shake_tween.tween_property(self, "position", layout_offset, 0.02)
 
+# Салют из центра поля — теми же частицами, что и эффекты очистки (без GPU-частиц:
+# на телефоне их первая компиляция шейдера даёт заметный рывок)
 func spawn_combo_particles(color: Color):
-	var particles = GPUParticles2D.new()
-	particles.position = GRID_POSITION + grid.get_pixel_size() / 2.0
-	particles.amount = 50
-	particles.lifetime = 1.0
-	particles.one_shot = true
-	particles.explosiveness = 1.0
-	particles.randomness = 0.5
-	particles.z_index = 45
-
-	var process_material = ParticleProcessMaterial.new()
-	process_material.particle_flag_disable_z = true
-	process_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	process_material.emission_sphere_radius = 20.0
-	process_material.direction = Vector3(0, -1, 0)
-	process_material.spread = 180.0
-	process_material.initial_velocity_min = 200.0
-	process_material.initial_velocity_max = 400.0
-	process_material.gravity = Vector3(0, 500, 0)
-	process_material.scale_min = 4.0
-	process_material.scale_max = 8.0
-	process_material.color = color
-
-	particles.process_material = process_material
-	particles.emitting = true
-	add_child(particles)
-	get_tree().create_timer(2.0).timeout.connect(particles.queue_free)
+	grid.play_celebration(color)
 
 # === ПРОФИЛЬ (кнопка в углу) ===
 

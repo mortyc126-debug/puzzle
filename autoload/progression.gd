@@ -89,6 +89,11 @@ var active_colors = [0, 1, 2, 3]  # Индексы ItemsDB.block_colors
 
 var _dirty := false
 var _last_save_ms := 0
+# Кэши: предметы по уровням (каталог не меняется во время игры) и ближайшая особая награда
+# (её показывает шапка игры после каждой очистки линии)
+var _level_items: Dictionary = {}
+var _next_special_cache: Dictionary = {}
+var _next_special_level := -1
 
 func _ready() -> void:
 	load_progress()
@@ -155,23 +160,41 @@ func get_rank_unlocked_at(level: int) -> String:
 func get_level_reward_lines(level: int, include_coins: bool = true) -> Array:
 	var lines = []
 	if include_coins:
-		lines.append("💰 %d монет" % get_level_coins(level))
+		lines.append("%d монет" % get_level_coins(level))
 	if level in SLOT_LEVELS:
-		lines.append("🎨 +1 слот для цветов")
+		lines.append("+1 слот для цветов")
 	var rank = get_rank_unlocked_at(level)
 	if rank != "":
-		lines.append("🏅 Звание «%s»" % rank)
-	for item in find_items("level", level):
+		lines.append("Звание «%s»" % rank)
+	for item in get_level_items(level):
 		lines.append(get_item_label(item["type"], item["id"]))
 	return lines
 
+# Предметы, которые открывает уровень. Раскладка по уровням строится один раз.
+func get_level_items(level: int) -> Array:
+	if _level_items.is_empty():
+		_level_items[-1] = []  # метка «уже построено», даже если предметов за уровни нет
+		for item in get_all_items():
+			var unlock: Dictionary = item["unlock"]
+			if unlock.get("type", "default") == "level":
+				var unlock_level = int(unlock.get("level", 0))
+				if not _level_items.has(unlock_level):
+					_level_items[unlock_level] = []
+				_level_items[unlock_level].append({"type": item["type"], "id": item["id"]})
+	return _level_items.get(level, [])
+
 # Ближайший уровень, где кроме монет есть что-то ещё: {"level": int, "lines": Array} или {}
 func get_next_special_reward() -> Dictionary:
+	if _next_special_level == current_level:
+		return _next_special_cache
+	_next_special_level = current_level
+	_next_special_cache = {}
 	for level in range(current_level + 1, MAX_LEVEL + 1):
 		var lines = get_level_reward_lines(level, false)
 		if not lines.is_empty():
-			return {"level": level, "lines": lines}
-	return {}
+			_next_special_cache = {"level": level, "lines": lines}
+			break
+	return _next_special_cache
 
 func gain_xp(amount: int):
 	if is_max_level():
@@ -206,7 +229,7 @@ func give_level_reward(level: int):
 	if rank != "":
 		reward_unlocked.emit("rank", rank)
 
-	for item in find_items("level", level):
+	for item in get_level_items(level):
 		if unlock_item(item["type"], item["id"]):
 			reward_unlocked.emit(item["type"], item["id"])
 
@@ -284,22 +307,25 @@ func unlock_item(item_type: String, item_id, notify: bool = true) -> bool:
 # key: номер уровня для "level", [id, tier] для "achievement", не нужен для "default".
 func find_items(unlock_type: String, key = null) -> Array:
 	var result = []
-	for avatar_id in ItemsDB.get_avatar_ids():
-		if _unlock_matches(ItemsDB.get_avatar_data(avatar_id).get("unlock", {}), unlock_type, key):
-			result.append({"type": "avatar", "id": avatar_id})
-	for frame_id in ItemsDB.get_frame_ids():
-		if _unlock_matches(ItemsDB.get_frame_data(frame_id).get("unlock", {}), unlock_type, key):
-			result.append({"type": "frame", "id": frame_id})
-	for theme in ThemeManager.themes:
-		if _unlock_matches(theme.unlock, unlock_type, key):
-			result.append({"type": "theme", "id": theme.id})
-	for effect_id in ItemsDB.get_effect_ids():
-		if _unlock_matches(ItemsDB.get_effect_data(effect_id).get("unlock", {}), unlock_type, key):
-			result.append({"type": "effect", "id": effect_id})
-	for color_index in ItemsDB.get_color_ids():
-		if _unlock_matches(ItemsDB.get_color_unlock(color_index), unlock_type, key):
-			result.append({"type": "color", "id": color_index})
+	for item in get_all_items():
+		if _unlock_matches(item["unlock"], unlock_type, key):
+			result.append({"type": item["type"], "id": item["id"]})
 	return result
+
+# Весь каталог в порядке: аватарки, рамки, темы, эффекты, цвета — [{"type", "id", "unlock"}]
+func get_all_items() -> Array:
+	var items = []
+	for avatar_id in ItemsDB.get_avatar_ids():
+		items.append({"type": "avatar", "id": avatar_id, "unlock": ItemsDB.get_avatar_data(avatar_id).get("unlock", {})})
+	for frame_id in ItemsDB.get_frame_ids():
+		items.append({"type": "frame", "id": frame_id, "unlock": ItemsDB.get_frame_data(frame_id).get("unlock", {})})
+	for theme in ThemeManager.themes:
+		items.append({"type": "theme", "id": theme.id, "unlock": theme.unlock})
+	for effect_id in ItemsDB.get_effect_ids():
+		items.append({"type": "effect", "id": effect_id, "unlock": ItemsDB.get_effect_data(effect_id).get("unlock", {})})
+	for color_index in ItemsDB.get_color_ids():
+		items.append({"type": "color", "id": color_index, "unlock": ItemsDB.get_color_unlock(color_index)})
+	return items
 
 # Сколько предметов собрано из всех: аватарки, рамки, темы, эффекты, цвета
 func get_collection_progress() -> Dictionary:
@@ -334,7 +360,7 @@ func sync_unlocks() -> void:
 	for item in find_items("default"):
 		unlock_item(item["type"], item["id"], false)
 	for level in range(2, current_level + 1):
-		for item in find_items("level", level):
+		for item in get_level_items(level):
 			unlock_item(item["type"], item["id"])
 
 	if not is_unlocked("avatar", player_avatar):
@@ -355,21 +381,22 @@ func sync_unlocks() -> void:
 	active_colors = allowed_colors if not allowed_colors.is_empty() else [0, 1, 2, 3]
 	max_color_slots = maxi(max_color_slots, get_color_slots_for_level(current_level))
 
-# Подпись предмета для наград: «👤 Аватарка «Космонавт»»
+# Подпись предмета для наград: «Аватарка «Космонавт»». Без эмодзи: в шрифтах игры их нет,
+# а поиск запасного системного шрифта замедлял длинные списки в 10 раз (замер в Godot)
 func get_item_label(item_type: String, item_id) -> String:
 	match item_type:
 		"avatar":
-			return "👤 Аватарка «%s»" % ItemsDB.get_avatar_data(int(item_id)).get("name", "?")
+			return "Аватарка «%s»" % ItemsDB.get_avatar_data(int(item_id)).get("name", "?")
 		"frame":
-			return "🖼️ Рамка «%s»" % ItemsDB.get_frame_data(int(item_id)).get("name", "?")
+			return "Рамка «%s»" % ItemsDB.get_frame_data(int(item_id)).get("name", "?")
 		"theme":
 			var theme = ThemeManager.get_theme_by_id(str(item_id))
-			return "🌌 Тема «%s»" % (theme.display_name if theme else str(item_id))
+			return "Тема «%s»" % (theme.display_name if theme else str(item_id))
 		"effect":
-			return "✨ Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
+			return "Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
 		"color":
-			return "🎨 Цвет «%s»" % ItemsDB.color_names[int(item_id)]
-	return "🎁 Награда"
+			return "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
+	return "Награда"
 
 func select_theme(theme_id: String) -> bool:
 	if not is_unlocked("theme", theme_id):
@@ -427,10 +454,7 @@ func save_progress():
 		"has_new_items": has_new_items,
 	}
 
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_var(save_data)
-		file.close()
+	SafeFile.save_var(SAVE_PATH, save_data)
 	_dirty = false
 	_last_save_ms = Time.get_ticks_msec()
 
@@ -445,16 +469,9 @@ func load_progress():
 			if value is int:
 				old_best = value
 
-	if not FileAccess.file_exists(SAVE_PATH):
+	var save_data = SafeFile.load_dict(SAVE_PATH)
+	if save_data.is_empty():
 		best_score = old_best
-		return
-
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return
-	var save_data = file.get_var()
-	file.close()
-	if not save_data is Dictionary:
 		return
 
 	var version = save_data.get("save_version", 1)

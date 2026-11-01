@@ -60,10 +60,13 @@ const LIST = [
 	# Разовые испытания
 	{"id": "double", "icon": "✌️", "title": "Дубль", "desc": "Очистите 2 линии одним ходом",
 		"stat": "max_combo", "tiers": [2]},
+	# Пять линий одним ходом фигурами до 4 клеток почти не собрать (только палка 1×4 —
+	# ряд и четыре столбца сразу), поэтому вершина испытаний — «Квадро», а между — «Трио».
+	# Стресс-тест ботом: 3 линии хоть раз за партию — в ~9% партий, 4 линии — в ~0.3%.
+	{"id": "triple", "icon": "🎲", "title": "Трио", "desc": "Очистите 3 линии одним ходом",
+		"stat": "max_combo", "tiers": [3]},
 	{"id": "quad", "icon": "💥", "title": "Квадро", "desc": "Очистите 4 линии одним ходом",
 		"stat": "max_combo", "tiers": [4]},
-	{"id": "penta", "icon": "🌟", "title": "Пятёрка", "desc": "Очистите 5 линий одним ходом",
-		"stat": "max_combo", "tiers": [5]},
 ]
 
 var progress = {}  # id -> сколько ступеней получено
@@ -186,18 +189,7 @@ func _unlock(def: Dictionary, tier: int) -> void:
 	Events.achievement_unlocked.emit(def["id"], tier)
 
 func save_progress() -> void:
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_var(progress)
-		file.close()
+	SafeFile.save_var(SAVE_PATH, progress)
 
 func load_progress() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return
-	var data = file.get_var()
-	file.close()
-	if data is Dictionary:
-		progress = data
+	progress = SafeFile.load_dict(SAVE_PATH)

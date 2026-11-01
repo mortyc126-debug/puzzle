@@ -28,6 +28,8 @@ var progression = null
 var all_colors = ItemsDB.block_colors
 var best_value_label: Label
 var coins_value_label: Label
+var built_tabs = {}  # Вкладки строятся при первом открытии — профиль открывается быстрее
+var popups: Array = []  # Открытые окна поверх профиля (закрываются кнопкой «Назад» по очереди)
 
 func _ready():
 	progression = Progression
@@ -42,17 +44,34 @@ func _ready():
 	if tabs:
 		tabs.tab_changed.connect(_on_tab_changed)
 
+	ScreenStyle.fit_to_screen(self, 0.25, get_node_or_null(PATH_TABS))
 	update_profile()
-	create_stats_list()
-	create_colors_list()
-	create_themes_list()
-	create_effects_list()
-	create_rewards_list()
-	create_avatars_list()
-	create_frames_list()
-	create_achievements_list()
 	update_tab_titles()
 	auto_open_new_items_tab()
+	if tabs:
+		ensure_tab_built(tabs.current_tab)
+
+func ensure_tab_built(tab: int):
+	if built_tabs.has(tab):
+		return
+	built_tabs[tab] = true
+	match tab:
+		TAB_STATS:
+			create_stats_list()
+		TAB_REWARDS:
+			create_rewards_list()
+		TAB_COLORS:
+			create_colors_list()
+		TAB_THEMES:
+			create_themes_list()
+		TAB_EFFECTS:
+			create_effects_list()
+		TAB_AVATARS:
+			create_avatars_list()
+		TAB_FRAMES:
+			create_frames_list()
+		TAB_ACHIEVEMENTS:
+			create_achievements_list()
 
 # === ШАПКА ===
 
@@ -155,19 +174,32 @@ func update_tab_titles():
 	var tabs: TabContainer = get_node_or_null(PATH_TABS)
 	if tabs == null:
 		return
+	# Восемь подписей не помещаются в ширину: подпись есть только у открытой вкладки,
+	# у остальных — иконка и точка, если внутри есть новое
 	var flags = progression.has_new_items
-	var new_mark = func(key): return " НОВОЕ" if flags.get(key, false) else ""
-	tabs.set_tab_title(TAB_STATS, "📊 Статистика")
-	tabs.set_tab_title(TAB_REWARDS, "🎁 Путь наград")
-	tabs.set_tab_title(TAB_COLORS, "🎨 Цвета" + new_mark.call("colors"))
-	tabs.set_tab_title(TAB_THEMES, "🌌 Темы" + new_mark.call("themes"))
-	tabs.set_tab_title(TAB_EFFECTS, "✨ Эффекты" + new_mark.call("effects"))
-	tabs.set_tab_title(TAB_AVATARS, "👤 Аватарки" + new_mark.call("avatars"))
-	tabs.set_tab_title(TAB_FRAMES, "🖼️ Рамки" + new_mark.call("frames"))
-	tabs.set_tab_title(TAB_ACHIEVEMENTS, "🏆 Достижения" + new_mark.call("achievements"))
+	# [вкладка, название, иконка, флаг «новое»]
+	var titles = [
+		[TAB_STATS, "Статистика", "chart", ""],
+		[TAB_REWARDS, "Путь наград", "gift", ""],
+		[TAB_COLORS, "Цвета", "palette", "colors"],
+		[TAB_THEMES, "Темы", "layers", "themes"],
+		[TAB_EFFECTS, "Эффекты", "sparkle", "effects"],
+		[TAB_AVATARS, "Аватарки", "user", "avatars"],
+		[TAB_FRAMES, "Рамки", "frame", "frames"],
+		[TAB_ACHIEVEMENTS, "Достижения", "trophy", "achievements"],
+	]
+	tabs.add_theme_constant_override("icon_max_width", 26)
+	for entry in titles:
+		var has_new = entry[3] != "" and flags.get(entry[3], false)
+		var title = entry[1] if entry[0] == tabs.current_tab else ""
+		if has_new:
+			title += " •" if title != "" else "•"
+		tabs.set_tab_title(entry[0], title)
+		tabs.set_tab_icon(entry[0], icon_texture(entry[2]))
 
 # Открытая вкладка считается просмотренной
 func _on_tab_changed(tab: int):
+	ensure_tab_built(tab)
 	var category = ""
 	match tab:
 		TAB_THEMES:
@@ -184,10 +216,10 @@ func _on_tab_changed(tab: int):
 			category = "achievements"
 	if category != "":
 		progression.mark_items_as_seen(category)
-		update_tab_titles()
 		var game = get_node_or_null("/root/Game")
 		if game:
 			game.update_achievements_indicator()
+	update_tab_titles()
 
 func auto_open_new_items_tab():
 	var tabs: TabContainer = get_node_or_null(PATH_TABS)
@@ -207,75 +239,110 @@ func auto_open_new_items_tab():
 			_on_tab_changed(pair[1])
 			return
 
+func icon_texture(icon_name: String) -> Texture2D:
+	return load("res://assets/ui/icons/%s.svg" % icon_name)
+
 # === СТАТИСТИКА ===
+
+# Статистика — карточками: сверху уровень с полосой опыта, ниже цифры в две колонки
+var stat_values = {}  # ключ -> Label со значением
+var level_card = {}   # части карточки уровня
+
+const STAT_CARDS = [
+	["games", "Сыграно партий"], ["best", "Рекорд"],
+	["average", "Средний счёт"], ["lines", "Очищено линий"],
+	["pieces", "Поставлено фигур"], ["streak", "Лучшая серия"],
+	["combo", "Линий за один ход"], ["perfect", "Чистых полей"],
+	["time", "Время в игре"], ["coins", "Заработано монет"],
+]
 
 func create_stats_list():
 	var stats_content = get_node_or_null(PATH_STATS)
 	if stats_content == null:
 		return
-	# Прогресс уровня — первым блоком вкладки
-	if stats_content.get_node_or_null("ProgressBox") == null:
-		var progress_box = VBoxContainer.new()
-		progress_box.name = "ProgressBox"
-		progress_box.add_theme_constant_override("separation", 6)
-		for node_name in ["RankLabel", "XPProgressLabel", "NextRewardLabel", "CollectionLabel"]:
-			var label = make_label("", 26, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
-			label.name = node_name
-			progress_box.add_child(label)
-		progress_box.add_child(HSeparator.new())
-		stats_content.add_child(progress_box)
-		stats_content.move_child(progress_box, 0)
+	for child in stats_content.get_children():
+		child.queue_free()
+	stats_content.add_theme_constant_override("separation", 16)
+	# Без флага EXPAND содержимое ScrollContainer остаётся шириной по минимуму, а не на всю вкладку
+	stats_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Новые строки статистики добавляются кодом к строкам из сцены
-	for extra in ["PiecesPlacedLabel", "BestStreakLabel", "PerfectClearsLabel", "ThemeGamesLabel"]:
-		if stats_content.get_node_or_null(extra) == null:
-			var label = Label.new()
-			label.name = extra
-			label.add_theme_font_size_override("font_size", 28)
-			stats_content.add_child(label)
+	var card = PanelContainer.new()
+	card.theme_type_variation = &"HudPanel"
+	stats_content.add_child(card)
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	card.add_child(box)
+	level_card["rank"] = make_label("", 30, GOLD, HORIZONTAL_ALIGNMENT_LEFT, false)
+	level_card["rank"].theme_type_variation = &"DisplayLabel"
+	box.add_child(level_card["rank"])
+	var bar = ProgressBar.new()
+	bar.custom_minimum_size = Vector2(0, 16)
+	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(bar)
+	level_card["bar"] = bar
+	level_card["xp"] = make_label("", 22, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
+	box.add_child(level_card["xp"])
+	level_card["next"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT)
+	box.add_child(level_card["next"])
+	level_card["collection"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT, false)
+	box.add_child(level_card["collection"])
+
+	var grid = GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 16)
+	stats_content.add_child(grid)
+	for entry in STAT_CARDS:
+		var stat_card = PanelContainer.new()
+		stat_card.theme_type_variation = &"HudPanel"
+		stat_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(stat_card)
+		var stat_box = VBoxContainer.new()
+		stat_box.add_theme_constant_override("separation", 0)
+		stat_card.add_child(stat_box)
+		var value = make_label("0", 36, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
+		value.theme_type_variation = &"DisplayLabel"
+		stat_box.add_child(value)
+		var caption = make_label(entry[1], 18, Color(0.7, 0.74, 0.92), HORIZONTAL_ALIGNMENT_LEFT, false)
+		stat_box.add_child(caption)
+		stat_values[entry[0]] = value
 	update_stats_labels()
 
 func update_stats_labels():
-	var stats_content = get_node_or_null(PATH_STATS)
-	if stats_content == null:
+	if stat_values.is_empty():
 		return
-	var texts = {
-		"GamesPlayedLabel": "🎮 Сыграно партий: %d" % progression.total_games_played,
-		"LinesClearedLabel": "⭐ Очищено линий: %d" % progression.total_lines_cleared,
-		"TimePlayedLabel": "⏱️ Время в игре: %s" % progression.format_play_time(),
-		"BestScoreLabel": "🏆 Рекорд: %d" % progression.best_score,
-		"AverageScoreLabel": "📈 Средний счёт: %d" % progression.get_average_score(),
-		"MaxComboLabel": "💥 Больше всего линий за ход: %d" % progression.max_combo_achieved,
-		"TotalCoinsLabel": "💰 Заработано монет: %d" % progression.total_coins_earned,
-		"PiecesPlacedLabel": "🧱 Поставлено фигур: %d" % progression.total_pieces_placed,
-		"BestStreakLabel": "🔥 Лучшая серия: ×%d" % progression.max_streak,
-		"PerfectClearsLabel": "✨ Чистых полей: %d" % progression.perfect_clears,
-		"ThemeGamesLabel": "🌌 Партий в «Космосе»: %d" % int(progression.theme_games.get("space", 0)),
+	var values = {
+		"games": str(progression.total_games_played),
+		"best": str(progression.best_score),
+		"average": str(progression.get_average_score()),
+		"lines": str(progression.total_lines_cleared),
+		"pieces": str(progression.total_pieces_placed),
+		"streak": "×%d" % progression.max_streak,
+		"combo": str(progression.max_combo_achieved),
+		"perfect": str(progression.perfect_clears),
+		"time": progression.format_play_time(),
+		"coins": str(progression.total_coins_earned),
 	}
-	for node_name in texts.keys():
-		var label = stats_content.get_node_or_null(node_name)
-		if label:
-			label.text = texts[node_name]
+	for key in values.keys():
+		stat_values[key].text = values[key]
 
-	var progress_box = stats_content.get_node_or_null("ProgressBox")
-	if progress_box:
-		var rank_label = progress_box.get_node("RankLabel")
-		rank_label.text = "🏅 Уровень %d · %s" % [progression.current_level, progression.get_rank()]
-		rank_label.add_theme_color_override("font_color", GOLD)
-		var xp_label = progress_box.get_node("XPProgressLabel")
-		var next_label = progress_box.get_node("NextRewardLabel")
-		if progression.is_max_level():
-			xp_label.text = "Максимальный уровень — вы прошли всю игру!"
-			next_label.text = ""
-		else:
-			xp_label.text = "✨ Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
-			var next = progression.get_next_special_reward()
-			next_label.text = "" if next.is_empty() else \
-				"🎁 На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
-		next_label.add_theme_font_size_override("font_size", 22)
-		next_label.add_theme_color_override("font_color", Color(0.8, 0.84, 0.98))
-		var collection = progression.get_collection_progress()
-		progress_box.get_node("CollectionLabel").text = "🗂️ Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]
+	level_card["rank"].text = "Уровень %d · %s" % [progression.current_level, progression.get_rank()]
+	var bar: ProgressBar = level_card["bar"]
+	if progression.is_max_level():
+		bar.max_value = 1
+		bar.value = 1
+		level_card["xp"].text = "Максимальный уровень — вы прошли всю игру!"
+		level_card["next"].text = ""
+	else:
+		bar.max_value = progression.get_xp_for_next_level()
+		bar.value = progression.current_xp
+		level_card["xp"].text = "Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
+		var next = progression.get_next_special_reward()
+		level_card["next"].text = "" if next.is_empty() else \
+			"На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
+	var collection = progression.get_collection_progress()
+	level_card["collection"].text = "Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]
 
 # === ЦВЕТА БЛОКОВ (тема «Классика») ===
 
@@ -315,9 +382,10 @@ func create_colors_list():
 		overlay_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 		if i < active_count:
+			overlay_label.free()  # подпись нужна только пустым и закрытым слотам
 			slot.color = all_colors[progression.active_colors[i]]
 			var remove_btn = Button.new()
-			remove_btn.text = "✖"
+			remove_btn.text = "×"
 			remove_btn.size = Vector2(80, 80)
 			remove_btn.flat = true
 			remove_btn.add_theme_font_size_override("font_size", 28)
@@ -325,12 +393,20 @@ func create_colors_list():
 			slot_container.add_child(remove_btn)
 		elif i < max_slots:
 			slot.color = Color(0.3, 0.3, 0.3)
-			overlay_label.text = "➕"
+			overlay_label.text = "+"
 			slot_container.add_child(overlay_label)
 		else:
 			slot.color = Color(0.15, 0.15, 0.15)
-			overlay_label.text = "🔒"
-			slot_container.add_child(overlay_label)
+			overlay_label.free()
+			var lock = TextureRect.new()
+			lock.texture = icon_texture("lock")
+			lock.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			lock.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			lock.position = Vector2(22, 22)
+			lock.size = Vector2(36, 36)
+			lock.modulate = Color(0.6, 0.62, 0.75)
+			lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			slot_container.add_child(lock)
 
 		active_container.add_child(slot_container)
 
@@ -349,7 +425,7 @@ func create_colors_list():
 		if not progression.is_unlocked("color", i):
 			color_rect.color = Color(all_colors[i], 0.25)
 			var lock_label = Label.new()
-			lock_label.text = "🔒%d" % ItemsDB.get_color_unlock(i).get("level", 0)
+			lock_label.text = "ур. %d" % ItemsDB.get_color_unlock(i).get("level", 0)
 			lock_label.size = Vector2(80, 80)
 			lock_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			lock_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -363,9 +439,11 @@ func create_colors_list():
 		select_btn.size = Vector2(80, 80)
 		select_btn.flat = true
 		if i in progression.active_colors:
-			select_btn.text = "✓"
-			select_btn.add_theme_font_size_override("font_size", 32)
-			select_btn.add_theme_color_override("font_color", Color.GREEN)
+			select_btn.icon = icon_texture("check")
+			select_btn.expand_icon = true
+			select_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			select_btn.add_theme_constant_override("icon_max_width", 44)
+			select_btn.add_theme_color_override("icon_normal_color", Color.WHITE)
 		select_btn.pressed.connect(_on_select_color.bind(i))
 		color_container.add_child(select_btn)
 
@@ -419,7 +497,7 @@ func create_themes_list():
 		box.add_child(preview)
 
 		box.add_child(make_label(block_theme.display_name, 30, ItemsDB.get_rarity_color(block_theme.rarity)))
-		var status = "✓ Выбрана" if selected else ("Нажмите, чтобы выбрать" if unlocked else "🔒 " + ItemsDB.get_unlock_text(block_theme.unlock))
+		var status = "Выбрана" if selected else ("Нажмите, чтобы выбрать" if unlocked else ItemsDB.get_unlock_text(block_theme.unlock))
 		box.add_child(make_label(status, 20, GOLD if selected else Color(0.8, 0.82, 0.95)))
 
 		container.add_child(card)
@@ -429,11 +507,12 @@ func _on_theme_clicked(theme_id: String):
 	if block_theme == null:
 		return
 	if not progression.is_unlocked("theme", theme_id):
-		show_info_popup(block_theme.display_name, block_theme.description + "\n\n🔒 " + ItemsDB.get_unlock_text(block_theme.unlock))
+		show_info_popup(block_theme.display_name, block_theme.description + "\n\n" + ItemsDB.get_unlock_text(block_theme.unlock))
 		return
 	progression.select_theme(theme_id)
 	create_themes_list()
-	create_colors_list()
+	if built_tabs.has(TAB_COLORS):
+		create_colors_list()
 
 # === ЭФФЕКТЫ ОЧИСТКИ ===
 
@@ -468,7 +547,7 @@ func create_effects_list():
 		title.size = Vector2(246, 34)
 		card.add_child(title)
 
-		var status = "✓ Выбран" if selected else ("Нажмите, чтобы выбрать" if unlocked else "🔒 " + ItemsDB.get_unlock_text(data.get("unlock", {})))
+		var status = "Выбран" if selected else ("Нажмите, чтобы выбрать" if unlocked else ItemsDB.get_unlock_text(data.get("unlock", {})))
 		var status_label = make_label(status, 17, GOLD if selected else Color(0.8, 0.82, 0.95))
 		status_label.position = Vector2(8, 206)
 		status_label.size = Vector2(246, 56)
@@ -479,7 +558,7 @@ func create_effects_list():
 func _on_effect_clicked(effect_id: int):
 	var data = ItemsDB.get_effect_data(effect_id)
 	if not progression.is_unlocked("effect", effect_id):
-		show_info_popup(data.get("name", "?"), data.get("description", "") + "\n\n🔒 " + ItemsDB.get_unlock_text(data.get("unlock", {})))
+		show_info_popup(data.get("name", "?"), data.get("description", "") + "\n\n" + ItemsDB.get_unlock_text(data.get("unlock", {})))
 		return
 	progression.player_effect = effect_id
 	progression.request_save()
@@ -497,7 +576,7 @@ func create_rewards_list():
 
 	var collection = progression.get_collection_progress()
 	container.add_child(make_label("Вы на уровне %d · %s" % [progression.current_level, progression.get_rank()], 30, GOLD))
-	container.add_child(make_label("🗂️ Собрано %d из %d предметов" % [collection["have"], collection["total"]], 22, Color(0.8, 0.84, 0.98)))
+	container.add_child(make_label("Собрано %d из %d предметов" % [collection["have"], collection["total"]], 22, Color(0.8, 0.84, 0.98)))
 
 	var next_row = null
 	for level in range(2, Progression.MAX_LEVEL + 1):
@@ -514,15 +593,15 @@ func create_rewards_list():
 		row.add_theme_constant_override("separation", 16)
 		panel.add_child(row)
 
-		var level_label = make_label(str(level), 34, accent)
+		var level_label = make_label(str(level), 34, accent, HORIZONTAL_ALIGNMENT_CENTER, false)
 		level_label.custom_minimum_size = Vector2(90, 0)
 		row.add_child(level_label)
 
-		var text = make_label("\n".join(lines), 22, Color.WHITE if reached or is_next else Color(0.75, 0.77, 0.9), HORIZONTAL_ALIGNMENT_LEFT)
+		var text = make_label("\n".join(lines), 22, Color.WHITE if reached or is_next else Color(0.75, 0.77, 0.9), HORIZONTAL_ALIGNMENT_LEFT, false)
 		text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(text)
 
-		var status = make_label("✓" if reached else ("Следующая" if is_next else "🔒"), 22, accent)
+		var status = make_label("Получено" if reached else ("Следующая" if is_next else "—"), 22, accent, HORIZONTAL_ALIGNMENT_CENTER, false)
 		status.custom_minimum_size = Vector2(130, 0)
 		row.add_child(status)
 
@@ -575,7 +654,7 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 			picture.modulate = Color(0.25, 0.25, 0.3)
 		card.add_child(picture)
 
-		var caption = make_label(data.get("name", "?") if unlocked else "🔒", 18,
+		var caption = make_label(data.get("name", "?") if unlocked else "Закрыто", 18,
 			ItemsDB.get_rarity_color(data.get("rarity", "COMMON")))
 		caption.position = Vector2(4, 146)
 		caption.size = Vector2(148, 36)
@@ -604,11 +683,11 @@ func show_item_card(item_type: String, item_id: int):
 
 	var rarity = data.get("rarity", "COMMON")
 	box.add_child(make_label(data.get("name", "?"), 36, Color.WHITE))
-	box.add_child(make_label(ItemsDB.get_rarity_name(rarity) + " " + ItemsDB.get_rarity_stars(rarity), 22, ItemsDB.get_rarity_color(rarity)))
+	box.add_child(make_label(ItemsDB.get_rarity_name(rarity), 22, ItemsDB.get_rarity_color(rarity)))
 	box.add_child(HSeparator.new())
 	box.add_child(make_label(data.get("description", ""), 22, Color(0.88, 0.9, 1)))
 	if not unlocked:
-		box.add_child(make_label("🔒 " + ItemsDB.get_unlock_text(data.get("unlock", {})), 22, GOLD))
+		box.add_child(make_label(ItemsDB.get_unlock_text(data.get("unlock", {})), 22, GOLD))
 
 	var selected = (item_type == "avatar" and item_id == progression.player_avatar) \
 		or (item_type == "frame" and item_id == progression.player_frame)
@@ -622,10 +701,10 @@ func show_item_card(item_type: String, item_id: int):
 	select_btn.custom_minimum_size = Vector2(240, 76)
 	select_btn.add_theme_font_size_override("font_size", 28)
 	if selected:
-		select_btn.text = "ВЫБРАНО ✓"
+		select_btn.text = "ВЫБРАНО"
 		select_btn.disabled = true
 	elif not unlocked:
-		select_btn.text = "🔒 ЗАКРЫТО"
+		select_btn.text = "ЗАКРЫТО"
 		select_btn.disabled = true
 	else:
 		select_btn.text = "ВЫБРАТЬ"
@@ -686,27 +765,38 @@ func create_achievement_card(def: Dictionary) -> Button:
 	if tier > 0:
 		card.add_theme_stylebox_override("normal", make_highlight_box(Achievements.get_tier_color(tier), 0.35))
 
+	# Кубок цвета ступени (серый — ещё не получено)
+	var medal = TextureRect.new()
+	medal.texture = icon_texture("trophy")
+	medal.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	medal.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	medal.position = Vector2(22, 34)
+	medal.size = Vector2(60, 60)
+	medal.modulate = Achievements.get_tier_color(tier) if tier > 0 else Color(0.42, 0.45, 0.6)
+	medal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(medal)
+
 	var box = VBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.position = Vector2(20, 12)
-	box.size = Vector2(750, 108)
+	box.position = Vector2(104, 12)
+	box.size = Vector2(666, 108)
 	box.add_theme_constant_override("separation", 4)
 	card.add_child(box)
 
-	var title = "%s %s" % [def["icon"], def["title"]]
+	var title: String = def["title"]
 	if tier > 0:
 		title += " — " + Achievements.get_tier_label(def, tier)
 	box.add_child(make_label(title, 28, Achievements.get_tier_color(tier) if tier > 0 else Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT))
 
 	if info["completed"]:
-		box.add_child(make_label("✅ " + Achievements.get_description(def, info["max_tier"]), 20, Color(0.6, 1, 0.6), HORIZONTAL_ALIGNMENT_LEFT))
+		box.add_child(make_label("Выполнено: " + Achievements.get_description(def, info["max_tier"]), 20, Color(0.6, 1, 0.6), HORIZONTAL_ALIGNMENT_LEFT))
 	else:
 		var next_text = "%s  (%s / %s)" % [Achievements.get_description(def, tier + 1),
 			Achievements.format_value(def, info["value"]), Achievements.format_value(def, info["next_target"])]
 		box.add_child(make_label(next_text, 20, Color(0.82, 0.85, 0.98), HORIZONTAL_ALIGNMENT_LEFT))
 
 	var bar = ProgressBar.new()
-	bar.custom_minimum_size = Vector2(740, 16)
+	bar.custom_minimum_size = Vector2(656, 16)
 	bar.show_percentage = false
 	bar.value = info["percent"]
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -716,7 +806,7 @@ func create_achievement_card(def: Dictionary) -> Button:
 func show_achievement_popup(def: Dictionary):
 	var info = Achievements.get_info(def)
 	var box = open_popup(640)
-	box.add_child(make_label("%s %s" % [def["icon"], def["title"]], 38, GOLD))
+	box.add_child(make_label(def["title"], 38, GOLD))
 	box.add_child(make_label("Текущее значение: %s" % Achievements.format_value(def, info["value"]), 22, Color(0.85, 0.88, 1)))
 
 	var tiers: Array = def["tiers"]
@@ -728,11 +818,11 @@ func show_achievement_popup(def: Dictionary):
 		var tier_box = VBoxContainer.new()
 		panel.add_child(tier_box)
 
-		var header = ("✅ " if done else "🔒 ") + Achievements.get_tier_label(def, tier)
+		var header = Achievements.get_tier_label(def, tier) + (" — получено" if done else "")
 		tier_box.add_child(make_label(header, 24, Achievements.get_tier_color(tier), HORIZONTAL_ALIGNMENT_LEFT))
 		tier_box.add_child(make_label(Achievements.get_description(def, tier), 20, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT))
 
-		var rewards = ["💰 %d" % Achievements.get_reward_coins(def, tier)]
+		var rewards = ["%d монет" % Achievements.get_reward_coins(def, tier)]
 		for item in progression.find_items("achievement", [def["id"], tier]):
 			rewards.append(progression.get_item_label(item["type"], item["id"]))
 		tier_box.add_child(make_label("Награда: " + ", ".join(rewards), 20, GOLD, HORIZONTAL_ALIGNMENT_LEFT))
@@ -747,7 +837,8 @@ func show_achievement_popup(def: Dictionary):
 # === ИМЯ ===
 
 func show_name_edit_popup():
-	var box = open_popup(520)
+	# Окно выше центра: снизу его закроет экранная клавиатура
+	var box = open_popup(520, 0.55)
 	box.add_child(make_label("Ваше имя", 34, GOLD))
 
 	var line_edit = LineEdit.new()
@@ -757,6 +848,7 @@ func show_name_edit_popup():
 	line_edit.custom_minimum_size = Vector2(460, 64)
 	line_edit.add_theme_font_size_override("font_size", 28)
 	line_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	line_edit.text_submitted.connect(func(_text): _on_name_save(line_edit, box))
 	box.add_child(line_edit)
 
 	var row = HBoxContainer.new()
@@ -790,12 +882,15 @@ func _on_name_save(line_edit: LineEdit, box):
 
 # === ВСПОМОГАТЕЛЬНОЕ ===
 
-func make_label(text: String, font_size: int, color: Color, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER) -> Label:
+# wrap = false для коротких подписей: перенос строк дорог при раскладке длинных списков
+func make_label(text: String, font_size: int, color: Color, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_CENTER,
+		wrap: bool = true) -> Label:
 	var label = Label.new()
 	label.text = text
 	label.horizontal_alignment = align
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	if wrap:
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
@@ -811,16 +906,18 @@ func make_highlight_box(color: Color, fill_alpha: float = 0.2) -> StyleBoxFlat:
 	return box
 
 # Окно поверх профиля: затемнение + панель по центру. Возвращает VBox для содержимого.
-func open_popup(min_width: float) -> VBoxContainer:
+# area_bottom < 1 — окно центрируется в верхней части экрана (например, над клавиатурой).
+func open_popup(min_width: float, area_bottom: float = 1.0) -> VBoxContainer:
 	var overlay = ColorRect.new()
 	overlay.color = Color(0, 0, 0, 0.82)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var center = CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.anchor_bottom = area_bottom
 
 	var panel = PanelContainer.new()
 	center.add_child(panel)
@@ -838,9 +935,11 @@ func open_popup(min_width: float) -> VBoxContainer:
 	# Высоту ограничиваем экраном: длинные списки прокручиваются
 	box.resized.connect(func(): scroll.custom_minimum_size.y = minf(box.size.y, size.y - 220))
 	box.set_meta("overlay", overlay)
+	popups.append(box)
 	return box
 
 func close_popup(box: Control):
+	popups.erase(box)
 	if box and is_instance_valid(box):
 		var overlay = box.get_meta("overlay", null)
 		if overlay and is_instance_valid(overlay):
@@ -861,3 +960,13 @@ func _on_back_pressed():
 	if game:
 		game.update_achievements_indicator()
 	queue_free()
+
+# Кнопка «Назад» на телефоне (вызывает Game): сначала закрывает окно поверх профиля
+func handle_back() -> bool:
+	while not popups.is_empty():
+		var box = popups.pop_back()
+		if is_instance_valid(box):
+			close_popup(box)
+			return true
+	_on_back_pressed()
+	return true

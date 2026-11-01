@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
-"""Генерирует аватарки и рамки в SVG для Block Puzzle.
+"""Генерирует аватарки в SVG для Block Puzzle (рамки — tools/make_frames.py).
 
 Запуск из корня проекта:  python3 tools/make_avatars.py
-Результат: assets/avatars/avatar_<id>.svg и assets/frames/frame_<id>.svg
+Результат: assets/avatars/avatar_<id>.svg
 
 Правила стиля (чтобы новые аватарки выглядели как один набор):
-- квадрат 256×256, отрисовка 512×512 (width/height), фон — скруглённый квадрат с градиентом;
-- персонаж по центру, главное — в зоне y 30..195: нижнюю часть закрывает плашка рамки с именем;
+- квадрат 256×256, отрисовка 320×320 (width/height: столько Godot импортирует — хватает для экрана 1440p и экономит видеопамять), фон — скруглённый квадрат с градиентом;
+- персонаж по центру, главное — в зоне y 24..232: по краю на ~8 px заходит кольцо рамки;
 - плоские формы, 2–3 тона на деталь, мягкий блик сверху, без тонких линий тоньше 3 px.
 """
 import os
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AVATAR_DIR = os.path.join(ROOT, "assets", "avatars")
-FRAME_DIR = os.path.join(ROOT, "assets", "frames")
 
 
 def svg(body, defs=""):
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 256 256">'
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 256 256">'
         f"<defs>{defs}</defs>{body}</svg>\n"
     )
 
@@ -441,99 +440,12 @@ AVATARS[24] = svg(
     d,
 )
 
-# === РАМКИ ===
-# Квадратная рамка с прозрачным центром и плашкой под имя внизу (как frame_1.png).
-
-def frame(stops, gem, plate_fill, plate_stroke, corner, extra=""):
-    gradient = "".join(f'<stop offset="{o}" stop-color="{c}"/>' for o, c in stops)
-    defs = f'<linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">{gradient}</linearGradient>'
-    body = (
-        # Внешняя полоса рамки с прозрачной серединой (evenodd)
-        '<path fill-rule="evenodd" fill="url(#metal)" d="M10 10 H246 V246 H10 Z M24 24 V232 H232 V24 Z"/>'
-        '<path fill="none" stroke="#000" stroke-opacity="0.35" stroke-width="2" d="M24 24 V232 H232 V24 Z"/>'
-        '<path fill="none" stroke="#fff" stroke-opacity="0.5" stroke-width="2" d="M11 11 H245 V245 H11 Z"/>'
-        + extra
-        # Уголки
-        + "".join(f'<path d="M{x} {y} l12 -12 l12 12 l-12 12 Z" fill="{corner}" stroke="#fff" stroke-opacity="0.6" stroke-width="2"/>'
-                  for x, y in ((5, 17), (227, 17), (5, 239), (227, 239)))
-        # Самоцветы по бокам
-        + f'<circle cx="17" cy="128" r="11" fill="{gem}" stroke="#fff" stroke-opacity="0.7" stroke-width="2"/>'
-        + f'<circle cx="239" cy="128" r="11" fill="{gem}" stroke="#fff" stroke-opacity="0.7" stroke-width="2"/>'
-        + '<circle cx="14" cy="124" r="3.5" fill="#fff" opacity="0.8"/><circle cx="236" cy="124" r="3.5" fill="#fff" opacity="0.8"/>'
-        # Плашка под имя
-        + f'<path d="M66 216 H190 L200 231 L190 246 H66 L56 231 Z" fill="{plate_fill}" stroke="{plate_stroke}" stroke-width="4"/>'
-        + '<path d="M70 220 H186 L192 228 H64 Z" fill="#fff" opacity="0.18"/>'
-    )
-    return svg(body, defs)
-
-
-FRAMES = {
-    2: frame([(0, "#ffffff"), (0.45, "#b9c3d4"), (0.55, "#8a94a6"), (1, "#e6ebf3")],
-             "#4f8dff", "#5b6478", "#d9e1f2", "#c9d3ea"),
-    3: frame([(0, "#fff3b0"), (0.4, "#f2b82e"), (0.6, "#c78a12"), (1, "#ffe07a")],
-             "#ff3b5c", "#9c3a12", "#ffd23f", "#ffd23f"),
-    4: frame([(0, "#5ad1ff"), (0.5, "#9d5cff"), (1, "#ff5fd2")],
-             "#7fffe0", "#1a1040", "#9ff3ff", "#9ff3ff",
-             extra=(
-                 # Неоновое свечение: несколько полупрозрачных обводок
-                 '<path fill="none" stroke="#e8fbff" stroke-opacity="0.8" stroke-width="2.5" d="M17 17 V239 H239 V17 Z"/>'
-                 '<path fill="none" stroke="#9ff3ff" stroke-opacity="0.45" stroke-width="3" d="M26 26 V230 H230 V26 Z"/>'
-                 + sparkle(128, 17, 7) + sparkle(64, 17, 4) + sparkle(192, 17, 4)
-             )),
-}
-
-
-FRAMES.update({
-    5: frame([(0, "#b8ffd6"), (0.45, "#2ecc71"), (0.6, "#0e7a43"), (1, "#8affc1")],
-             "#00e676", "#0b5d33", "#7dffb0", "#9dffcc"),
-    6: frame([(0, "#ffd0d6"), (0.45, "#ff3b5c"), (0.6, "#a3122e"), (1, "#ff8a9c")],
-             "#ff1744", "#6d0a1f", "#ff8a9c", "#ffb3c0"),
-    7: frame([(0, "#cfe3ff"), (0.45, "#3a7bff"), (0.6, "#123a9c"), (1, "#8fb8ff")],
-             "#2979ff", "#0d2a6e", "#8fb8ff", "#b3d1ff"),
-    8: frame([(0, "#f0d9ff"), (0.45, "#9d5cff"), (0.6, "#4a1d8a"), (1, "#d1a8ff")],
-             "#b388ff", "#3a1470", "#d1a8ff", "#e3c9ff"),
-    9: frame([(0, "#8a8fa8"), (0.45, "#2a2d3e"), (0.6, "#0b0c14"), (1, "#5a5f78")],
-             "#ff6a00", "#0b0c14", "#ff8a2b", "#5a5f78",
-             extra='<path fill="none" stroke="#ff6a00" stroke-opacity="0.55" stroke-width="2" d="M17 17 V239 H239 V17 Z"/>'),
-    10: frame([(0, "#ff4d5e"), (0.2, "#ff8a2b"), (0.4, "#ffd23f"), (0.6, "#33c770"), (0.8, "#4170ff"), (1, "#9d5cff")],
-              "#ffffff", "#1a1040", "#ffd23f", "#ffffff"),
-    11: frame([(0, "#ffffff"), (0.4, "#cdeffd"), (0.6, "#7fd6ff"), (1, "#ffffff")],
-              "#e0f7ff", "#0e3a5c", "#ffffff", "#ffffff",
-              extra=(sparkle(128, 17, 8) + sparkle(17, 72, 5) + sparkle(239, 72, 5)
-                     + sparkle(17, 184, 5) + sparkle(239, 184, 5) + sparkle(72, 239, 4) + sparkle(184, 239, 4))),
-})
-
-def stripes(c1, c2, n=10):
-    stops = []
-    for i in range(n):
-        a, b2 = i / n, (i + 1) / n
-        color = c1 if i % 2 == 0 else c2
-        stops += [(round(a, 3), color), (round(b2, 3), color)]
-    return stops
-
-FRAMES.update({
-    12: frame(stripes("#ff5c9a", "#fff4f8", 14), "#ff7eb6", "#c2306e", "#fff4f8", "#fff4f8"),
-    13: frame([(0, "#bff6ff"), (0.4, "#3fb8e0"), (0.7, "#0b4a8a"), (1, "#7fe3ff")], "#3fe0d0", "#073a5c", "#bff6ff", "#e0fbff",
-              extra="".join(f'<path d="M{x} 17 q8 -8 16 0 q8 8 16 0" fill="none" stroke="#e0fbff" stroke-width="3" opacity="0.8"/>' for x in (40, 104, 168))),
-    14: frame([(0, "#d9a878"), (0.35, "#9a5f36"), (0.65, "#5a3418"), (1, "#b07a4a")], "#5bd17a", "#3a2010", "#d9a878", "#d9a878",
-              extra="".join(f'<path d="M{x} 12 q4 120 -2 232" fill="none" stroke="#3a2010" stroke-width="1.5" opacity="0.5"/>' for x in (14, 20))
-              + "".join(f'<path d="M{x} 12 q-4 120 2 232" fill="none" stroke="#3a2010" stroke-width="1.5" opacity="0.5"/>' for x in (236, 242))),
-    15: frame([(0, "#ff4dd9"), (0.5, "#7a2be0"), (1, "#3bd6e8")], "#4ade3b", "#120a2a", "#ff4dd9", "#3bd6e8",
-              extra="".join(f'<rect x="{x}" y="{y}" width="6" height="6" fill="#fff" opacity="0.7"/>'
-                            for x, y in ((40, 14), (80, 14), (170, 14), (210, 14), (14, 60), (14, 190), (236, 60), (236, 190)))),
-})
-
-
 def main():
     os.makedirs(AVATAR_DIR, exist_ok=True)
-    os.makedirs(FRAME_DIR, exist_ok=True)
     for avatar_id, content in AVATARS.items():
         with open(os.path.join(AVATAR_DIR, f"avatar_{avatar_id}.svg"), "w", encoding="utf-8") as f:
             f.write(content)
-    for frame_id, content in FRAMES.items():
-        with open(os.path.join(FRAME_DIR, f"frame_{frame_id}.svg"), "w", encoding="utf-8") as f:
-            f.write(content)
-    print(f"Аватарок: {len(AVATARS)}, рамок: {len(FRAMES)}")
+    print(f"Аватарок: {len(AVATARS)} (рамки — tools/make_frames.py)")
 
 
 if __name__ == "__main__":

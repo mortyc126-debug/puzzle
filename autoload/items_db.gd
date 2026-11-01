@@ -61,7 +61,7 @@ var frames_data = {
 		"name": "Бронза",
 		"rarity": "COMMON",
 		"description": "Простая бронзовая рамка. Отличное начало для каждого новичка!",
-		"texture": "res://assets/frames/frame_1.png",
+		"texture": "res://assets/frames/frame_1.svg",
 		"unlock": {"type": "default"},
 	},
 	2: {
@@ -238,8 +238,8 @@ var avatars_data = {
 	12: {
 		"name": "Комета",
 		"rarity": "EPIC",
-		"description": "Четыре линии за один ход — и она проносится по небу.",
-		"unlock": {"type": "achievement", "id": "quad", "tier": 1},
+		"description": "Три линии за один ход — и она проносится по небу.",
+		"unlock": {"type": "achievement", "id": "triple", "tier": 1},
 	},
 	13: {
 		"name": "Сова",
@@ -416,21 +416,3 @@ func get_rarity_color(rarity: String) -> Color:
 			return Color(1, 0.84, 0)
 		_:
 			return Color.WHITE
-
-# Получить звёздочки редкости
-func get_rarity_stars(rarity: String) -> String:
-	match rarity:
-		"COMMON":
-			return "⭐"
-		"UNCOMMON":
-			return "⭐⭐"
-		"RARE":
-			return "⭐⭐⭐"
-		"EPIC":
-			return "⭐⭐⭐⭐"
-		"LEGENDARY":
-			return "⭐⭐⭐⭐⭐"
-		"MYTHIC":
-			return "⭐⭐⭐⭐⭐⭐"
-		_:
-			return ""

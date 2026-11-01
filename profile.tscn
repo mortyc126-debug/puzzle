@@ -27,7 +27,7 @@ offset_top = 36.0
 offset_right = 180.0
 offset_bottom = 100.0
 theme_override_font_sizes/font_size = 24
-text = "← Назад"
+text = "Назад"
 
 [node name="AvatarDisplay" type="TextureRect" parent="."]
 layout_mode = 0
@@ -85,37 +85,37 @@ theme_override_constants/separation = 15
 [node name="GamesPlayedLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "🎮 Games Played: 0"
+text = ""
 
 [node name="LinesClearedLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "⭐ Lines Cleared: 0"
+text = ""
 
 [node name="TimePlayedLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "⏱️ Time Played: 0h 0m"
+text = ""
 
 [node name="BestScoreLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "🏆 Best Score: 0"
+text = ""
 
 [node name="AverageScoreLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "📈 Average Score: 0"
+text = ""
 
 [node name="MaxComboLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "🔥 Max Combo: x1"
+text = ""
 
 [node name="TotalCoinsLabel" type="Label" parent="CustomizeContainer/📊 Statistics/StatsContent"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "💰 Total Coins Earned: 0"
+text = ""
 
 [node name="🎁 Rewards" type="ScrollContainer" parent="CustomizeContainer"]
 visible = false

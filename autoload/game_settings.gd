@@ -22,32 +22,21 @@ func _ready() -> void:
 	apply()
 
 func load_settings() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
-		return
-	var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if file == null:
-		return
-	var data = file.get_var()
-	file.close()
-	if data is Dictionary:
-		sound_enabled = data.get("sound", true)
-		music_enabled = data.get("music", true)
-		vibration_enabled = data.get("vibration", true)
-		rated = data.get("rated", false)
-		zen_mode = data.get("zen_mode", false)
+	var data = SafeFile.load_dict(SAVE_PATH)
+	sound_enabled = data.get("sound", true)
+	music_enabled = data.get("music", true)
+	vibration_enabled = data.get("vibration", true)
+	rated = data.get("rated", false)
+	zen_mode = data.get("zen_mode", false)
 
 func save_settings() -> void:
-	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file == null:
-		return
-	file.store_var({
+	SafeFile.save_var(SAVE_PATH, {
 		"sound": sound_enabled,
 		"music": music_enabled,
 		"vibration": vibration_enabled,
 		"rated": rated,
 		"zen_mode": zen_mode,
 	})
-	file.close()
 
 func apply() -> void:
 	_set_bus_mute("SFX", not sound_enabled)

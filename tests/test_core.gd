@@ -1,6 +1,6 @@
 extends SceneTree
 
-## Тесты чистой логики (Board, PieceGenerator, Scoring).
+## Тесты чистой логики (Board, PieceGenerator, Scoring, SafeFile).
 ## Запуск (один раз перед этим откройте проект в редакторе или выполните --import):
 ##   godot --headless --path . -s tests/test_core.gd
 
@@ -16,6 +16,7 @@ func _init() -> void:
 	test_scoring_streak()
 	test_scoring_perfect()
 	test_rotation()
+	test_safe_file()
 
 	print("")
 	print("Проверок: %d, ошибок: %d" % [checks, failures])
@@ -126,3 +127,21 @@ func test_scoring_perfect() -> void:
 	var result = scoring.register_move(4, 1, true)
 	check(result["perfect"], "чистое поле отмечено")
 	check(result["clear"] == 10 + Scoring.PERFECT_CLEAR_BONUS, "бонус за чистое поле")
+
+# Сохранение переживает обрезанный основной файл (телефон выключился во время записи)
+func test_safe_file() -> void:
+	var path = "user://test_safe_file.save"
+	SafeFile.remove(path)
+	check(SafeFile.load_dict(path).is_empty(), "нет файла — пустой словарь")
+	check(SafeFile.save_var(path, {"coins": 10}), "первая запись")
+	check(SafeFile.save_var(path, {"coins": 20}), "вторая запись")
+	check(int(SafeFile.load_dict(path).get("coins", 0)) == 20, "читается последняя запись")
+
+	# Портим основной файл: оставляем 3 байта
+	var file = FileAccess.open(path, FileAccess.WRITE)
+	file.store_buffer(PackedByteArray([1, 2, 3]))
+	file.close()
+	check(int(SafeFile.load_dict(path).get("coins", 0)) == 10, "испорченный файл — берётся резервная копия")
+
+	SafeFile.remove(path)
+	check(not SafeFile.exists(path), "remove убирает основной файл и копии")

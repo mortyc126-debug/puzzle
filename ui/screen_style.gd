@@ -3,6 +3,7 @@ extends RefCounted
 
 ## Общий вид полноэкранных меню (профиль, настройки): градиентный фон и кнопка «Назад».
 
+const DESIGN_SIZE = Vector2(900, 1600)
 const TOP_COLOR = Color(0.11, 0.15, 0.38)
 const BOTTOM_COLOR = Color(0.035, 0.045, 0.13)
 
@@ -27,6 +28,25 @@ static func apply_background(background: ColorRect) -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background.add_child(rect)
+	background.move_child(rect, 0)  # под остальным содержимым фона (заголовок настроек)
+
+# Экран телефона обычно длиннее макета 900×1600 (project.godot: stretch aspect = expand).
+# Элементы макета сдвигаются: по горизонтали — к центру, по вертикали — на долю top_share
+# от лишней высоты. stretch (вкладки профиля) вытягивается вниз на освободившееся место.
+static func fit_to_screen(root: Control, top_share: float = 0.5, stretch: Control = null) -> void:
+	var view_size = root.get_viewport_rect().size
+	var extra = Vector2(maxf(view_size.x - DESIGN_SIZE.x, 0.0), maxf(view_size.y - DESIGN_SIZE.y, 0.0))
+	var shift = Vector2(floorf(extra.x / 2.0), floorf(extra.y * top_share))
+	for child in root.get_children():
+		if child is Control and child.name != "Background":
+			child.position += shift
+	var background = root.get_node_or_null("Background")
+	if background:
+		for child in background.get_children():
+			if child is Control and not child is TextureRect:
+				child.position += shift
+	if stretch:
+		stretch.size.y += extra.y * (1.0 - 2.0 * top_share)
 
 static func style_back_button(button: Button) -> void:
 	if button == null:
