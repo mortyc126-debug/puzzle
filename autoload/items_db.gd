@@ -17,18 +17,21 @@ var block_colors = [
 	Color.PURPLE, Color.ORANGE, Color.CYAN, Color.PINK,
 	Color.LIME_GREEN, Color.MAGENTA, Color.SADDLE_BROWN, Color.TURQUOISE,
 	Color.GOLD, Color.CRIMSON, Color.DARK_GREEN, Color(0, 0, 0.5),
-	Color.OLIVE, Color.TEAL, Color.CORAL, Color.INDIGO
+	Color.OLIVE, Color.TEAL, Color.CORAL, Color.INDIGO,
+	Color(1.0, 0.6, 0.78), Color(0.55, 0.85, 1.0), Color(0.72, 0.55, 1.0), Color(1.0, 0.45, 0.2), Color(0.45, 0.95, 0.65),
 ]
 
 var color_names = [
 	"Синий", "Красный", "Зелёный", "Жёлтый", "Фиолетовый", "Оранжевый", "Голубой", "Розовый",
 	"Лайм", "Пурпурный", "Шоколадный", "Бирюзовый", "Золотой", "Малиновый", "Хвойный", "Тёмно-синий",
 	"Оливковый", "Морской", "Коралловый", "Индиго",
+	"Сакуровый", "Небесный", "Лавандовый", "Лавовый", "Мятный",
 ]
 
 # Цвета 0–5 доступны сразу, остальные — награды ранних уровней (индекс цвета → уровень)
 const COLOR_UNLOCK_LEVELS = {
 	6: 2, 7: 4, 8: 6, 9: 9, 10: 11, 11: 13, 12: 14, 13: 16, 14: 19, 15: 21, 16: 22, 17: 23, 18: 27, 19: 29,
+	20: 31, 21: 32, 22: 36, 23: 37, 24: 39,
 }
 
 # === ЭФФЕКТЫ ОЧИСТКИ ===
@@ -52,6 +55,12 @@ var effects_data = {
 	8: {"name": "Фейерверк", "rarity": "LEGENDARY", "kind": "fireworks",
 		"description": "Залпы салюта за длинные серии. Для тех, кто не останавливается.",
 		"unlock": {"type": "achievement", "id": "streak", "tier": 4}},
+	9: {"name": "Лепестки", "rarity": "UNCOMMON", "kind": "petals",
+		"description": "Линия осыпается лепестками сакуры.", "unlock": {"type": "level", "level": 14}},
+	10: {"name": "Угольки", "rarity": "RARE", "kind": "embers",
+		"description": "Раскалённые искры взлетают над полем, как над вулканом.", "unlock": {"type": "level", "level": 47}},
+	11: {"name": "Снежинки", "rarity": "EPIC", "kind": "snow",
+		"description": "Очищенные клетки рассыпаются снегом.", "unlock": {"type": "level", "level": 72}},
 }
 
 # === РАМКИ ===
@@ -161,6 +170,69 @@ var frames_data = {
 		"description": "Восемь бит, неоновые грани — привет из аркадного зала.",
 		"texture": "res://assets/frames/frame_15.svg",
 		"unlock": {"type": "level", "level": 130},
+	},
+	16: {
+		"name": "Сакура",
+		"rarity": "UNCOMMON",
+		"description": "Розовое кольцо в цветах вишни.",
+		"texture": "res://assets/frames/frame_16.svg",
+		"unlock": {"type": "level", "level": 16},
+	},
+	17: {
+		"name": "Медовая",
+		"rarity": "UNCOMMON",
+		"description": "Тёплое золото и соты по краю.",
+		"texture": "res://assets/frames/frame_17.svg",
+		"unlock": {"type": "level", "level": 24},
+	},
+	18: {
+		"name": "Неон",
+		"rarity": "RARE",
+		"description": "Две светящиеся трубки, как на вывеске ночного города.",
+		"texture": "res://assets/frames/frame_18.svg",
+		"unlock": {"type": "level", "level": 34},
+	},
+	19: {
+		"name": "Магма",
+		"rarity": "EPIC",
+		"description": "Чёрный камень, раскалённые трещины и огненный герб.",
+		"texture": "res://assets/frames/frame_19.svg",
+		"unlock": {"type": "level", "level": 44},
+	},
+	20: {
+		"name": "Кристальная",
+		"rarity": "EPIC",
+		"description": "Гранёное кольцо с аметистами и аквамаринами.",
+		"texture": "res://assets/frames/frame_20.svg",
+		"unlock": {"type": "level", "level": 62},
+	},
+	21: {
+		"name": "Сияние",
+		"rarity": "LEGENDARY",
+		"description": "Все переливы северного неба в одной рамке.",
+		"texture": "res://assets/frames/frame_21.svg",
+		"unlock": {"type": "level", "level": 78},
+	},
+	22: {
+		"name": "Огненная",
+		"rarity": "EPIC",
+		"description": "Языки пламени для мастера бонусов: двести использований.",
+		"texture": "res://assets/frames/frame_22.svg",
+		"unlock": {"type": "achievement", "id": "bonus", "tier": 3},
+	},
+	23: {
+		"name": "Королевская",
+		"rarity": "LEGENDARY",
+		"description": "Пурпур, золото и корона. Сто двадцатый уровень — это уже титул.",
+		"texture": "res://assets/frames/frame_23.svg",
+		"unlock": {"type": "level", "level": 120},
+	},
+	24: {
+		"name": "Галактика",
+		"rarity": "MYTHIC",
+		"description": "Звёздная россыпь и своя планета. Двухсотый уровень.",
+		"texture": "res://assets/frames/frame_24.svg",
+		"unlock": {"type": "level", "level": 200},
 	},
 }
 
@@ -312,6 +384,78 @@ var avatars_data = {
 		"rarity": "LEGENDARY",
 		"description": "Для тех, кто сыграл двести пятьдесят партий и не собирается останавливаться.",
 		"unlock": {"type": "achievement", "id": "games", "tier": 4},
+	},
+	25: {
+		"name": "Панда",
+		"rarity": "UNCOMMON",
+		"description": "Спокойная, как спокойный режим. Любит бамбук и ровные ряды.",
+		"unlock": {"type": "level", "level": 5},
+	},
+	26: {
+		"name": "Пчёлка",
+		"rarity": "COMMON",
+		"description": "Строит соты так же аккуратно, как вы — линии.",
+		"unlock": {"type": "level", "level": 9},
+	},
+	27: {
+		"name": "Грибок",
+		"rarity": "UNCOMMON",
+		"description": "Вырос после дождя из очищенных линий.",
+		"unlock": {"type": "level", "level": 12},
+	},
+	28: {
+		"name": "Дракончик",
+		"rarity": "RARE",
+		"description": "Пока маленький, но уже умеет пускать искры.",
+		"unlock": {"type": "level", "level": 33},
+	},
+	29: {
+		"name": "Ниндзя",
+		"rarity": "RARE",
+		"description": "Ставит фигуры быстро и бесшумно.",
+		"unlock": {"type": "level", "level": 38},
+	},
+	30: {
+		"name": "Снеговик",
+		"rarity": "RARE",
+		"description": "Пришёл вместе с северным сиянием. Не тает от серий.",
+		"unlock": {"type": "level", "level": 58},
+	},
+	31: {
+		"name": "Феникс",
+		"rarity": "EPIC",
+		"description": "Возрождается после каждой двойной очистки. За сотню комбо из двух и больше линий.",
+		"unlock": {"type": "achievement", "id": "multi", "tier": 2},
+	},
+	32: {
+		"name": "Единорог",
+		"rarity": "EPIC",
+		"description": "Встречается только у очень упорных игроков.",
+		"unlock": {"type": "level", "level": 75},
+	},
+	33: {
+		"name": "Волшебник",
+		"rarity": "EPIC",
+		"description": "Знает, где появится следующая фигура. Почти всегда.",
+		"unlock": {"type": "level", "level": 90},
+	},
+	34: {
+		"name": "Самоцвет",
+		"rarity": "EPIC",
+		"description": "Живой кристалл — для того, кто собрал шесть тем.",
+		"unlock": {"type": "achievement", "id": "themes", "tier": 2},
+	},
+	35: {
+		"name": "Манэки-нэко",
+		"rarity": "LEGENDARY",
+		"description": "Кошка удачи машет лапкой тем, кто неделю выполнял все задания дня.",
+		"unlock": {"type": "achievement", "id": "full_day", "tier": 2},
+	},
+	36: {
+		"name": "Астрокот",
+		"rarity": "LEGENDARY",
+		"description": "Покоритель космоса: приходит вместе с самой красивой темой на сотом уровне.",
+		"unlock": {"type": "level", "level": 100},
 	},
 }
 

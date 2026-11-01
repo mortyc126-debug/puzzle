@@ -55,6 +55,8 @@ var run_coins = 0               # Монеты за очки этой парти
 var run_xp = 0                  # Опыт, накопленный за партию: начисляется в конце
 var run_lines = 0               # Линий очищено за партию
 var pieces_this_run = 0
+var level_before = 1            # Уровень и опыт до начисления наград — для анимации в итогах
+var xp_before = 0
 
 # Итоги партии: пока идёт начисление наград в finish_run(), события уровня,
 # предметов и достижений собираются сюда, а не показываются уведомлениями
@@ -518,6 +520,7 @@ func update_score_display():
 	if not record_announced and best_score_at_start > 0 and score > best_score_at_start:
 		record_announced = true
 		show_big_text("НОВЫЙ РЕКОРД!", Color(1, 0.84, 0), 8.0)
+		Sfx.play("record")
 		GameSettings.vibrate(60)
 
 func update_zen_display():
@@ -693,11 +696,18 @@ func on_lines_cleared(count: int, result: Dictionary, fill_before: float):
 	# Звук очистки становится выше с каждым шагом серии — отклик растёт вместе с успехом
 	sound_clear.pitch_scale = minf(1.0 + 0.07 * (result["streak"] - 1), 1.5)
 	sound_clear.play()
+	# Сверху — «слой радости»: комбо из 2+ линий и чистое поле звучат отдельно и ярче
+	if result["perfect"]:
+		Sfx.play("perfect")
+	elif count >= 2:
+		Sfx.play("combo", 1.0 + 0.06 * (count - 2))
 	run_max_combo = maxi(run_max_combo, count)
 	GameSettings.vibrate(30 + 15 * count)
 
 	progression.record_lines_cleared(count)
 	progression.record_combo(count)
+	if count >= 2:
+		progression.record_multi_clear()
 	progression.record_streak(result["streak"])
 	if result["perfect"]:
 		progression.record_perfect_clear()
@@ -789,8 +799,7 @@ func use_hammer_on_cell(x: int, y: int):
 	var color = grid.board.remove_cell(x, y)
 	grid.play_clear_effect([{"pos": Vector2i(x, y), "color": color}], {"rows": [], "cols": []})
 	grid.queue_redraw()
-	sound_place.pitch_scale = 0.85
-	sound_place.play()
+	Sfx.play("hammer")
 	GameSettings.vibrate(25)
 	mark_powerup_used("hammer")
 
@@ -809,6 +818,7 @@ func _on_shuffle_pressed():
 	if game_over or dragging_block != null or not progression.spend_coins(PRICE_SHUFFLE):
 		return
 	mark_powerup_used("shuffle")
+	Sfx.play("shuffle")
 	spawn_blocks()
 	check_game_over()
 	save_run()
@@ -833,8 +843,7 @@ func rotate_block(block):
 	block.shape = Shapes.rotate_cw(block.shape)
 	block.return_to_tray()
 	block.queue_redraw()
-	sound_place.pitch_scale = 1.2
-	sound_place.play()
+	Sfx.play("rotate")
 	GameSettings.vibrate(15)
 	mark_powerup_used("rotate")
 	last_move = null
@@ -865,6 +874,7 @@ func _on_undo_pressed():
 	progression.total_pieces_placed = maxi(progression.total_pieces_placed - 1, 0)
 
 	mark_powerup_used("undo")
+	Sfx.play("undo")
 	score_label.text = str(score)
 	update_streak_display(scoring.streak)
 	grid.queue_redraw()
@@ -1053,6 +1063,7 @@ func _on_achievement_unlocked(achievement_id: String, tier: int):
 			"coins": Achievements.get_reward_coins(def, tier)})
 	else:
 		show_toast(text, Achievements.get_tier_color(tier))
+		Sfx.play("reward")
 
 func _on_item_unlocked(item_type: String, item_id):
 	var text = "Открыто: " + progression.get_item_label(item_type, item_id)
@@ -1062,6 +1073,7 @@ func _on_item_unlocked(item_type: String, item_id):
 		summary["item_refs"].append({"type": item_type, "id": item_id})
 	else:
 		show_toast(text, Color(0.6, 1, 0.7))
+		Sfx.play("reward")
 
 # === ПРОГРЕСС ===
 
@@ -1075,6 +1087,7 @@ func _on_level_up(new_level: int):
 		summary["levels"].append(new_level)
 	else:
 		show_toast("Уровень %d!" % new_level, Color(1, 0.84, 0))
+		Sfx.play("level_up")
 
 func _on_mission_completed(text: String, coins: int, xp: int):
 	var line = "Задание выполнено: %s (+%d монет, +%d XP)" % [text, coins, xp]
@@ -1177,6 +1190,7 @@ func _on_claim_daily_reward(box):
 	close_modal(box)
 	if reward.is_empty():
 		return
+	Sfx.play("coin")
 	var text = "Награда дня %d: +%d монет" % [progression.daily_streak, reward.get("coins", 0)]
 	if reward.has("xp"):
 		text += " +%d XP" % reward["xp"]
@@ -1252,6 +1266,8 @@ func finish_run():
 		return
 	run_finished = true
 
+	level_before = progression.current_level
+	xp_before = progression.current_xp
 	collecting_summary = true
 	award_game_over_rewards()
 	if pieces_this_run > 0:
@@ -1263,6 +1279,8 @@ func finish_run():
 	if score > 0:
 		# Спокойный режим не участвует в «Без подсказок»: проиграть в нём нельзя
 		progression.record_game_finished(score, used_powerups or zen, ThemeManager.current.id, run_lines)
+		if zen:
+			progression.record_zen_game()
 	Events.game_finished.emit(score, used_powerups)
 	collecting_summary = false
 	clear_saved_run()
@@ -1304,6 +1322,7 @@ func _on_continue_game(box):
 		return
 	continue_used_count += 1
 	continue_cost *= 2
+	Sfx.play("coin", 0.9)
 	used_powerups = true
 	progression.record_continue()
 	Events.continue_used.emit()
@@ -1330,7 +1349,12 @@ func show_final_game_over():
 		modal_text(box, "Новый рекорд! +20 монет", 28, Color(1, 0.84, 0))
 	else:
 		modal_text(box, "Рекорд: %d" % progression.best_score, 28, Color(1, 0.84, 0))
+		# «Чуть-чуть не хватило» — самый сильный повод сыграть ещё раз
+		var gap = progression.best_score - score
+		if not zen and score > 0 and gap > 0 and score >= progression.best_score * 0.75:
+			modal_text(box, "До рекорда не хватило %d очков!" % gap, 26, Color(1, 0.62, 0.3))
 
+	add_level_progress(box)
 	box.add_child(HSeparator.new())
 	modal_text(box, "Итоги партии", 30, Color.WHITE)
 	for line in get_summary_lines():
@@ -1343,6 +1367,70 @@ func show_final_game_over():
 	else:
 		modal_buttons(box, [["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 
+# Полоска опыта заполняется на глазах: на каждом новом уровне значок подпрыгивает
+func add_level_progress(box: Control):
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	box.add_child(row)
+	var badge = PanelContainer.new()
+	badge.theme_type_variation = &"Pill"
+	badge.custom_minimum_size = Vector2(72, 72)
+	row.add_child(badge)
+	var badge_label = styled_label(str(level_before), 30, GOLD, &"DisplayLabel")
+	badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	badge.add_child(badge_label)
+	var column = VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(column)
+	var caption = styled_label("Уровень %d · +%d XP" % [level_before, run_xp], 22, Color(0.85, 0.88, 1))
+	column.add_child(caption)
+	var bar = ProgressBar.new()
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 18)
+	column.add_child(bar)
+
+	# Шаги анимации: [сколько нужно на уровень, откуда, докуда, новый уровень или -1]
+	var steps = []
+	var level = level_before
+	var from = xp_before
+	while level < progression.current_level:
+		steps.append([progression.get_xp_for_level(level), from, progression.get_xp_for_level(level), level + 1])
+		level += 1
+		from = 0
+	if progression.is_max_level():
+		steps.append([1, 1, 1, -1])
+	else:
+		steps.append([progression.get_xp_for_next_level(), from, progression.current_xp, -1])
+	bar.max_value = steps[0][0]
+	bar.value = steps[0][1]
+
+	var per_step = clampf(1.6 / steps.size(), 0.15, 0.7)
+	var tween = bar.create_tween()
+	tween.tween_interval(0.4)
+	for step in steps:
+		tween.tween_callback(_set_progress.bind(bar, step[0], step[1]))
+		tween.tween_property(bar, "value", float(step[2]), per_step).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		if step[3] > 0:
+			tween.tween_callback(_on_summary_level_up.bind(badge, badge_label, caption, step[3], step[3] == level_before + 1))
+
+func _set_progress(bar: ProgressBar, max_value: float, value: float):
+	bar.max_value = max_value
+	bar.value = value
+
+func _on_summary_level_up(badge: Control, badge_label: Label, caption: Label, new_level: int, first: bool):
+	badge_label.text = str(new_level)
+	caption.text = "Уровень %d!" % new_level
+	caption.add_theme_color_override("font_color", GOLD)
+	badge.pivot_offset = badge.size / 2.0
+	var pop = badge.create_tween()
+	pop.tween_property(badge, "scale", Vector2(1.3, 1.3), 0.1)
+	pop.tween_property(badge, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	GameSettings.vibrate(25)
+	if first:
+		Sfx.play("level_up")
+
 # Новые предметы — картинками, с кнопкой «Надеть»: момент получения награды должен быть заметным
 func add_reward_cards(box: Control):
 	var refs: Array = summary["item_refs"]
@@ -1354,8 +1442,15 @@ func add_reward_cards(box: Control):
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 14)
 	box.add_child(row)
+	# Карточки проявляются по очереди со звоном — момент получения награды заметен
+	var reveal = row.create_tween()
+	reveal.tween_interval(0.9)
+	reveal.tween_callback(Sfx.play.bind("reward", 1.0, 0.0))
 	for i in range(mini(refs.size(), 3)):
-		row.add_child(make_reward_card(refs[i]))
+		var card = make_reward_card(refs[i])
+		card.modulate.a = 0.0
+		row.add_child(card)
+		reveal.tween_property(card, "modulate:a", 1.0, 0.25)
 	if refs.size() > 3:
 		modal_text(box, "И ещё %d — смотрите в профиле" % (refs.size() - 3), 20)
 

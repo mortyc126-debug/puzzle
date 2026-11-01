@@ -123,6 +123,9 @@ func finish_drag(pointer: Vector2) -> void:
 	grid_reference.hide_ghost()
 	var target = get_target_cell(pointer)
 	if not game.try_place_piece(self, target.x, target.y):
+		# Над полем, но места нет — тихий «бум»; брошенная мимо поля фигура просто возвращается
+		if grid_reference.board.fits(shape, target.x, target.y):
+			Sfx.play("invalid")
 		return_to_tray()
 		queue_redraw()
 

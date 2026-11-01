@@ -86,9 +86,28 @@ func _process(delta: float) -> void:
 		_since_redraw = 0.0
 		queue_redraw()
 
+# Планета с кольцом — «Космос» венчает коллекцию тем
+func _draw_planet(center: Vector2, radius: float) -> void:
+	var ring_color = Color(0.85, 0.75, 1.0, 0.55)
+	draw_set_transform(center, -0.35, Vector2(1.0, 0.3))
+	draw_arc(Vector2.ZERO, radius * 1.75, PI, TAU, 40, ring_color, radius * 0.16, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+	draw_circle(center, radius * 1.15, Color(0.5, 0.35, 1.0, 0.08))
+	draw_circle(center, radius, Color(0.45, 0.32, 0.85))
+	draw_circle(center + Vector2(radius * 0.18, radius * 0.16), radius * 0.86, Color(0.3, 0.18, 0.62))
+	for band in range(3):
+		var y = (band - 1) * radius * 0.38
+		var half = sqrt(maxf(radius * radius - y * y, 0.0)) * 0.92
+		draw_line(center + Vector2(-half, y), center + Vector2(half, y), Color(0.75, 0.6, 1.0, 0.25), radius * 0.12, true)
+	draw_circle(center - Vector2(radius * 0.38, radius * 0.38), radius * 0.2, Color(1, 1, 1, 0.22))
+	draw_set_transform(center, -0.35, Vector2(1.0, 0.3))
+	draw_arc(Vector2.ZERO, radius * 1.75, 0.0, PI, 40, ring_color, radius * 0.16, true)
+	draw_set_transform_matrix(Transform2D.IDENTITY)
+
 func _draw() -> void:
 	# Градиент и туманности — одной запечённой картинкой
 	draw_texture_rect(_backdrop, Rect2(Vector2.ZERO, _area), false)
+	_draw_planet(Vector2(_area.x * 0.8, _area.y * 0.15), _area.x * 0.085)
 
 	# Звёзды
 	for star in _stars:

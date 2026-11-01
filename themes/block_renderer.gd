@@ -145,6 +145,83 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 			canvas.draw_rect(Rect2(body.position + Vector2(body.size.x - px, 0), Vector2(px, body.size.y)), dark)
 			canvas.draw_rect(Rect2(body.position + Vector2(px * 1.5, px * 1.5), Vector2(px, px)), Color(1, 1, 1, 0.85 * alpha))
 
+		BlockTheme.BlockStyle.MAGMA:
+			# Раскалённая лава внутри, сверху — тёмная каменная корка из четырёх плит;
+			# сквозь щели между плитами светится цвет блока
+			var glow = Color(base, 0.5 * theme.glow_strength * alpha)
+			canvas.draw_style_box(_box(Color(base.lightened(0.15), alpha), radius, Color(0, 0, 0, 0), 0, glow, int(8 * scale)), inner)
+			var p = inner.position
+			var s = inner.size.x
+			var crack_seed = int(rect.position.x / maxf(size, 1.0)) * 5 + int(rect.position.y / maxf(size, 1.0)) * 11
+			var jitter = func(k: int) -> float: return (posmod(crack_seed * 7 + k * 13, 11) - 5) * 0.018
+			var cx = s * (0.5 + jitter.call(1))
+			var cy = s * (0.5 + jitter.call(2))
+			var top_x = s * (0.45 + jitter.call(3))
+			var bottom_x = s * (0.55 + jitter.call(4))
+			var left_y = s * (0.52 + jitter.call(5))
+			var right_y = s * (0.46 + jitter.call(6))
+			var gap = s * 0.035
+			var rock = Color(0.17, 0.09, 0.08, alpha).lerp(Color(base.darkened(0.75), alpha), 0.25)
+			var plates = [
+				[Vector2(gap, gap), Vector2(top_x - gap, gap), Vector2(cx - gap, cy - gap), Vector2(gap, left_y - gap)],
+				[Vector2(top_x + gap, gap), Vector2(s - gap, gap), Vector2(s - gap, right_y - gap), Vector2(cx + gap, cy - gap)],
+				[Vector2(cx + gap, cy + gap), Vector2(s - gap, right_y + gap), Vector2(s - gap, s - gap), Vector2(bottom_x + gap, s - gap)],
+				[Vector2(gap, left_y + gap), Vector2(cx - gap, cy + gap), Vector2(bottom_x - gap, s - gap), Vector2(gap, s - gap)],
+			]
+			for plate in plates:
+				var points = PackedVector2Array()
+				for corner in plate:
+					points.append(p + corner)
+				canvas.draw_colored_polygon(points, rock)
+				canvas.draw_line(points[0], points[1], Color(1, 1, 1, 0.12 * alpha), maxf(1.0, 1.5 * scale))
+			canvas.draw_circle(p + Vector2(cx, cy), s * 0.06, Color(base.lightened(0.55), 0.95 * alpha))
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.darkened(0.2), 0.9 * alpha), maxi(1, int(2 * scale))), inner)
+
+		BlockTheme.BlockStyle.GEM:
+			var p = inner.position
+			var s = inner.size.x
+			var t0 = s * 0.27
+			var t1 = s * 0.73
+			var a = p
+			var b = p + Vector2(s, 0)
+			var c = p + Vector2(s, s)
+			var d = p + Vector2(0, s)
+			var ta = p + Vector2(t0, t0)
+			var tb = p + Vector2(t1, t0)
+			var tc = p + Vector2(t1, t1)
+			var td = p + Vector2(t0, t1)
+			canvas.draw_colored_polygon(PackedVector2Array([a, b, tb, ta]), Color(base.lightened(0.4), alpha))
+			canvas.draw_colored_polygon(PackedVector2Array([a, ta, td, d]), Color(base.lightened(0.15), alpha))
+			canvas.draw_colored_polygon(PackedVector2Array([b, c, tc, tb]), Color(base.darkened(0.2), alpha))
+			canvas.draw_colored_polygon(PackedVector2Array([d, td, tc, c]), Color(base.darkened(0.4), alpha))
+			canvas.draw_colored_polygon(PackedVector2Array([ta, tb, tc, td]), Color(base.lightened(0.08), alpha))
+			var edge = Color(1, 1, 1, 0.35 * alpha)
+			canvas.draw_polyline(PackedVector2Array([a, b, c, d, a]), Color(base.darkened(0.5), 0.8 * alpha), maxf(1.0, 2.0 * scale))
+			canvas.draw_polyline(PackedVector2Array([ta, tb, tc, td, ta]), edge, maxf(1.0, 1.5 * scale))
+			for corner in [[a, ta], [b, tb], [c, tc], [d, td]]:
+				canvas.draw_line(corner[0], corner[1], edge, maxf(1.0, 1.2 * scale))
+			# Искра на площадке
+			var spark = p + Vector2(s * 0.38, s * 0.38)
+			var arm = s * 0.11
+			canvas.draw_colored_polygon(PackedVector2Array([spark + Vector2(0, -arm), spark + Vector2(arm * 0.28, 0),
+				spark + Vector2(0, arm), spark + Vector2(-arm * 0.28, 0)]), Color(1, 1, 1, 0.85 * alpha))
+			canvas.draw_colored_polygon(PackedVector2Array([spark + Vector2(-arm, 0), spark + Vector2(0, arm * 0.28),
+				spark + Vector2(arm, 0), spark + Vector2(0, -arm * 0.28)]), Color(1, 1, 1, 0.85 * alpha))
+
+		BlockTheme.BlockStyle.METAL:
+			var p = inner.position
+			var s = inner.size.x
+			canvas.draw_style_box(_box(Color(base.darkened(0.45), base.a), radius), Rect2(p + Vector2(0, s * 0.04), inner.size))
+			canvas.draw_style_box(_box(Color(base.darkened(0.12), base.a), radius), inner)
+			var top = Rect2(p, Vector2(s, s * 0.48))
+			canvas.draw_style_box(_box(Color(base.lightened(0.28), base.a), radius, Color(0, 0, 0, 0), 0,
+				Color(0, 0, 0, 0), 0, true), top)
+			canvas.draw_rect(Rect2(p + Vector2(s * 0.06, s * 0.4), Vector2(s * 0.88, s * 0.08)), Color(1, 1, 1, 0.55 * alpha))
+			canvas.draw_rect(Rect2(p + Vector2(s * 0.06, s * 0.48), Vector2(s * 0.88, s * 0.04)), Color(base.darkened(0.3), 0.6 * alpha))
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.lightened(0.55), 0.85 * alpha),
+				maxi(1, int(2 * scale))), inner)
+			canvas.draw_circle(p + Vector2(s * 0.24, s * 0.2), s * 0.05, Color(1, 1, 1, 0.9 * alpha))
+
 # Вспышка при очистке: клетка светлеет и сжимается (t от 0 до 1)
 static func draw_flash(canvas: CanvasItem, rect: Rect2, color: Color, theme: BlockTheme, t: float) -> void:
 	var shrink = rect.size.x * 0.5 * t

@@ -79,10 +79,10 @@
 > • Три новых задания каждый день.
 > • Честные фигуры: в каждом наборе есть фигура, которую можно поставить.
 > • 500 уровней, звания от «Новичка» до «Легенды».
-> • 19 достижений, 72 ступени.
-> • 24 аватарки, 15 рамок и 8 эффектов очистки — от конфетти до фейерверка.
-> • Новая награда на каждом уровне со 2-го по 30-й.
-> • 6 тем: Классика, Космос, Конфеты, Океан, Дерево и Ретро — у каждой свои блоки и живой фон.
+> • 27 достижений, 100 ступеней.
+> • 36 аватарок, 24 рамки, 11 эффектов очистки и 25 цветов блоков.
+> • Новая награда на каждом уровне со 2-го по 40-й.
+> • 11 тем — от Классики до Космоса: Сакура, Лава, Кристаллы, Северное сияние, Золото… У каждой свои блоки и живой фон.
 > • Бонусы: молоток, поворот фигуры, новые фигуры, отмена хода.
 > • Награда каждый день.
 >
@@ -91,7 +91,7 @@
 **English (если понадобится):**
 > Short: Place blocks, clear lines. No ads, works offline, fair pieces.
 >
-> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. 500 levels with a new reward on every level from 2 to 30, 19 achievements with 72 tiers, 24 avatars, 15 frames, 8 line-clear effects, 6 themes (Classic, Space, Candy, Ocean, Wood, Retro).
+> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. 500 levels with a new reward on every level from 2 to 40, 27 achievements with 100 tiers, 36 avatars, 24 frames, 11 line-clear effects, 25 block colors, 11 themes from Classic to Space (Sakura, Lava, Crystals, Northern Lights, Gold and more).
 
 ## Чек-лист перед загрузкой
 

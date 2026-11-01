@@ -440,6 +440,203 @@ AVATARS[24] = svg(
     d,
 )
 
+# === Набор 3: к новым темам и наградам за достижения ===
+
+# 25. Панда
+d, b = background("#6bd17a", "#1f6b3a")
+AVATARS[25] = svg(
+    b + '<path d="M30 230 q20 -40 10 -90 M226 230 q-20 -40 -10 -90" stroke="#2e8a4a" stroke-width="10" fill="none" stroke-linecap="round"/>'
+    + '<ellipse cx="44" cy="150" rx="16" ry="7" fill="#9be8a8" transform="rotate(-30 44 150)"/>'
+    + '<ellipse cx="212" cy="150" rx="16" ry="7" fill="#9be8a8" transform="rotate(30 212 150)"/>'
+    + '<circle cx="74" cy="78" r="28" fill="#1b1f2a"/><circle cx="182" cy="78" r="28" fill="#1b1f2a"/>'
+    + '<circle cx="128" cy="134" r="74" fill="#ffffff"/>'
+    + '<ellipse cx="98" cy="126" rx="21" ry="28" fill="#1b1f2a" transform="rotate(28 98 126)"/>'
+    + '<ellipse cx="158" cy="126" rx="21" ry="28" fill="#1b1f2a" transform="rotate(-28 158 126)"/>'
+    + '<circle cx="100" cy="124" r="9" fill="#fff"/><circle cx="156" cy="124" r="9" fill="#fff"/>'
+    + '<circle cx="102" cy="126" r="5" fill="#1b1f2a"/><circle cx="154" cy="126" r="5" fill="#1b1f2a"/>'
+    + '<ellipse cx="128" cy="156" rx="11" ry="8" fill="#1b1f2a"/>'
+    + '<path d="M118 170 q10 9 20 0" fill="none" stroke="#1b1f2a" stroke-width="5" stroke-linecap="round"/>'
+    + '<circle cx="80" cy="160" r="9" fill="#ff9ab0" opacity="0.6"/><circle cx="176" cy="160" r="9" fill="#ff9ab0" opacity="0.6"/>',
+    d,
+)
+
+# 26. Пчёлка
+d, b = background("#ffcf4a", "#e0820e")
+AVATARS[26] = svg(
+    b + '<ellipse cx="66" cy="92" rx="38" ry="26" fill="#ffffff" opacity="0.75" transform="rotate(-30 66 92)"/>'
+    + '<ellipse cx="190" cy="92" rx="38" ry="26" fill="#ffffff" opacity="0.75" transform="rotate(30 190 92)"/>'
+    + '<ellipse cx="128" cy="232" rx="70" ry="50" fill="#ffd23f"/>'
+    + '<rect x="58" y="208" width="140" height="16" fill="#1b1f2a"/><rect x="62" y="238" width="132" height="16" fill="#1b1f2a"/>'
+    + '<path d="M104 62 q-10 -30 -30 -34 M152 62 q10 -30 30 -34" stroke="#1b1f2a" stroke-width="6" fill="none" stroke-linecap="round"/>'
+    + '<circle cx="72" cy="27" r="9" fill="#1b1f2a"/><circle cx="184" cy="27" r="9" fill="#1b1f2a"/>'
+    + '<circle cx="128" cy="124" r="64" fill="#ffd23f"/>'
+    + '<path d="M70 98 a64 64 0 0 1 116 0 Z" fill="#1b1f2a" opacity="0.9"/>'
+    + eyes(104, 152, 128, 14)
+    + '<path d="M108 158 q20 18 40 0" fill="none" stroke="#1b1f2a" stroke-width="6" stroke-linecap="round"/>'
+    + '<circle cx="84" cy="152" r="9" fill="#ff8a6a" opacity="0.7"/><circle cx="172" cy="152" r="9" fill="#ff8a6a" opacity="0.7"/>',
+    d,
+)
+
+# 27. Грибок
+d, b = background("#7a5cff", "#22145e")
+AVATARS[27] = svg(
+    b + stars(0.6)
+    + '<path d="M0 222 q30 -18 60 0 q34 -20 68 0 q34 -20 68 0 q30 -18 60 0 V256 H0 Z" fill="#3fbf6a"/>'
+    + '<rect x="86" y="118" width="84" height="98" rx="34" fill="#fff1dc"/>'
+    + '<rect x="86" y="118" width="40" height="98" rx="20" fill="#ffffff" opacity="0.5"/>'
+    + '<path d="M38 128 Q42 40 128 34 Q214 40 218 128 Q128 150 38 128 Z" fill="#ff4d5e"/>'
+    + '<path d="M58 96 Q74 52 128 46 Q150 47 166 54 Q110 56 74 112 Z" fill="#ff8a9c" opacity="0.7"/>'
+    + '<circle cx="88" cy="88" r="13" fill="#fff"/><circle cx="148" cy="66" r="10" fill="#fff"/><circle cx="178" cy="104" r="14" fill="#fff"/>'
+    + '<circle cx="120" cy="108" r="8" fill="#fff"/>'
+    + eyes(110, 146, 166, 10)
+    + '<path d="M116 190 q12 10 24 0" fill="none" stroke="#1b1f3a" stroke-width="5" stroke-linecap="round"/>',
+    d,
+)
+
+# 28. Дракончик
+d, b = background("#2fd3a6", "#0b4a5a")
+AVATARS[28] = svg(
+    b + '<path d="M70 70 L58 22 L96 58 Z" fill="#ffd23f"/><path d="M186 70 L198 22 L160 58 Z" fill="#ffd23f"/>'
+    + '<path d="M100 52 L112 28 L124 50 L136 28 L148 50 L160 30 L166 60 Z" fill="#1f9a6a"/>'
+    + '<ellipse cx="128" cy="124" rx="78" ry="70" fill="#3fd17a"/>'
+    + '<ellipse cx="128" cy="96" rx="60" ry="34" fill="#6fe39a" opacity="0.6"/>'
+    + '<ellipse cx="128" cy="168" rx="56" ry="38" fill="#b8f5c8"/>'
+    + '<circle cx="110" cy="168" r="6" fill="#1f6b4a"/><circle cx="146" cy="168" r="6" fill="#1f6b4a"/>'
+    + eyes(96, 160, 118, 15)
+    + '<path d="M104 190 q24 14 48 0" fill="none" stroke="#1f6b4a" stroke-width="5" stroke-linecap="round"/>'
+    + '<path d="M196 196 q30 -6 34 -30 q-14 10 -24 4 q8 -12 2 -26 q-12 22 -24 26 Z" fill="#ff8a2b" opacity="0.9"/>',
+    d,
+)
+
+# 29. Ниндзя
+d, b = background("#ff6b6b", "#5a0f1a")
+AVATARS[29] = svg(
+    b + '<path d="M176 92 q44 -10 64 18 q-30 -6 -48 10 Z" fill="#ff3b3b"/><path d="M176 100 q40 14 50 46 q-24 -22 -52 -18 Z" fill="#d82a2a"/>'
+    + '<circle cx="128" cy="130" r="76" fill="#1f2340"/>'
+    + '<rect x="52" y="86" width="152" height="20" rx="8" fill="#ff3b3b"/>'
+    + '<rect x="66" y="112" width="124" height="40" rx="20" fill="#ffd7b0"/>'
+    + '<path d="M88 124 l22 6 M168 124 l-22 6" stroke="#1b1f3a" stroke-width="5" stroke-linecap="round"/>'
+    + '<ellipse cx="100" cy="136" rx="8" ry="7" fill="#1b1f3a"/><ellipse cx="156" cy="136" rx="8" ry="7" fill="#1b1f3a"/>'
+    + '<circle cx="102" cy="134" r="2.5" fill="#fff"/><circle cx="158" cy="134" r="2.5" fill="#fff"/>'
+    + '<path d="M60 176 q68 40 136 0" fill="none" stroke="#2e3460" stroke-width="10" stroke-linecap="round"/>',
+    d,
+)
+
+# 30. Снеговик
+d, b = background("#7fd6ff", "#1f4a9c")
+AVATARS[30] = svg(
+    b + stars(0.8)
+    + '<rect x="40" y="206" width="176" height="34" rx="14" fill="#ff4d5e"/><rect x="150" y="214" width="26" height="42" rx="8" fill="#d8323f"/>'
+    + '<circle cx="128" cy="140" r="64" fill="#ffffff"/><circle cx="110" cy="122" r="40" fill="#ffffff"/>'
+    + '<path d="M70 168 a64 64 0 0 0 116 0 a70 70 0 0 1 -116 0 Z" fill="#d6ecff"/>'
+    + '<rect x="80" y="86" width="96" height="12" rx="4" fill="#1b1f2a"/>'
+    + '<rect x="94" y="34" width="68" height="58" rx="6" fill="#1b1f2a"/><rect x="94" y="74" width="68" height="10" fill="#ff4d5e"/>'
+    + '<circle cx="108" cy="130" r="7" fill="#1b1f2a"/><circle cx="148" cy="130" r="7" fill="#1b1f2a"/>'
+    + '<path d="M128 142 L166 150 L128 156 Z" fill="#ff8a2b"/>'
+    + ''.join(f'<circle cx="{x}" cy="{y}" r="4" fill="#1b1f2a"/>' for x, y in ((104, 170), (116, 177), (130, 179), (144, 176), (155, 169))),
+    d,
+)
+
+# 31. Феникс
+d, b = background("#ff9a3c", "#6e1408")
+AVATARS[31] = svg(
+    b + '<path d="M40 190 Q20 120 70 96 Q66 136 96 150 Z" fill="#ffd23f"/><path d="M216 190 Q236 120 186 96 Q190 136 160 150 Z" fill="#ffd23f"/>'
+    + '<path d="M50 186 Q40 136 74 116 Q74 146 98 156 Z" fill="#ff5a1f"/><path d="M206 186 Q216 136 182 116 Q182 146 158 156 Z" fill="#ff5a1f"/>'
+    + '<path d="M128 18 Q110 46 118 70 Q96 50 92 28 Q78 66 104 92 Z" fill="#ffd23f"/>'
+    + '<path d="M128 18 Q146 46 138 70 Q160 50 164 28 Q178 66 152 92 Z" fill="#ff8a2b"/>'
+    + '<ellipse cx="128" cy="140" rx="62" ry="68" fill="#ff7a1f"/>'
+    + '<ellipse cx="128" cy="166" rx="40" ry="42" fill="#ffc24a"/>'
+    + eyes(104, 152, 124, 13)
+    + '<path d="M116 146 L140 146 L128 166 Z" fill="#ffd23f" stroke="#c9600a" stroke-width="3" stroke-linejoin="round"/>',
+    d,
+)
+
+# 32. Единорог
+d, b = background("#ffb3e6", "#7a3fbf")
+AVATARS[32] = svg(
+    b + sparkle(40, 60, 10) + sparkle(214, 196, 8) + sparkle(220, 50, 6)
+    + '<path d="M62 70 q-30 40 -6 110 q10 -40 34 -60 Z" fill="#ff7eb6"/><path d="M58 96 q-18 40 4 92 q6 -40 26 -54 Z" fill="#ffd23f"/>'
+    + '<path d="M64 120 q-10 40 10 76 q2 -30 20 -40 Z" fill="#7fe3ff"/>'
+    + '<path d="M118 66 L128 8 L138 66 Z" fill="#ffe27a"/>'
+    + '<path d="M120 54 l16 -6 M122 38 l12 -5 M125 23 l7 -3" stroke="#e0a812" stroke-width="3"/>'
+    + '<path d="M84 74 L90 44 L108 66 Z M172 74 L166 44 L148 66 Z" fill="#ffffff"/>'
+    + '<ellipse cx="128" cy="132" rx="66" ry="64" fill="#ffffff"/>'
+    + '<ellipse cx="128" cy="176" rx="40" ry="26" fill="#ffd1ea"/>'
+    + '<path d="M90 124 q12 -12 24 0 M142 124 q12 -12 24 0" fill="none" stroke="#3a2a5a" stroke-width="5" stroke-linecap="round"/>'
+    + '<path d="M90 124 l-6 -6 M166 124 l6 -6" stroke="#3a2a5a" stroke-width="4" stroke-linecap="round"/>'
+    + '<circle cx="114" cy="176" r="4" fill="#c46a9a"/><circle cx="142" cy="176" r="4" fill="#c46a9a"/>'
+    + '<circle cx="86" cy="150" r="10" fill="#ff9ad0" opacity="0.7"/><circle cx="170" cy="150" r="10" fill="#ff9ad0" opacity="0.7"/>',
+    d,
+)
+
+# 33. Волшебник
+d, b = background("#4a3fbf", "#100842")
+AVATARS[33] = svg(
+    b + stars(0.8)
+    + '<path d="M128 10 L186 112 L70 112 Z" fill="#7a4dff"/><path d="M128 10 L146 112 L70 112 Z" fill="#9b75ff" opacity="0.6"/>'
+    + sparkle(126, 60, 11, "#ffd23f") + sparkle(152, 92, 7, "#ffd23f") + '<circle cx="104" cy="88" r="5" fill="#ffd23f"/>'
+    + '<ellipse cx="128" cy="114" rx="80" ry="14" fill="#5a2fe0"/>'
+    + '<ellipse cx="128" cy="144" rx="46" ry="38" fill="#ffd7b0"/>'
+    + '<path d="M70 150 Q60 220 128 238 Q196 220 186 150 Q170 176 128 176 Q86 176 70 150 Z" fill="#f2f4ff"/>'
+    + '<path d="M104 176 q24 16 48 0" fill="#f2f4ff"/>'
+    + '<circle cx="110" cy="140" r="6" fill="#1b1f3a"/><circle cx="146" cy="140" r="6" fill="#1b1f3a"/>'
+    + '<circle cx="112" cy="138" r="2" fill="#fff"/><circle cx="148" cy="138" r="2" fill="#fff"/>'
+    + '<ellipse cx="128" cy="160" rx="9" ry="7" fill="#ff9a8a"/>',
+    d,
+)
+
+# 34. Самоцвет — живой кристалл
+d, b = background("#b388ff", "#2e0f5c")
+AVATARS[34] = svg(
+    b + sparkle(46, 54, 10) + sparkle(210, 70, 8) + sparkle(200, 200, 9, "#bff6ff")
+    + '<path d="M128 30 L196 92 L128 226 L60 92 Z" fill="#3fd3e6"/>'
+    + '<path d="M128 30 L160 92 L128 226 Z" fill="#1fa8c9"/><path d="M128 30 L96 92 L128 226 Z" fill="#7feaf5"/>'
+    + '<path d="M60 92 L196 92" stroke="#ffffff" stroke-width="3" opacity="0.7"/>'
+    + '<path d="M96 92 L128 30 L160 92" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/>'
+    + '<path d="M76 74 L96 50" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.8"/>'
+    + eyes(110, 146, 118, 10)
+    + '<path d="M114 146 q14 12 28 0" fill="none" stroke="#0b3a5c" stroke-width="5" stroke-linecap="round"/>',
+    d,
+)
+
+# 35. Манэки-нэко — кошка удачи
+d, b = background("#ff4d5e", "#7a0a20")
+AVATARS[35] = svg(
+    b + '<circle cx="128" cy="128" r="96" fill="#ffd23f" opacity="0.18"/>'
+    + '<path d="M66 82 L72 36 L106 66 Z M190 82 L184 36 L150 66 Z" fill="#ffffff"/>'
+    + '<path d="M76 74 L79 50 L96 66 Z M180 74 L177 50 L160 66 Z" fill="#ffb3c6"/>'
+    + '<rect x="186" y="58" width="40" height="74" rx="20" fill="#ffffff"/>'
+    + '<path d="M194 66 v-10 M206 64 v-12 M218 66 v-10" stroke="#ffb3c6" stroke-width="4" stroke-linecap="round"/>'
+    + '<ellipse cx="124" cy="132" rx="72" ry="64" fill="#ffffff"/>'
+    + '<circle cx="164" cy="94" r="18" fill="#ff8a2b" opacity="0.9"/>'
+    + '<path d="M90 124 q12 -12 24 0 M136 124 q12 -12 24 0" fill="none" stroke="#1b1f3a" stroke-width="5" stroke-linecap="round"/>'
+    + '<path d="M116 146 h16 l-8 8 Z" fill="#ff5f8f"/>'
+    + '<path d="M124 154 q-8 10 -16 4 M124 154 q8 10 16 4" fill="none" stroke="#1b1f3a" stroke-width="4" stroke-linecap="round"/>'
+    + '<path d="M50 136 L88 142 M50 152 L88 150 M198 136 L162 142 M198 152 L162 150" stroke="#c9ccd8" stroke-width="3" stroke-linecap="round"/>'
+    + '<path d="M70 186 q54 26 108 0" fill="none" stroke="#e0263a" stroke-width="12" stroke-linecap="round"/>'
+    + '<circle cx="124" cy="204" r="13" fill="#ffd23f" stroke="#c78f12" stroke-width="3"/><path d="M114 204 h20" stroke="#c78f12" stroke-width="3"/>',
+    d,
+)
+
+# 36. Астрокот — кот в космическом шлеме (пара к теме «Космос»)
+d, b = background("#2a3a9c", "#050818")
+AVATARS[36] = svg(
+    b + stars(0.9)
+    + '<circle cx="128" cy="128" r="86" fill="#b8e4ff" opacity="0.18" stroke="#e8f4ff" stroke-width="8"/>'
+    + '<path d="M80 92 L86 50 L114 78 Z M176 92 L170 50 L142 78 Z" fill="#9aa3c0"/>'
+    + '<path d="M88 84 L90 62 L104 76 Z M168 84 L166 62 L152 76 Z" fill="#ffb3c6"/>'
+    + '<ellipse cx="128" cy="134" rx="62" ry="54" fill="#9aa3c0"/>'
+    + '<path d="M118 82 l4 14 l6 -14 M132 82 l4 14 l6 -14" stroke="#6b7392" stroke-width="4" fill="none"/>'
+    + eyes(104, 152, 128, 13, "#1b1f3a")
+    + '<path d="M120 152 h16 l-8 8 Z" fill="#ff5f8f"/>'
+    + '<path d="M128 160 q-8 10 -16 4 M128 160 q8 10 16 4" fill="none" stroke="#1b1f3a" stroke-width="4" stroke-linecap="round"/>'
+    + '<path d="M70 72 Q96 44 128 42" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity="0.7"/>'
+    + '<rect x="122" y="30" width="12" height="16" rx="4" fill="#e8f4ff"/><circle cx="128" cy="26" r="8" fill="#ff4d5e"/>'
+    + '<rect x="70" y="206" width="116" height="30" rx="12" fill="#e8f4ff"/><rect x="112" y="212" width="32" height="16" rx="5" fill="#3bd6e8"/>',
+    d,
+)
+
+
 def main():
     os.makedirs(AVATAR_DIR, exist_ok=True)
     for avatar_id, content in AVATARS.items():

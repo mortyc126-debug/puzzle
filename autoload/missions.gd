@@ -138,6 +138,7 @@ func record_run(run: Dictionary) -> void:
 
 	if count_done() == missions.size() and not bonus_given:
 		bonus_given = true
+		Progression.record_full_day()
 		Progression.add_coins(ALL_DONE_BONUS)
 		Progression.record_coins_earned(ALL_DONE_BONUS)
 		all_missions_completed.emit(ALL_DONE_BONUS)
@@ -150,6 +151,7 @@ func _reward(mission: Dictionary) -> void:
 	Progression.add_coins(coins)
 	Progression.record_coins_earned(coins)
 	Progression.gain_xp(xp)
+	Progression.record_mission_done()
 	mission_completed.emit(get_text(mission), coins, xp)
 
 func save_state() -> void:

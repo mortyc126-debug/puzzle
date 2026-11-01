@@ -7,13 +7,19 @@ extends Node
 
 signal theme_changed(theme: BlockTheme)
 
+# Порядок — лестница открытия: от простых тем к самым красивым, «Космос» — венец (уровень 100)
 const THEME_PATHS = [
 	"res://themes/classic/classic_theme.tres",
-	"res://themes/space/space_theme.tres",
 	"res://themes/candy/candy_theme.tres",
-	"res://themes/ocean/ocean_theme.tres",
 	"res://themes/wood/wood_theme.tres",
+	"res://themes/sakura/sakura_theme.tres",
+	"res://themes/ocean/ocean_theme.tres",
 	"res://themes/retro/retro_theme.tres",
+	"res://themes/lava/lava_theme.tres",
+	"res://themes/crystal/crystal_theme.tres",
+	"res://themes/aurora/aurora_theme.tres",
+	"res://themes/gold/gold_theme.tres",
+	"res://themes/space/space_theme.tres",
 ]
 
 var themes: Array = []

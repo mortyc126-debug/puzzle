@@ -32,6 +32,7 @@ config/quit_on_go_back=false
 ItemsDB="*res://autoload/items_db.gd"
 Events="*res://autoload/events.gd"
 GameSettings="*res://autoload/game_settings.gd"
+Sfx="*res://autoload/sfx.gd"
 ThemeManager="*res://autoload/theme_manager.gd"
 Progression="*res://autoload/progression.gd"
 Achievements="*res://autoload/achievements.gd"

@@ -45,6 +45,20 @@ static func burst(particles: Array, kind: String, center: Vector2, color: Color,
 				var angle = TAU * i / 14.0
 				_add(particles, center, Vector2(cos(angle), sin(angle)) * 260 * scale, 0.8, 4.5 * scale,
 					firework_color, "trail", 160 * scale, 0.0)
+		"petals":
+			for i in range(count):
+				_add(particles, center + _random_dir() * 10 * scale, Vector2(randf_range(-70, 70), randf_range(-120, -40)) * scale,
+					1.3, randf_range(7, 11) * scale, Color(1, 0.7, 0.82) if randf() < 0.65 else Color(1, 0.92, 0.95), "petal",
+					140 * scale, randf_range(-4, 4))
+		"snow":
+			for i in range(count):
+				_add(particles, center + _random_dir() * 12 * scale, _random_dir() * randf_range(40, 110) * scale,
+					1.2, randf_range(6, 10) * scale, Color(0.92, 0.97, 1), "flake", 60 * scale, randf_range(-2, 2))
+		"embers":
+			for i in range(count + 2):
+				_add(particles, center + Vector2(randf_range(-22, 22), randf_range(-10, 10)) * scale,
+					Vector2(randf_range(-60, 60), randf_range(-260, -120)) * scale, 0.9, randf_range(3, 6) * scale,
+					Color(1, randf_range(0.45, 0.85), 0.15), "ember", -60 * scale, 0.0)
 		_:  # "sparks" — брызги в цвет темы
 			for i in range(count):
 				_add(particles, center, _random_dir() * randf_range(100, 240) * scale + Vector2(0, -60 * scale),
@@ -88,6 +102,22 @@ static func draw(canvas: CanvasItem, particles: Array) -> void:
 			"rainbow":
 				var rainbow = Color.from_hsv(p["hue"], 0.8, 1.0, color.a)
 				canvas.draw_rect(Rect2(pos - Vector2(size, size) / 2.0, Vector2(size, size)), rainbow)
+			"petal":
+				var squash = 0.45 + 0.35 * absf(sin(p["rot"] * 1.3))
+				var points = PackedVector2Array()
+				for k in range(8):
+					var a = TAU * k / 8.0
+					points.append(pos + Vector2(cos(a) * size, sin(a) * size * squash).rotated(p["rot"]))
+				canvas.draw_colored_polygon(points, color)
+			"flake":
+				for k in range(3):
+					var arm = Vector2(size, 0).rotated(p["rot"] + PI * k / 3.0)
+					canvas.draw_line(pos - arm, pos + arm, color, maxf(1.0, size * 0.18))
+				canvas.draw_circle(pos, size * 0.2, color)
+			"ember":
+				color.a *= 0.6 + 0.4 * sin(p["life"] * 30.0)
+				canvas.draw_circle(pos, size * 1.8, Color(color, color.a * 0.25))
+				canvas.draw_circle(pos, size, color)
 			"trail":
 				var velocity: Vector2 = p["vel"]
 				canvas.draw_line(pos - velocity * 0.06, pos, color, size)

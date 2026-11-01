@@ -55,7 +55,25 @@ const LIST = [
 	{"id": "space_games", "icon": "🚀", "title": "Звёздный путь", "desc": "Сыграйте %s партий в теме «Космос»",
 		"stat": "theme_games:space", "tiers": [10, 50, 200]},
 	{"id": "traveler", "icon": "🗺️", "title": "Путешественник", "desc": "Сыграйте хотя бы партию в %s разных темах",
-		"stat": "themes_played", "tiers": [2, 4, 6]},
+		"stat": "themes_played", "tiers": [2, 5, 8, 11]},
+	{"id": "multi", "icon": "⚡", "title": "Комбинатор", "desc": "Очистите 2 и больше линий одним ходом %s раз",
+		"stat": "multi_clears", "tiers": [10, 100, 500, 2000]},
+
+	# Коллекция и привычки
+	{"id": "themes", "icon": "🎨", "title": "Коллекция тем", "desc": "Откройте %s тем",
+		"stat": "themes_unlocked", "tiers": [3, 6, 11]},
+	{"id": "frames", "icon": "🖼️", "title": "Ценитель рамок", "desc": "Откройте %s рамок",
+		"stat": "frames_unlocked", "tiers": [4, 10, 18]},
+	{"id": "missions", "icon": "📋", "title": "Исполнитель", "desc": "Выполните %s заданий дня",
+		"stat": "missions_done", "tiers": [5, 30, 100, 300]},
+	{"id": "full_day", "icon": "📆", "title": "Идеальный день", "desc": "Выполните все задания дня %s раз",
+		"stat": "full_days", "tiers": [1, 7, 30]},
+	{"id": "bonus", "icon": "🔨", "title": "Мастер бонусов", "desc": "Используйте бонусы %s раз",
+		"stat": "powerups_used", "tiers": [10, 50, 200, 1000]},
+	{"id": "second_chance", "icon": "💫", "title": "Второй шанс", "desc": "Продолжите партию %s раз",
+		"stat": "continues_used", "tiers": [1, 10, 50]},
+	{"id": "zen", "icon": "🍃", "title": "Дзен", "desc": "Сыграйте %s партий в спокойном режиме",
+		"stat": "zen_games", "tiers": [5, 25, 100]},
 
 	# Разовые испытания
 	{"id": "double", "icon": "✌️", "title": "Дубль", "desc": "Очистите 2 линии одним ходом",

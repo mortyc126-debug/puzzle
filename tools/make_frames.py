@@ -107,9 +107,10 @@ def frame_svg(defs, body):
 
 
 def build(metal, *, glow_color=None, glow_strength=1.0, rivets=None, corner_gem=None, side_gem=None,
-          top=None, bottom=None, extra_back="", extra_front="", **ring_args):
+          top=None, bottom=None, extra_back="", extra_front="", extra_defs="", **ring_args):
     """metal — стопы градиента; corner_gem/side_gem — цвет камней; top/bottom — (плашка, камень, кант) герба."""
     defs, body = ring_body(metal, **ring_args)
+    defs += extra_defs
     back = glow(glow_color, glow_strength) if glow_color else ""
     front = ""
     if rivets:
@@ -256,6 +257,89 @@ FRAMES[15] = build([(0, "#ff4dd9"), (0.5, "#7a2be0"), (1, "#3bd6e8")], ring=_pix
                                                         (240, 180, "#3bd6e8"), (66, 240, "#4ade3b"), (180, 240, "#ffffff")))
                                 + "".join(f'<rect x="{x - 6}" y="{y - 6}" width="12" height="12" fill="#4ade3b" stroke="#0b0c14" stroke-width="2"/>'
                                           for x, y in ((24, 24), (232, 24), (24, 232), (232, 232)))))
+
+
+def blossom(x, y, r, color="#ffb3c6", center="#ffd23f"):
+    petals = "".join(f'<circle cx="{x + math.cos(a) * r * 0.62:.2f}" cy="{y + math.sin(a) * r * 0.62:.2f}" r="{r * 0.5:.2f}" fill="{color}"/>'
+                     for a in [math.tau * k / 5 - math.pi / 2 for k in range(5)])
+    return petals + f'<circle cx="{x}" cy="{y}" r="{r * 0.28:.2f}" fill="{center}"/>'
+
+
+def hexagon(x, y, r, fill, stroke):
+    points = " ".join(f"{x + r * math.cos(math.pi / 3 * k):.2f},{y + r * math.sin(math.pi / 3 * k):.2f}" for k in range(6))
+    return f'<polygon points="{points}" fill="{fill}" stroke="{stroke}" stroke-width="2"/>'
+
+
+def flame(x, y, h, angle, outer="#ff5a1f", inner="#ffd23f"):
+    return (f'<g transform="translate({x} {y}) rotate({angle})">'
+            f'<path d="M0 0 Q-{h * 0.45:.1f} -{h * 0.45:.1f} 0 -{h:.1f} Q{h * 0.45:.1f} -{h * 0.45:.1f} 0 0 Z" fill="{outer}"/>'
+            f'<path d="M0 0 Q-{h * 0.22:.1f} -{h * 0.3:.1f} 0 -{h * 0.6:.1f} Q{h * 0.22:.1f} -{h * 0.3:.1f} 0 0 Z" fill="{inner}"/></g>')
+
+
+GOLD_DEFS = gradient("gold", [(0, "#fff6c4"), (0.4, "#f6c03a"), (0.7, "#b67a0c"), (1, "#ffe27e")])
+
+# 16 Сакура — необычная: розовое кольцо и цветки по углам
+FRAMES[16] = build([(0, "#ffe3ee"), (0.4, "#ff9ec4"), (0.7, "#d65c92"), (1, "#ffd0e3")], edge="#fff4f8", shadow="#7a1c46",
+                   extra_front="".join(blossom(x, y, 15) for x, y in CORNERS) + blossom(128, 11, 12, "#ffffff") + blossom(128, 245, 10, "#ffffff"))
+
+# 17 Медовая — необычная: медовое золото и соты
+FRAMES[17] = build([(0, "#ffe9a8"), (0.4, "#f5b52a"), (0.7, "#b8700a"), (1, "#ffd66b")], edge="#fff3c9", shadow="#5c3604",
+                   extra_front="".join(hexagon(x, y, 9, "#ffc93a", "#8a5206") for x, y in SIDES + [TOP, BOTTOM] + CORNERS))
+
+# 18 Неон — редкая: тёмное кольцо с двумя светящимися трубками
+FRAMES[18] = build([(0, "#2a2140"), (0.5, "#120e22"), (1, "#2a2140")], glow_color="#ff3df0", glow_strength=0.9, edge="#ff3df0", shadow="#000000",
+                   extra_front=(f'<path d="{rounded(OUTER + 3, OUTER_R - 3)}" fill="none" stroke="#ff3df0" stroke-width="3"/>'
+                                f'<path d="{rounded(INNER - 3, INNER_R + 3)}" fill="none" stroke="#3df5ff" stroke-width="3"/>'
+                                + "".join(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="#ffffff"/>' for x, y in CORNERS)))
+
+# 19 Магма — эпическая: чёрный камень с раскалёнными трещинами
+_cracks = "".join(f'<path d="{d}" fill="none" stroke="#ffb03a" stroke-width="2.4" stroke-linejoin="round"/>'
+                  f'<path d="{d}" fill="none" stroke="#ff5a1f" stroke-width="6" stroke-linejoin="round" opacity="0.35"/>'
+                  for d in ("M40 8 l14 6 l10 -3 l16 6", "M248 60 l-6 12 l3 10 l-5 12", "M200 248 l-12 -6 l-10 3 l-14 -5",
+                            "M8 190 l6 -12 l-3 -10 l6 -12", "M150 8 l10 5 l12 -2", "M248 180 l-5 10 l2 12"))
+FRAMES[19] = build([(0, "#5a3a32"), (0.4, "#2a1612"), (0.7, "#120806"), (1, "#4a2a22")], glow_color="#ff5a1f", glow_strength=0.9,
+                   edge="#ff8a4a", shadow="#000000", corner_gem="#ff6a00",
+                   top=("#1a0806", "#ff8a2b", "#ff8a2b"), extra_front=_cracks)
+
+# 20 Кристальная — эпическая: гранёное кольцо, камни и герб
+_facets = "".join(
+    f'<path d="M{128 + 123 * math.cos(a0):.1f} {128 + 123 * math.sin(a0):.1f} L{128 + 123 * math.cos(a1):.1f} {128 + 123 * math.sin(a1):.1f} '
+    f'L128 128 Z" fill="#ffffff" opacity="{0.16 if k % 2 else 0.0}"/>'
+    for k, (a0, a1) in enumerate((math.tau * i / 24, math.tau * (i + 1) / 24) for i in range(24)))
+FRAMES[20] = build([(0, "#e8d9ff"), (0.35, "#9b6bff"), (0.65, "#3fb8e0"), (1, "#d6f6ff")], glow_color="#bfa8ff", glow_strength=0.7,
+                   corner_gem="#3fd3e6", side_gem="#b388ff", top=("#2e0f5c", "#e0f7ff", "#e3c9ff"),
+                   extra_defs=f'<clipPath id="ring"><path d="{RING}" fill-rule="evenodd" clip-rule="evenodd"/></clipPath>',
+                   extra_front=f'<g clip-path="url(#ring)">{_facets}</g>')
+
+# 21 Сияние — легендарная: переливы северного неба, звёзды
+FRAMES[21] = build([(0, "#3dffb0"), (0.35, "#3dd6ff"), (0.7, "#8a6bff"), (1, "#ff7ad9")], glow_color="#7affd4", glow_strength=1.0,
+                   corner_gem="#e8fff6", top=("#06283a", "#7affd4", "#bff6ff"),
+                   extra_front=stars([(60, 12, 5, 1), (196, 12, 5, 1), (12, 76, 4, 0.9), (244, 76, 4, 0.9), (12, 180, 4, 0.8), (244, 180, 4, 0.8)]))
+
+# 22 Огненная — эпическая (за бонусы): языки пламени по верху
+FRAMES[22] = build([(0, "#ffd23f"), (0.35, "#ff8a2b"), (0.7, "#d8231f"), (1, "#ffb03a")], glow_color="#ff8a2b", glow_strength=0.9,
+                   edge="#fff0b0", shadow="#5a0a04", corner_gem="#ffd23f",
+                   extra_front="".join(flame(x, y, h, a) for x, y, h, a in (
+                       (28, 40, 30, -40), (228, 40, 30, 40), (60, 26, 26, -8), (196, 26, 26, 8), (94, 26, 28, -4),
+                       (162, 26, 28, 4), (128, 27, 30, 0), (18, 96, 22, -80), (238, 96, 22, 80))))
+
+# 23 Королевская — легендарная: пурпур с золотой окантовкой и корона
+FRAMES[23] = build([(0, "#c9a0ff"), (0.4, "#6a2bd6"), (0.7, "#2e0f6e"), (1, "#a77bff")], glow_color="#ffd23f", glow_strength=0.6,
+                   edge="#ffe27e", shadow="#12052e", corner_gem="#ff3b5c", side_gem="#ffd23f",
+                   bottom=("#2e0f6e", "#ff3b5c", "#ffe27e"), extra_defs=GOLD_DEFS,
+                   extra_front=(f'<path d="{rounded(OUTER + 1.5, OUTER_R - 1.5)}" fill="none" stroke="url(#gold)" stroke-width="3"/>'
+                                f'<path d="{rounded(INNER - 1.5, INNER_R + 1.5)}" fill="none" stroke="url(#gold)" stroke-width="3"/>'
+                                + crown(128, 14, "gold")))
+
+# 24 Галактика — мифическая: глубокий космос, звёздная россыпь, планетка с кольцом
+_planet = ('<circle cx="128" cy="14" r="13" fill="#7a4dff" stroke="#ffffff" stroke-width="2"/>'
+           '<circle cx="124" cy="10" r="4" fill="#ffffff" opacity="0.6"/>'
+           '<ellipse cx="128" cy="15" rx="24" ry="6" fill="none" stroke="#ffd23f" stroke-width="3" transform="rotate(-12 128 15)"/>')
+FRAMES[24] = build([(0, "#3a4cff"), (0.35, "#1a1060"), (0.65, "#3d0f6e"), (1, "#ff5fd2")], glow_color="#9d7bff", glow_strength=1.2,
+                   corner_gem="#ffffff", side_gem="#3df5ff", bottom=("#0b0830", "#ff5fd2", "#e3c9ff"),
+                   extra_front=(stars([(20, 40, 3, 0.9), (52, 10, 4, 1), (204, 10, 4, 1), (236, 40, 3, 0.9), (10, 110, 3, 0.8),
+                                       (246, 110, 3, 0.8), (10, 150, 4, 1), (246, 150, 4, 1), (40, 246, 3, 0.9), (216, 246, 3, 0.9)])
+                                + _planet))
 
 
 def main():

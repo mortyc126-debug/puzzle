@@ -52,6 +52,10 @@ var powerups_used = 0
 var theme_games = {}        # {"space": 12, ...}
 var total_daily_claims = 0  # Сколько раз забрана ежедневная награда
 var best_run_lines = 0      # Больше всего линий за одну партию
+var multi_clears = 0        # Ходы, очистившие 2 и больше линий
+var missions_done = 0       # Выполнено заданий дня
+var full_days = 0           # Дни, когда выполнены все три задания
+var zen_games = 0           # Партии в спокойном режиме
 
 # Индикаторы новых предметов
 var has_new_items = {
@@ -451,6 +455,10 @@ func save_progress():
 		"theme_games": theme_games,
 		"total_daily_claims": total_daily_claims,
 		"best_run_lines": best_run_lines,
+		"multi_clears": multi_clears,
+		"missions_done": missions_done,
+		"full_days": full_days,
+		"zen_games": zen_games,
 		"has_new_items": has_new_items,
 	}
 
@@ -513,6 +521,10 @@ func load_progress():
 	theme_games = save_data.get("theme_games", {})
 	total_daily_claims = save_data.get("total_daily_claims", 0)
 	best_run_lines = save_data.get("best_run_lines", 0)
+	multi_clears = save_data.get("multi_clears", 0)
+	missions_done = save_data.get("missions_done", 0)
+	full_days = save_data.get("full_days", 0)
+	zen_games = save_data.get("zen_games", 0)
 
 	var saved_flags = save_data.get("has_new_items", {})
 	for key in has_new_items.keys():
@@ -675,6 +687,22 @@ func get_stat(stat_id: String) -> int:
 			return unlocked_avatars.size()
 		"themes_played":
 			return theme_games.size()
+		"multi_clears":
+			return multi_clears
+		"themes_unlocked":
+			return unlocked_themes.size()
+		"frames_unlocked":
+			return unlocked_frames.size()
+		"missions_done":
+			return missions_done
+		"full_days":
+			return full_days
+		"powerups_used":
+			return powerups_used
+		"continues_used":
+			return continues_used
+		"zen_games":
+			return zen_games
 	if stat_id.begins_with("theme_games:"):
 		return int(theme_games.get(stat_id.trim_prefix("theme_games:"), 0))
 	return 0
@@ -714,6 +742,22 @@ func record_streak(streak_value: int):
 	if streak_value > max_streak:
 		max_streak = streak_value
 		request_save()
+
+func record_multi_clear():
+	multi_clears += 1
+	request_save()
+
+func record_mission_done():
+	missions_done += 1
+	request_save()
+
+func record_full_day():
+	full_days += 1
+	request_save()
+
+func record_zen_game():
+	zen_games += 1
+	request_save()
 
 func record_perfect_clear():
 	perfect_clears += 1

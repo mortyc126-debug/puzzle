@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://themes/aurora/aurora_background.tscn" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "aurora"
+display_name = "Северное сияние"
+description = "Ледяные блоки под переливающимся небом севера. Тихо падает снег."
+rarity = "LEGENDARY"
+unlock = {
+"level": 70,
+"type": "level"
+}
+background_color = Color(0.02, 0.06, 0.13, 1)
+background_scene = ExtResource("2_bg")
+board_color = Color(0.05, 0.12, 0.2, 0.72)
+cell_color = Color(0.12, 0.22, 0.32, 0.6)
+board_corner_radius = 18.0
+board_padding = 8.0
+line_highlight_color = Color(0.4, 1, 0.75, 0.16)
+block_style = 6
+use_player_colors = false
+palette = PackedColorArray(0.3, 1, 0.7, 1, 0.35, 0.8, 1, 1, 0.7, 0.5, 1, 1, 1, 0.55, 0.85, 1, 0.85, 0.95, 1, 1, 0.2, 0.9, 0.9, 1)
+block_corner_radius = 10.0
+glow_strength = 0.6
+ghost_invalid_color = Color(1, 0.35, 0.5, 0.35)
+flash_color = Color(0.9, 1, 0.97, 1)
+particle_color = Color(0.6, 1, 0.85, 1)
+accent_color = Color(0.4, 1, 0.75, 1)

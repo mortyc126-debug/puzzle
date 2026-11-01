@@ -10,7 +10,7 @@ display_name = "Конфеты"
 description = "Пастельные блоки-желейки и падающая посыпка. Сладко и спокойно."
 rarity = "UNCOMMON"
 unlock = {
-"level": 10,
+"level": 5,
 "type": "level"
 }
 background_color = Color(1, 0.82, 0.9, 1)

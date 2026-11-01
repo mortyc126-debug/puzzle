@@ -10,7 +10,7 @@ display_name = "Океан"
 description = "Стеклянные блоки в толще воды. Сверху пробиваются лучи, со дна поднимаются пузыри."
 rarity = "RARE"
 unlock = {
-"level": 20,
+"level": 22,
 "type": "level"
 }
 background_color = Color(0.02, 0.2, 0.32, 1)

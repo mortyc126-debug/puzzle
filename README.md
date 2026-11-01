@@ -22,7 +22,7 @@ autoload/             Глобальные системы (Проект → На
 themes/               Темы оформления
   block_theme.gd      Ресурс темы (class BlockTheme)
   block_renderer.gd   Отрисовка поля и блоков в стиле темы
-  classic/ space/ candy/ ocean/ wood/ retro/   6 тем: ресурс .tres + сцена фона
+  classic/ candy/ wood/ sakura/ ocean/ retro/ lava/ crystal/ aurora/ gold/ space/   11 тем: ресурс .tres + сцена фона
 
 ui/                   Тема интерфейса, превью тем и эффектов, частицы эффектов (EffectPainter)
 assets/icon, store/   Иконка приложения, картинки для магазина
@@ -31,7 +31,7 @@ grid.gd               Вид поля (рисует Board)
 block.gd              Фигура в лотке (перетаскивание)
 profile.gd            Профиль и кастомизация
 assets/avatars        Аватарки (SVG), assets/frames — рамки
-tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py); balance_sim.py — стресс-тест и баланс без Godot
+tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py), звуков (make_sounds.py); balance_sim.py — стресс-тест и баланс без Godot
 tests/test_core.gd    Тесты логики
 docs/                 План развития и инструкции по контенту
 ```

@@ -8,9 +8,9 @@ script = ExtResource("1_theme")
 id = "retro"
 display_name = "Ретро"
 description = "Пиксельные блоки на фоне синтвейв-заката. Как в игровых автоматах восьмидесятых."
-rarity = "EPIC"
+rarity = "RARE"
 unlock = {
-"level": 50,
+"level": 30,
 "type": "level"
 }
 background_color = Color(0.06, 0.02, 0.16, 1)

@@ -7,10 +7,10 @@
 script = ExtResource("1_theme")
 id = "space"
 display_name = "Космос"
-description = "Неоновые кристаллы на фоне звёздного неба. Иногда пролетают кометы."
-rarity = "RARE"
+description = "Венец коллекции: неоновые кристаллы, туманности, планета с кольцом и редкие кометы."
+rarity = "MYTHIC"
 unlock = {
-"level": 5,
+"level": 100,
 "type": "level"
 }
 background_color = Color(0.02, 0.02, 0.08, 1)
