@@ -61,7 +61,7 @@ var frames_data = {
 		"name": "Бронза",
 		"rarity": "COMMON",
 		"description": "Простая бронзовая рамка. Отличное начало для каждого новичка!",
-		"texture": "res://assets/frames/frame_1.png",
+		"texture": "res://assets/frames/frame_1.svg",
 		"unlock": {"type": "default"},
 	},
 	2: {

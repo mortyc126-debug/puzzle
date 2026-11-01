@@ -3,7 +3,7 @@ extends Area2D
 ## Фигура в лотке. Умеет только перетаскиваться: мышью на ПК и пальцем на телефоне.
 ## Можно ли поставить фигуру и что после этого происходит, решает Game.try_place_piece().
 
-const TRAY_SCALE = 0.6
+const TRAY_SCALE = 0.68  # В лотке фигура меньше клеток поля (поле может быть увеличено — Game.board_scale)
 const TOUCH_LIFT = 1.0  # На сколько клеток фигура висит над пальцем, чтобы её было видно
 
 var cell_size = 80
@@ -36,10 +36,14 @@ func get_pixel_size() -> Vector2:
 	return Vector2(Shapes.get_size(shape)) * cell_size
 
 # slot_center — в координатах сцены Game (она сдвигается к центру длинного экрана)
+func board_scale() -> float:
+	return game.board_scale if game != null else 1.0
+
 func return_to_tray() -> void:
 	dragging = false
-	scale = Vector2.ONE * TRAY_SCALE
-	position = slot_center - get_pixel_size() * TRAY_SCALE / 2.0
+	var tray_scale = TRAY_SCALE * board_scale()
+	scale = Vector2.ONE * tray_scale
+	position = slot_center - get_pixel_size() * tray_scale / 2.0
 	z_index = 0
 
 func set_placeable(value: bool) -> void:
@@ -100,11 +104,12 @@ func start_drag(pointer: Vector2, index: int) -> void:
 	dragging = true
 	touch_index = index
 	game.dragging_block = self
-	scale = Vector2.ONE
+	# В руке фигура того же размера, что и клетки поля
+	scale = Vector2.ONE * board_scale()
 	z_index = 10
-	var size_px = get_pixel_size()
+	var size_px = get_pixel_size() * board_scale()
 	if is_touch:
-		drag_offset = Vector2(size_px.x / 2.0, size_px.y + cell_size * TOUCH_LIFT)
+		drag_offset = Vector2(size_px.x / 2.0, size_px.y + cell_size * board_scale() * TOUCH_LIFT)
 	else:
 		drag_offset = size_px / 2.0
 	global_position = pointer - drag_offset
@@ -134,7 +139,8 @@ func cancel_drag() -> void:
 # Клетка поля под левым верхним углом фигуры (ближайшая)
 func get_target_cell(pointer: Vector2) -> Vector2i:
 	var local_pos = pointer - drag_offset - grid_reference.global_position
-	return Vector2i(roundi(local_pos.x / cell_size), roundi(local_pos.y / cell_size))
+	var cell_px = cell_size * board_scale()
+	return Vector2i(roundi(local_pos.x / cell_px), roundi(local_pos.y / cell_px))
 
 func update_ghost(pointer: Vector2) -> void:
 	var target = get_target_cell(pointer)

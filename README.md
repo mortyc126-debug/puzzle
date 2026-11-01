@@ -31,7 +31,7 @@ grid.gd               Вид поля (рисует Board)
 block.gd              Фигура в лотке (перетаскивание)
 profile.gd            Профиль и кастомизация
 assets/avatars        Аватарки (SVG), assets/frames — рамки
-tools/                Генераторы аватарок, рамок, иконок (SVG); balance_sim.py — стресс-тест и баланс без Godot
+tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py); balance_sim.py — стресс-тест и баланс без Godot
 tests/test_core.gd    Тесты логики
 docs/                 План развития и инструкции по контенту
 ```

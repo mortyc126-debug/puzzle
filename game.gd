@@ -6,12 +6,15 @@ extends Node2D
 ## - Прогресс, темы, достижения, настройки — автозагрузки Progression, ThemeManager,
 ##   Achievements, GameSettings. О событиях партии игра сообщает через Events.
 
-# === РАСКЛАДКА ЭКРАНА 900×1600 ===
+# === РАСКЛАДКА ===
+# Ширина макета 900, высота — сколько даёт экран (не меньше 1600). Зоны сверху вниз:
+# верхняя строка (аватарка, монеты, настройки) → счёт → поле → лоток с фигурами →
+# бонусы → нижняя строка («Заново», уровень и опыт, «Задания»). Свободная высота длинных
+# экранов уходит в просветы вокруг счёта и поля — см. arrange_hud().
 const SCREEN_SIZE = Vector2(900, 1600)
-const GRID_POSITION = Vector2(130, 280)
-const TRAY_CENTER_Y = 1090.0
-const TRAY_HEIGHT = 250.0
+const TRAY_HEIGHT = 280.0
 const SLOT_WIDTH = 300.0
+const MAX_BOARD_SCALE = 1.25  # поле 8×80 px × 1.25 = 800 px из 900
 
 # === ПРАВИЛА ===
 const CLUTCH_FILL = 0.75  # «На краю»: очистка при заполнении поля от 75%
@@ -100,6 +103,12 @@ var toast_offset = 0
 var layout_offset := Vector2.ZERO
 var ui_layer: CanvasLayer
 var shake_tween: Tween
+var board_scale := MAX_BOARD_SCALE
+var tray_center_y := 1100.0
+var combo_base := Vector2(250, 480)
+var score_panel: Control
+var coin_pill: Control
+var level_panel: Control
 
 # Звуки по умолчанию (тема может подменить)
 var default_place_stream: AudioStream
@@ -113,7 +122,6 @@ func _ready():
 	default_place_stream = sound_place.stream
 	default_clear_stream = sound_clear.stream
 
-	grid.position = GRID_POSITION
 	grid.cell_tapped.connect(use_hammer_on_cell)
 
 	ui_layer = CanvasLayer.new()
@@ -123,6 +131,7 @@ func _ready():
 	get_viewport().size_changed.connect(update_layout)
 
 	build_hud()
+	arrange_hud()
 	connect_buttons()
 
 	progression.xp_gained.connect(_on_xp_gained)
@@ -166,16 +175,18 @@ func _unhandled_input(event: InputEvent):
 		# На ПК Esc работает как кнопка «Назад» телефона — удобно проверять
 		handle_back()
 
-# Экран длиннее (или шире) макета: сдвигаем игру к центру, фон растягиваем на весь экран
+# Экран шире макета (планшет) — игра по центру; по высоте раскладывает arrange_hud().
+# Фон растягивается на весь экран.
 func update_layout():
 	var view_size = get_viewport_rect().size
-	layout_offset = Vector2(floorf(maxf(view_size.x - SCREEN_SIZE.x, 0.0) / 2.0),
-		floorf(maxf(view_size.y - SCREEN_SIZE.y, 0.0) / 2.0))
+	layout_offset = Vector2(floorf(maxf(view_size.x - SCREEN_SIZE.x, 0.0) / 2.0), 0.0)
 	if shake_tween:
 		shake_tween.kill()
 	position = layout_offset
 	theme_background.position = -layout_offset
 	fit_background_sprite()
+	if score_panel != null:
+		arrange_hud()
 
 func fit_background_sprite():
 	var texture = background_sprite.texture
@@ -247,7 +258,7 @@ func styled_label(text: String, font_size: int, color: Color, variation: StringN
 # Шапка: счёт в панели по центру, монеты и множитель справа, уровень с полоской опыта ниже.
 # Всё лежит на полупрозрачных панелях, чтобы читаться на любом фоне темы.
 func build_hud():
-	var score_panel = make_panel(&"HudPanel", Vector2(270, 20))
+	score_panel = make_panel(&"HudPanel", Vector2.ZERO)
 	score_panel.custom_minimum_size = Vector2(320, 128)
 	var score_box = VBoxContainer.new()
 	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -267,8 +278,8 @@ func build_hud():
 	best_row.add_child(best_score_label)
 	score_box.add_child(best_row)
 
-	var coin_pill = make_panel(&"Pill", Vector2(606, 32))
-	coin_pill.custom_minimum_size = Vector2(164, 0)
+	coin_pill = make_panel(&"Pill", Vector2.ZERO)
+	coin_pill.custom_minimum_size = Vector2(170, 0)
 	var coin_row = HBoxContainer.new()
 	coin_row.add_theme_constant_override("separation", 8)
 	coin_row.add_child(icon_rect("coin", 34))
@@ -276,53 +287,132 @@ func build_hud():
 	coin_row.add_child(coins_label)
 	coin_pill.add_child(coin_row)
 
-	multiplier_pill = make_panel(&"Pill", Vector2(606, 96))
-	multiplier_label = styled_label("×1.0", 22, Color(1, 0.62, 0.25), &"DisplayLabel")
+	# Множитель и серия — по бокам от счёта
+	multiplier_pill = make_panel(&"Pill", Vector2.ZERO)
+	multiplier_label = styled_label("×1.0", 24, Color(1, 0.62, 0.25), &"DisplayLabel")
 	multiplier_pill.add_child(multiplier_label)
 	multiplier_pill.visible = false
 
-	# Строка уровня — на подложке: на светлых фонах (тема «Конфеты») белый текст иначе не читается
-	var level_panel = make_panel(&"HudPanel", Vector2(20, 158))
-	level_panel.custom_minimum_size = Vector2(860, 96)
+	streak_pill = make_panel(&"Pill", Vector2.ZERO)
+	var streak_row = HBoxContainer.new()
+	streak_row.add_theme_constant_override("separation", 6)
+	streak_row.add_child(icon_rect("flame", 26, Color(1, 0.6, 0.25)))
+	streak_label = styled_label("×2", 24, Color(1, 0.7, 0.35), &"DisplayLabel")
+	streak_row.add_child(streak_label)
+	streak_pill.add_child(streak_row)
+	streak_pill.visible = false
 
-	var level_badge = make_panel(&"Pill", Vector2(34, 172))
+	# Уровень и опыт — в нижней строке, между «Заново» и «Заданиями»: всё про прогресс игрока
+	# собрано внизу, а верх экрана отдан текущей партии. Тёмная подложка — чтобы текст
+	# читался на светлых фонах (тема «Конфеты»).
+	var panel = Panel.new()
+	panel.theme_type_variation = &"HudPanel"
+	panel.size = Vector2(524, 96)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(panel)
+	level_panel = panel
+
+	var level_badge = PanelContainer.new()
+	level_badge.theme_type_variation = &"Pill"
+	level_badge.position = Vector2(12, 14)
 	level_badge.custom_minimum_size = Vector2(68, 68)
+	level_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(level_badge)
 	level_label = styled_label("1", 30, GOLD, &"DisplayLabel")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	level_badge.add_child(level_label)
 
-	xp_label = make_label("", 20, Color.WHITE, Vector2(118, 168), Vector2(560, 28), HORIZONTAL_ALIGNMENT_LEFT)
+	xp_label = styled_label("", 19, Color.WHITE)
+	xp_label.position = Vector2(94, 4)
+	xp_label.size = Vector2(418, 28)
+	xp_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	panel.add_child(xp_label)
 	xp_bar = ProgressBar.new()
-	xp_bar.position = Vector2(118, 200)
-	xp_bar.size = Vector2(742, 14)
+	xp_bar.position = Vector2(94, 36)
+	xp_bar.custom_minimum_size = Vector2(418, 0)
+	xp_bar.size = Vector2(418, 14)
 	xp_bar.show_percentage = false
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(xp_bar)
+	panel.add_child(xp_bar)
 	var gift = icon_rect("gift", 20, Color(0.72, 0.76, 0.95))
-	gift.position = Vector2(118, 223)
+	gift.position = Vector2(94, 67)
 	gift.size = Vector2(20, 20)
-	add_child(gift)
-	next_reward_label = make_label("", 18, Color(0.72, 0.76, 0.95), Vector2(146, 220), Vector2(714, 26), HORIZONTAL_ALIGNMENT_LEFT)
-
-	streak_pill = make_panel(&"Pill", Vector2(700, 160))
-	var streak_row = HBoxContainer.new()
-	streak_row.add_theme_constant_override("separation", 6)
-	streak_row.add_child(icon_rect("flame", 24, Color(1, 0.6, 0.25)))
-	streak_label = styled_label("×2", 22, Color(1, 0.7, 0.35), &"DisplayLabel")
-	streak_row.add_child(streak_label)
-	streak_pill.add_child(streak_row)
-	streak_pill.visible = false
+	panel.add_child(gift)
+	next_reward_label = styled_label("", 17, Color(0.72, 0.76, 0.95))
+	next_reward_label.position = Vector2(120, 64)
+	next_reward_label.size = Vector2(392, 26)
+	next_reward_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	panel.add_child(next_reward_label)
 
 	update_xp_display()
 
-	combo_label = make_label("", 72, Color.WHITE, Vector2(250, 480), Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 10)
+	combo_label = make_label("", 72, Color.WHITE, combo_base, Vector2(400, 150), HORIZONTAL_ALIGNMENT_CENTER, 10)
 	combo_label.theme_type_variation = &"DisplayLabel"
 	combo_label.pivot_offset = combo_label.size / 2.0
 	combo_label.modulate = Color(1, 1, 1, 0)
 	combo_label.z_index = 50
 
 	setup_buttons_style()
+
+# Раскладка по высоте экрана. На 9:16 всё плотно, на вытянутых экранах (20:9) свободное место
+# делится между просветами: больше всего — вокруг счёта, немного — между полем и лотком
+# (фигуры тянуть недалеко), остальное — над бонусами.
+func arrange_hud():
+	var height = get_viewport_rect().size.y
+	var top = 24.0
+	var bottom = height - 24.0
+
+	# Верхняя строка: аватарка — монеты — настройки
+	place($ProfileButton, Vector2(30, top + 10), Vector2(104, 104))
+	place($SettingsButton, Vector2(790, top + 18), Vector2(86, 86))
+	coin_pill.position = Vector2(602, top + 33)
+	var zone_top = top + 132.0
+
+	# Нижняя строка и бонусы над ней
+	var footer_y = bottom - 96.0
+	place($RestartButton, Vector2(24, footer_y), Vector2(100, 96))
+	level_panel.position = Vector2(136, footer_y)
+	place($DailyButton, Vector2(672, footer_y), Vector2(204, 96))
+	var tools_y = footer_y - 116.0
+	var tools = [$HammerButton, $RotateButton, $ShuffleButton, $UndoButton]
+	for i in range(tools.size()):
+		place(tools[i], Vector2(24 + i * 218, tools_y), Vector2(198, 100))
+	var zone_bottom = tools_y - 12.0
+
+	# Середина: счёт, поле, лоток
+	var score_height = 128.0
+	var gap_score = 20.0
+	var gap_tray = 14.0
+	var free = zone_bottom - zone_top - score_height - gap_score - gap_tray - TRAY_HEIGHT
+	board_scale = clampf(free / 640.0, 0.9, MAX_BOARD_SCALE)
+	var board_px = 640.0 * board_scale
+	var spare = maxf(free - board_px, 0.0)
+	var grid_top = zone_top + score_height + gap_score + spare * 0.5
+	grid.scale = Vector2.ONE * board_scale
+	grid.position = Vector2(roundf((SCREEN_SIZE.x - board_px) / 2.0), roundf(grid_top))
+
+	var score_center = (zone_top + grid_top - gap_score) / 2.0
+	score_panel.position = Vector2(290, roundf(score_center - score_height / 2.0))
+	streak_pill.position = Vector2(140, roundf(score_center - 30))
+	multiplier_pill.position = Vector2(628, roundf(score_center - 30))
+
+	tray_center_y = roundf(grid_top + board_px + gap_tray + spare * 0.15 + TRAY_HEIGHT / 2.0)
+	for block in active_blocks:
+		if is_instance_valid(block):
+			block.slot_center = get_slot_center(block.slot_index)
+			if not block.dragging:
+				block.return_to_tray()
+
+	var board_center = grid.position + Vector2(board_px, board_px) / 2.0
+	combo_base = board_center - Vector2(200, 95)
+	combo_label.position = combo_base
+	if tutorial_label and is_instance_valid(tutorial_label):
+		tutorial_label.position = Vector2(50, board_center.y - 50)
+
+func place(control: Control, pos: Vector2, control_size: Vector2):
+	control.position = pos
+	control.size = control_size
 
 # Иконки и ценники на кнопках
 func setup_buttons_style():
@@ -339,12 +429,34 @@ func setup_buttons_style():
 	settings.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	settings.add_theme_constant_override("icon_max_width", 44)
 
-	for pair in [[$RestartButton, "restart", "Заново"], [$DailyButton, "tasks", "Задания"]]:
-		var button: Button = pair[0]
-		button.icon = icon(pair[1])
-		button.text = pair[2]
-		button.add_theme_constant_override("icon_max_width", 34)
-		button.add_theme_font_size_override("font_size", 26)
+	var restart: Button = $RestartButton
+	restart.text = ""
+	restart.tooltip_text = "Закончить партию"
+	restart.icon = icon("restart")
+	restart.expand_icon = true
+	restart.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	restart.theme_type_variation = &"IconButton"
+	restart.add_theme_constant_override("icon_max_width", 44)
+
+	var daily: Button = $DailyButton
+	daily.icon = icon("tasks")
+	daily.text = "Задания"
+	daily.add_theme_constant_override("icon_max_width", 32)
+	daily.add_theme_font_size_override("font_size", 24)
+
+	# Рамка вокруг аватарки — на 16% больше неё (так рамки и нарисованы); имя — только в профиле
+	var frame = $ProfileButton.get_node_or_null("ProfileFrame")
+	if frame:
+		frame.offset_left = -8.0
+		frame.offset_top = -8.0
+		frame.offset_right = 8.0
+		frame.offset_bottom = 8.0
+	var indicator = $ProfileButton.get_node_or_null("NewIndicator")
+	if indicator:
+		indicator.position = Vector2(84, -2)
+	var name_label = $ProfileButton.get_node_or_null("PlayerNameLabel")
+	if name_label:
+		name_label.visible = false
 
 func setup_tool_button(button: Button, icon_name: String, price: int):
 	button.text = ""
@@ -479,7 +591,7 @@ func apply_theme_visuals(theme: BlockTheme):
 # === ФИГУРЫ ===
 
 func get_slot_center(slot: int) -> Vector2:
-	return Vector2(SLOT_WIDTH * (slot + 0.5), TRAY_CENTER_Y)
+	return Vector2(SLOT_WIDTH * (slot + 0.5), tray_center_y)
 
 func create_block(shape: Array, color_index: int, slot: int):
 	var block = block_scene.instantiate()
@@ -1471,8 +1583,9 @@ func clear_saved_run():
 func show_tutorial_if_needed():
 	if progression.total_pieces_placed > 0:
 		return
+	var board_center_y = grid.position.y + 320.0 * board_scale
 	tutorial_label = make_label("Перетащите фигуру на поле.\nЗаполните ряд или столбец — он исчезнет.",
-		28, Color.WHITE, Vector2(50, 550), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
+		28, Color.WHITE, Vector2(50, board_center_y - 50), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
 	tutorial_label.z_index = 30
 
 func hide_tutorial():
@@ -1488,7 +1601,7 @@ func show_points_popup(cells: Array, points: int):
 	var center = Vector2.ZERO
 	for cell in cells:
 		center += grid.cell_rect(cell.x, cell.y).get_center()
-	center = center / cells.size() + grid.position
+	center = grid.position + center / cells.size() * board_scale
 
 	var label = make_label("+%d" % points, 34, Color.WHITE, center - Vector2(80, 25), Vector2(160, 50), HORIZONTAL_ALIGNMENT_CENTER, 6)
 	label.theme_type_variation = &"DisplayLabel"
@@ -1554,7 +1667,7 @@ func show_big_text(text: String, color: Color, shake_strength: float):
 	spawn_combo_particles(color)
 
 func animate_combo_label():
-	combo_label.position = Vector2(250, 480)
+	combo_label.position = combo_base
 	combo_label.scale = Vector2(0.5, 0.5)
 	combo_label.modulate = Color(1, 1, 1, 0)
 
@@ -1565,7 +1678,7 @@ func animate_combo_label():
 	tween.chain().tween_interval(0.8)
 	tween.chain().tween_property(combo_label, "modulate", Color(1, 1, 1, 0), 0.3)
 	tween.parallel().tween_property(combo_label, "scale", Vector2(1.5, 1.5), 0.3)
-	tween.parallel().tween_property(combo_label, "position:y", 430.0, 0.3)
+	tween.parallel().tween_property(combo_label, "position:y", combo_base.y - 50.0, 0.3)
 
 func screen_shake(strength: float):
 	if shake_tween:

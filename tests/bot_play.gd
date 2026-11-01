@@ -254,7 +254,8 @@ func continue_touch_move(game) -> void:
 				game_moves += 1
 				pending = {}
 				return
-			var target = game.grid.global_position + Vector2(pending["x"], pending["y"]) * game.grid.CELL_SIZE + block.drag_offset
+			var cell_px = game.grid.CELL_SIZE * game.board_scale  # поле может быть увеличено
+			var target = game.grid.global_position + Vector2(pending["x"], pending["y"]) * cell_px + block.drag_offset
 			pending["target"] = target
 			send_drag(0, target)
 			pending["stage"] = 1
@@ -490,7 +491,8 @@ func run_misc_checks(game) -> void:
 			if settings == null:
 				problem("настройки не открылись")
 				return
-			if settings.get_node("OptionsContainer/MusicOption").visible:
+			var music = settings.find_child("MusicOption", true, false)
+			if music != null and music.is_visible_in_tree():
 				problem("переключатель музыки виден")
 			game.handle_back(),
 		func():
@@ -577,11 +579,14 @@ func finish() -> bool:
 	print("сирот (узлы вне дерева): ", Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 	Node.print_orphan_nodes()
 	var by_action = {}
+	var counts = {}
 	for hitch in hitches:
-		var key = str(hitch[1]).split(" (")[0] if str(hitch[1]).begins_with("ход") else str(hitch[1])
+		var key = str(hitch[1])
+		counts[key] = counts.get(key, 0) + 1
 		if not by_action.has(key) or by_action[key] < hitch[0]:
 			by_action[key] = hitch[0]
 	print("кадры дольше 33 мс: %d; худшие по действию: %s" % [hitches.size(), by_action])
+	print("сколько раз: %s" % [counts])
 	frame_ms_list.sort()
 	if not frame_ms_list.is_empty():
 		print("время кадра: медиана %.1f мс, 99%% кадров быстрее %.1f мс, макс %.1f мс" % [

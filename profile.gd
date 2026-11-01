@@ -244,73 +244,105 @@ func icon_texture(icon_name: String) -> Texture2D:
 
 # === СТАТИСТИКА ===
 
+# Статистика — карточками: сверху уровень с полосой опыта, ниже цифры в две колонки
+var stat_values = {}  # ключ -> Label со значением
+var level_card = {}   # части карточки уровня
+
+const STAT_CARDS = [
+	["games", "Сыграно партий"], ["best", "Рекорд"],
+	["average", "Средний счёт"], ["lines", "Очищено линий"],
+	["pieces", "Поставлено фигур"], ["streak", "Лучшая серия"],
+	["combo", "Линий за один ход"], ["perfect", "Чистых полей"],
+	["time", "Время в игре"], ["coins", "Заработано монет"],
+]
+
 func create_stats_list():
 	var stats_content = get_node_or_null(PATH_STATS)
 	if stats_content == null:
 		return
-	# Прогресс уровня — первым блоком вкладки
-	if stats_content.get_node_or_null("ProgressBox") == null:
-		var progress_box = VBoxContainer.new()
-		progress_box.name = "ProgressBox"
-		progress_box.add_theme_constant_override("separation", 6)
-		for node_name in ["RankLabel", "XPProgressLabel", "NextRewardLabel", "CollectionLabel"]:
-			var label = make_label("", 26, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT)
-			label.name = node_name
-			progress_box.add_child(label)
-		progress_box.add_child(HSeparator.new())
-		stats_content.add_child(progress_box)
-		stats_content.move_child(progress_box, 0)
+	for child in stats_content.get_children():
+		child.queue_free()
+	stats_content.add_theme_constant_override("separation", 16)
+	# Без флага EXPAND содержимое ScrollContainer остаётся шириной по минимуму, а не на всю вкладку
+	stats_content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	# Новые строки статистики добавляются кодом к строкам из сцены
-	for extra in ["PiecesPlacedLabel", "BestStreakLabel", "PerfectClearsLabel", "ThemeGamesLabel"]:
-		if stats_content.get_node_or_null(extra) == null:
-			var label = Label.new()
-			label.name = extra
-			label.add_theme_font_size_override("font_size", 24)  # как у строк из сцены
-			stats_content.add_child(label)
+	var card = PanelContainer.new()
+	card.theme_type_variation = &"HudPanel"
+	stats_content.add_child(card)
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	card.add_child(box)
+	level_card["rank"] = make_label("", 30, GOLD, HORIZONTAL_ALIGNMENT_LEFT, false)
+	level_card["rank"].theme_type_variation = &"DisplayLabel"
+	box.add_child(level_card["rank"])
+	var bar = ProgressBar.new()
+	bar.custom_minimum_size = Vector2(0, 16)
+	bar.show_percentage = false
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(bar)
+	level_card["bar"] = bar
+	level_card["xp"] = make_label("", 22, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
+	box.add_child(level_card["xp"])
+	level_card["next"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT)
+	box.add_child(level_card["next"])
+	level_card["collection"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT, false)
+	box.add_child(level_card["collection"])
+
+	var grid = GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 16)
+	stats_content.add_child(grid)
+	for entry in STAT_CARDS:
+		var stat_card = PanelContainer.new()
+		stat_card.theme_type_variation = &"HudPanel"
+		stat_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_child(stat_card)
+		var stat_box = VBoxContainer.new()
+		stat_box.add_theme_constant_override("separation", 0)
+		stat_card.add_child(stat_box)
+		var value = make_label("0", 36, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
+		value.theme_type_variation = &"DisplayLabel"
+		stat_box.add_child(value)
+		var caption = make_label(entry[1], 18, Color(0.7, 0.74, 0.92), HORIZONTAL_ALIGNMENT_LEFT, false)
+		stat_box.add_child(caption)
+		stat_values[entry[0]] = value
 	update_stats_labels()
 
 func update_stats_labels():
-	var stats_content = get_node_or_null(PATH_STATS)
-	if stats_content == null:
+	if stat_values.is_empty():
 		return
-	var texts = {
-		"GamesPlayedLabel": "Сыграно партий: %d" % progression.total_games_played,
-		"LinesClearedLabel": "Очищено линий: %d" % progression.total_lines_cleared,
-		"TimePlayedLabel": "Время в игре: %s" % progression.format_play_time(),
-		"BestScoreLabel": "Рекорд: %d" % progression.best_score,
-		"AverageScoreLabel": "Средний счёт: %d" % progression.get_average_score(),
-		"MaxComboLabel": "Больше всего линий за ход: %d" % progression.max_combo_achieved,
-		"TotalCoinsLabel": "Заработано монет: %d" % progression.total_coins_earned,
-		"PiecesPlacedLabel": "Поставлено фигур: %d" % progression.total_pieces_placed,
-		"BestStreakLabel": "Лучшая серия: ×%d" % progression.max_streak,
-		"PerfectClearsLabel": "Чистых полей: %d" % progression.perfect_clears,
-		"ThemeGamesLabel": "Партий в «Космосе»: %d" % int(progression.theme_games.get("space", 0)),
+	var values = {
+		"games": str(progression.total_games_played),
+		"best": str(progression.best_score),
+		"average": str(progression.get_average_score()),
+		"lines": str(progression.total_lines_cleared),
+		"pieces": str(progression.total_pieces_placed),
+		"streak": "×%d" % progression.max_streak,
+		"combo": str(progression.max_combo_achieved),
+		"perfect": str(progression.perfect_clears),
+		"time": progression.format_play_time(),
+		"coins": str(progression.total_coins_earned),
 	}
-	for node_name in texts.keys():
-		var label = stats_content.get_node_or_null(node_name)
-		if label:
-			label.text = texts[node_name]
+	for key in values.keys():
+		stat_values[key].text = values[key]
 
-	var progress_box = stats_content.get_node_or_null("ProgressBox")
-	if progress_box:
-		var rank_label = progress_box.get_node("RankLabel")
-		rank_label.text = "Уровень %d · %s" % [progression.current_level, progression.get_rank()]
-		rank_label.add_theme_color_override("font_color", GOLD)
-		var xp_label = progress_box.get_node("XPProgressLabel")
-		var next_label = progress_box.get_node("NextRewardLabel")
-		if progression.is_max_level():
-			xp_label.text = "Максимальный уровень — вы прошли всю игру!"
-			next_label.text = ""
-		else:
-			xp_label.text = "Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
-			var next = progression.get_next_special_reward()
-			next_label.text = "" if next.is_empty() else \
-				"На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
-		next_label.add_theme_font_size_override("font_size", 22)
-		next_label.add_theme_color_override("font_color", Color(0.8, 0.84, 0.98))
-		var collection = progression.get_collection_progress()
-		progress_box.get_node("CollectionLabel").text = "Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]
+	level_card["rank"].text = "Уровень %d · %s" % [progression.current_level, progression.get_rank()]
+	var bar: ProgressBar = level_card["bar"]
+	if progression.is_max_level():
+		bar.max_value = 1
+		bar.value = 1
+		level_card["xp"].text = "Максимальный уровень — вы прошли всю игру!"
+		level_card["next"].text = ""
+	else:
+		bar.max_value = progression.get_xp_for_next_level()
+		bar.value = progression.current_xp
+		level_card["xp"].text = "Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
+		var next = progression.get_next_special_reward()
+		level_card["next"].text = "" if next.is_empty() else \
+			"На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
+	var collection = progression.get_collection_progress()
+	level_card["collection"].text = "Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]
 
 # === ЦВЕТА БЛОКОВ (тема «Классика») ===
 
