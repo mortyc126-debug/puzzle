@@ -28,6 +28,7 @@ static func apply_background(background: ColorRect) -> void:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	background.add_child(rect)
+	background.move_child(rect, 0)  # под остальным содержимым фона (заголовок настроек)
 
 # Экран телефона обычно длиннее макета 900×1600 (project.godot: stretch aspect = expand).
 # Элементы макета сдвигаются: по горизонтали — к центру, по вертикали — на долю top_share

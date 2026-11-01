@@ -160,12 +160,12 @@ func get_rank_unlocked_at(level: int) -> String:
 func get_level_reward_lines(level: int, include_coins: bool = true) -> Array:
 	var lines = []
 	if include_coins:
-		lines.append("💰 %d монет" % get_level_coins(level))
+		lines.append("%d монет" % get_level_coins(level))
 	if level in SLOT_LEVELS:
-		lines.append("🎨 +1 слот для цветов")
+		lines.append("+1 слот для цветов")
 	var rank = get_rank_unlocked_at(level)
 	if rank != "":
-		lines.append("🏅 Звание «%s»" % rank)
+		lines.append("Звание «%s»" % rank)
 	for item in get_level_items(level):
 		lines.append(get_item_label(item["type"], item["id"]))
 	return lines
@@ -381,21 +381,22 @@ func sync_unlocks() -> void:
 	active_colors = allowed_colors if not allowed_colors.is_empty() else [0, 1, 2, 3]
 	max_color_slots = maxi(max_color_slots, get_color_slots_for_level(current_level))
 
-# Подпись предмета для наград: «👤 Аватарка «Космонавт»»
+# Подпись предмета для наград: «Аватарка «Космонавт»». Без эмодзи: в шрифтах игры их нет,
+# а поиск запасного системного шрифта замедлял длинные списки в 10 раз (замер в Godot)
 func get_item_label(item_type: String, item_id) -> String:
 	match item_type:
 		"avatar":
-			return "👤 Аватарка «%s»" % ItemsDB.get_avatar_data(int(item_id)).get("name", "?")
+			return "Аватарка «%s»" % ItemsDB.get_avatar_data(int(item_id)).get("name", "?")
 		"frame":
-			return "🖼️ Рамка «%s»" % ItemsDB.get_frame_data(int(item_id)).get("name", "?")
+			return "Рамка «%s»" % ItemsDB.get_frame_data(int(item_id)).get("name", "?")
 		"theme":
 			var theme = ThemeManager.get_theme_by_id(str(item_id))
-			return "🌌 Тема «%s»" % (theme.display_name if theme else str(item_id))
+			return "Тема «%s»" % (theme.display_name if theme else str(item_id))
 		"effect":
-			return "✨ Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
+			return "Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
 		"color":
-			return "🎨 Цвет «%s»" % ItemsDB.color_names[int(item_id)]
-	return "🎁 Награда"
+			return "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
+	return "Награда"
 
 func select_theme(theme_id: String) -> bool:
 	if not is_unlocked("theme", theme_id):

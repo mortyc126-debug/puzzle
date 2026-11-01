@@ -416,21 +416,3 @@ func get_rarity_color(rarity: String) -> Color:
 			return Color(1, 0.84, 0)
 		_:
 			return Color.WHITE
-
-# Получить звёздочки редкости
-func get_rarity_stars(rarity: String) -> String:
-	match rarity:
-		"COMMON":
-			return "⭐"
-		"UNCOMMON":
-			return "⭐⭐"
-		"RARE":
-			return "⭐⭐⭐"
-		"EPIC":
-			return "⭐⭐⭐⭐"
-		"LEGENDARY":
-			return "⭐⭐⭐⭐⭐"
-		"MYTHIC":
-			return "⭐⭐⭐⭐⭐⭐"
-		_:
-			return ""

@@ -94,7 +94,7 @@ static func plural(n: int, forms: Array) -> String:
 
 func get_reward_text(mission: Dictionary) -> String:
 	var difficulty = mission["difficulty"]
-	return "+%d 💰  +%d XP" % [REWARD_COINS[difficulty], REWARD_XP[difficulty]]
+	return "+%d монет · +%d XP" % [REWARD_COINS[difficulty], REWARD_XP[difficulty]]
 
 func count_done() -> int:
 	var done = 0

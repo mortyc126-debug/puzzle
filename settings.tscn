@@ -37,7 +37,7 @@ offset_top = 36.0
 offset_right = 180.0
 offset_bottom = 100.0
 theme_override_font_sizes/font_size = 24
-text = "← Назад"
+text = "Назад"
 
 [node name="OptionsContainer" type="VBoxContainer" parent="."]
 layout_mode = 0

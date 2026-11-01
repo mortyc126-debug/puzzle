@@ -26,7 +26,7 @@ func _ready():
 
 	add_zen_toggle()
 	add_links()
-	ScreenStyle.fit_to_screen(self, 0.5)
+	ScreenStyle.fit_to_screen(self, 0.25)
 
 # Спокойный режим: переключатель добавляется кодом под остальными
 func add_zen_toggle():

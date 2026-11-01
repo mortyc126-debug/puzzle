@@ -281,6 +281,10 @@ func build_hud():
 	multiplier_pill.add_child(multiplier_label)
 	multiplier_pill.visible = false
 
+	# Строка уровня — на подложке: на светлых фонах (тема «Конфеты») белый текст иначе не читается
+	var level_panel = make_panel(&"HudPanel", Vector2(20, 158))
+	level_panel.custom_minimum_size = Vector2(860, 96)
+
 	var level_badge = make_panel(&"Pill", Vector2(34, 172))
 	level_badge.custom_minimum_size = Vector2(68, 68)
 	level_label = styled_label("1", 30, GOLD, &"DisplayLabel")
@@ -295,7 +299,11 @@ func build_hud():
 	xp_bar.show_percentage = false
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(xp_bar)
-	next_reward_label = make_label("", 18, Color(0.72, 0.76, 0.95), Vector2(118, 220), Vector2(742, 26), HORIZONTAL_ALIGNMENT_LEFT)
+	var gift = icon_rect("gift", 20, Color(0.72, 0.76, 0.95))
+	gift.position = Vector2(118, 223)
+	gift.size = Vector2(20, 20)
+	add_child(gift)
+	next_reward_label = make_label("", 18, Color(0.72, 0.76, 0.95), Vector2(146, 220), Vector2(714, 26), HORIZONTAL_ALIGNMENT_LEFT)
 
 	streak_pill = make_panel(&"Pill", Vector2(700, 160))
 	var streak_row = HBoxContainer.new()
@@ -413,7 +421,7 @@ func update_next_reward_display():
 	if next.is_empty():
 		label.text = ""
 		return
-	var text = "🎁 Ур. %d: %s" % [next["level"], next["lines"][0]]
+	var text = "Ур. %d: %s" % [next["level"], next["lines"][0]]
 	if next["lines"].size() > 1:
 		text += " и ещё %d" % (next["lines"].size() - 1)
 	label.text = text
@@ -925,16 +933,17 @@ func show_toast(text: String, color: Color = Color.WHITE):
 
 func _on_achievement_unlocked(achievement_id: String, tier: int):
 	var def = Achievements.get_definition(achievement_id)
-	var text = "%s %s — %s (+%d 💰)" % [def.get("icon", "🏆"), def.get("title", achievement_id),
+	var text = "Достижение «%s» — %s, +%d монет" % [def.get("title", achievement_id),
 		Achievements.get_tier_label(def, tier), Achievements.get_reward_coins(def, tier)]
 	update_achievements_indicator()
 	if collecting_summary:
-		summary["achievements"].append([text, Achievements.get_tier_color(tier)])
+		summary["achievements"].append({"id": achievement_id, "tier": tier,
+			"coins": Achievements.get_reward_coins(def, tier)})
 	else:
 		show_toast(text, Achievements.get_tier_color(tier))
 
 func _on_item_unlocked(item_type: String, item_id):
-	var text = "🎁 Открыто: " + progression.get_item_label(item_type, item_id)
+	var text = "Открыто: " + progression.get_item_label(item_type, item_id)
 	update_achievements_indicator()
 	if collecting_summary:
 		summary["items"].append(text)
@@ -953,10 +962,10 @@ func _on_level_up(new_level: int):
 	if collecting_summary:
 		summary["levels"].append(new_level)
 	else:
-		show_toast("🎉 Уровень %d!" % new_level, Color(1, 0.84, 0))
+		show_toast("Уровень %d!" % new_level, Color(1, 0.84, 0))
 
 func _on_mission_completed(text: String, coins: int, xp: int):
-	var line = "📋 Задание: %s (+%d 💰, +%d XP)" % [text, coins, xp]
+	var line = "Задание выполнено: %s (+%d монет, +%d XP)" % [text, coins, xp]
 	if collecting_summary:
 		summary["missions"].append(line)
 	else:
@@ -964,7 +973,7 @@ func _on_mission_completed(text: String, coins: int, xp: int):
 	update_daily_button()
 
 func _on_all_missions_completed(bonus: int):
-	var line = "🏁 Все задания дня выполнены! +%d 💰" % bonus
+	var line = "Все задания дня выполнены! +%d монет" % bonus
 	if collecting_summary:
 		summary["missions"].append(line)
 	else:
@@ -1014,25 +1023,35 @@ func show_tasks_popup():
 
 	for mission in Missions.missions:
 		var done: bool = mission["done"]
-		var text = "%s %s" % ["✅" if done else "⬜", Missions.get_text(mission)]
+		var row = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		box.add_child(row)
+		var mark = icon_rect("check" if done else "circle", 34, Color(0.6, 1, 0.7) if done else Color(0.6, 0.64, 0.85))
+		mark.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(mark)
+		var texts = VBoxContainer.new()
+		texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		texts.add_theme_constant_override("separation", 2)
+		row.add_child(texts)
+		var text = Missions.get_text(mission)
 		if not done:
 			text += "  (%d/%d)" % [mission["progress"], mission["target"]]
-		var line = modal_text(box, text, 26, Color(0.6, 1, 0.7) if done else Color.WHITE)
+		var line = modal_text(texts, text, 26, Color(0.6, 1, 0.7) if done else Color.WHITE)
 		line.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var reward = modal_text(box, "      " + Missions.get_reward_text(mission), 20, Color(1, 0.84, 0))
+		var reward = modal_text(texts, Missions.get_reward_text(mission), 20, Color(1, 0.84, 0))
 		reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	modal_text(box, "Все три — ещё +%d 💰. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
+	modal_text(box, "Все три — ещё +%d монет. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
 
 	box.add_child(HSeparator.new())
 	modal_title(box, "НАГРАДА ДНЯ", Color(1, 0.84, 0), 34)
 	if progression.can_claim_daily:
 		var next_day = progression.daily_streak % 7 + 1
 		var reward = progression.get_daily_reward_for_day(next_day)
-		var reward_text = "День %d: +%d 💰" % [next_day, reward.get("coins", 0)]
+		var reward_text = "День %d: +%d монет" % [next_day, reward.get("coins", 0)]
 		if reward.has("xp"):
 			reward_text += " +%d XP" % reward["xp"]
 		modal_text(box, reward_text, 28, Color.WHITE)
-		modal_text(box, "Заходите каждый день: на 7-й день — 300 💰 и 200 XP.", 20)
+		modal_text(box, "Заходите каждый день: на 7-й день — 300 монет и 200 XP.", 20)
 		modal_buttons(box, [
 			["ЗАКРЫТЬ", close_modal.bind(box)],
 			["ЗАБРАТЬ", _on_claim_daily_reward.bind(box)],
@@ -1046,7 +1065,7 @@ func _on_claim_daily_reward(box):
 	close_modal(box)
 	if reward.is_empty():
 		return
-	var text = "🎁 День %d: +%d 💰" % [progression.daily_streak, reward.get("coins", 0)]
+	var text = "Награда дня %d: +%d монет" % [progression.daily_streak, reward.get("coins", 0)]
 	if reward.has("xp"):
 		text += " +%d XP" % reward["xp"]
 	show_toast(text, Color(0.5, 1, 0.5))
@@ -1196,7 +1215,7 @@ func show_final_game_over():
 	modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
 	modal_text(box, "Очки: %d" % score, 44, Color.WHITE)
 	if record_bonus_given:
-		modal_text(box, "Новый рекорд! +20 💰", 28, Color(1, 0.84, 0))
+		modal_text(box, "Новый рекорд! +20 монет", 28, Color(1, 0.84, 0))
 	else:
 		modal_text(box, "Рекорд: %d" % progression.best_score, 28, Color(1, 0.84, 0))
 
@@ -1208,7 +1227,7 @@ func show_final_game_over():
 
 	if should_ask_for_rating():
 		modal_text(box, "Нравится игра? Оценка в магазине очень поможет.", 22)
-		modal_buttons(box, [["⭐ ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
+		modal_buttons(box, [["ОЦЕНИТЬ", GameSettings.open_store_page], ["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 	else:
 		modal_buttons(box, [["НОВАЯ ПАРТИЯ", _on_restart_pressed]])
 
@@ -1218,7 +1237,7 @@ func add_reward_cards(box: Control):
 	if refs.is_empty():
 		return
 	box.add_child(HSeparator.new())
-	modal_text(box, "🎁 Новые награды", 30, Color(0.6, 1, 0.7))
+	modal_text(box, "Новые награды", 30, Color(0.6, 1, 0.7))
 	var row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 14)
@@ -1297,32 +1316,50 @@ func equip_item(item: Dictionary, button: Button):
 				progression.active_colors.append(int(item_id))
 	progression.request_save()
 	refresh_profile_button()
-	button.text = "✓ ГОТОВО"
+	button.text = "ГОТОВО"
 	button.disabled = true
 
 # Строки итогов: [текст, цвет]
 func get_summary_lines() -> Array:
 	var gold = Color(1, 0.84, 0)
 	var lines = []
-	var coins_text = "💰 За очки: +%d" % run_coins
+	var coins_text = "За очки: +%d монет" % run_coins
 	if zen:
 		coins_text += " (спокойный режим: ×0.5)"
 	lines.append([coins_text, gold])
-	lines.append(["✨ Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
+	lines.append(["Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
 	var levels: Array = summary["levels"]
 	if not levels.is_empty():
-		var level_text = "🎉 Уровень %d!" % levels[-1] if levels.size() == 1 else "🎉 Уровни %d → %d!" % [levels[0], levels[-1]]
-		lines.append(["%s  +%d 💰" % [level_text, summary["level_coins"]], gold])
+		var level_text = "Уровень %d!" % levels[-1] if levels.size() == 1 else "Уровни %d–%d!" % [levels[0], levels[-1]]
+		lines.append(["%s  +%d монет" % [level_text, summary["level_coins"]], gold])
 	for rank in summary["ranks"]:
-		lines.append(["🏅 Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
+		lines.append(["Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
 	if summary["slots"] > 0:
-		lines.append(["🎨 +%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
+		lines.append(["+%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
 	# Новые предметы показываются карточками ниже (add_reward_cards)
 	for mission_text in summary["missions"]:
 		lines.append([mission_text, Color(0.55, 0.9, 1)])
-	for achievement in summary["achievements"]:
-		lines.append(achievement)
-	lines.append(["📋 Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
+	# Достижения: по одной строке на достижение (высшая полученная ступень), не больше четырёх —
+	# за первую партию их бывает два десятка, и итоги превращались в длинный список
+	var best_tiers = {}
+	var achievement_coins = 0
+	for item in summary["achievements"]:
+		achievement_coins += int(item["coins"])
+		best_tiers[item["id"]] = maxi(int(best_tiers.get(item["id"], 0)), int(item["tier"]))
+	var shown = 0
+	for achievement_id in best_tiers.keys():
+		if shown == 4:
+			break
+		var def = Achievements.get_definition(achievement_id)
+		var tier: int = best_tiers[achievement_id]
+		lines.append(["Достижение «%s» — %s" % [def.get("title", achievement_id), Achievements.get_tier_label(def, tier)],
+			Achievements.get_tier_color(tier)])
+		shown += 1
+	if best_tiers.size() > shown:
+		lines.append(["И ещё %d — в профиле, вкладка «Достижения»" % (best_tiers.size() - shown), Color(0.75, 0.78, 0.92)])
+	if achievement_coins > 0:
+		lines.append(["За достижения: +%d монет" % achievement_coins, gold])
+	lines.append(["Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():
