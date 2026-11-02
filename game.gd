@@ -1802,6 +1802,7 @@ func _notification(what: int):
 			if progression != null and is_inside_tree():
 				progression.check_daily_reward()
 				Missions.ensure_today()
+				Challenge.ensure_today()
 				update_daily_button()
 		NOTIFICATION_WM_GO_BACK_REQUEST:
 			handle_back()
@@ -2000,6 +2001,7 @@ func finish_challenge(success: bool):
 	xp_before = progression.current_xp
 	collecting_summary = true
 	var result = Challenge.finish(success, progress)
+	success = bool(result.get("success", false))  # попытка за полночь не засчитывается
 	run_xp = effective_run_xp(run_xp) + int(result.get("xp", 0))
 	if run_xp > 0:
 		progression.gain_xp(run_xp)
@@ -2023,6 +2025,9 @@ func show_challenge_result(success: bool, progress: int, result: Dictionary):
 		modal_text(box, ChallengePuzzle.goal_text(challenge), 24)
 		var days = "Дней подряд: %d · всего пройдено: %d" % [Challenge.streak, Challenge.total_done]
 		modal_text(box, days, 26, Color(0.6, 1, 0.7))
+	elif result.get("expired", false):
+		modal_title(box, "ДЕНЬ СМЕНИЛСЯ", Color(1, 0.75, 0.4), 44)
+		modal_text(box, "Это было вчерашнее испытание — сегодня уже новое, оно в окне «Задания».", 24)
 	else:
 		modal_title(box, "НЕ ХВАТИЛО", Color(1, 0.62, 0.3), 46)
 		var goal = ChallengePuzzle.goal_short(challenge.get("goal", "lines"))
@@ -2034,7 +2039,7 @@ func show_challenge_result(success: bool, progress: int, result: Dictionary):
 	add_reward_cards(box)
 
 	var buttons = []
-	if not success and Challenge.can_start():
+	if not success and not result.get("expired", false) and Challenge.can_start():
 		var price = Challenge.retry_price()
 		if progression.total_coins >= price:
 			buttons.append(["ЕЩЁ РАЗ · %d" % price, _on_challenge_retry])

@@ -10,6 +10,7 @@ core/                 Чистая логика без узлов — её мо�
   shapes.gd           Библиотека из 28 фигур
   piece_generator.gd  Наборы фигур: веса по размеру, сложность, гарантия хода
   scoring.gd          Очки за ход: клетки, линии, серия, чистое поле
+  challenge_puzzle.gd Испытание дня: задача на дату и решатель, доказывающий, что она проходима
 
 autoload/             Глобальные системы (Проект → Настройки → Автозагрузка)
   items_db.gd         ItemsDB: цвета, аватарки, рамки и условия их открытия
@@ -18,6 +19,8 @@ autoload/             Глобальные системы (Проект → На
   theme_manager.gd    ThemeManager: темы блоков, текущая тема
   progression.gd      Progression: уровень, монеты, статистика, открытые предметы
   achievements.gd     Achievements: достижения со ступенями
+  missions.gd         Missions: три задания на день
+  challenge.gd        Challenge: испытание дня — попытки, цена повтора, серия дней
 
 themes/               Темы оформления
   block_theme.gd      Ресурс темы (class BlockTheme)
@@ -32,7 +35,9 @@ block.gd              Фигура в лотке (перетаскивание)
 profile.gd            Профиль и кастомизация
 assets/avatars        Аватарки (SVG), assets/frames — рамки
 tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py), звуков (make_sounds.py); balance_sim.py — стресс-тест и баланс без Godot
-tests/test_core.gd    Тесты логики
+tests/                test_core.gd — логика; bot_play.gd — бот играет партии и обходит окна;
+                      ui_audit.gd — скриншоты 23 экранов и проверка шрифтов; challenge_flow.gd,
+                      challenge_difficulty.gd — испытание дня; persona_bot.gd — игроки-персоны
 docs/                 План развития и инструкции по контенту
 ```
 
@@ -77,6 +82,13 @@ godot --headless --path . -s tests/test_core.gd
 
 ```
 godot --headless --path . --fixed-fps 60 -s tests/bot_play.gd -- --games=20
+```
+
+Испытание дня целиком (начать, прервать, доиграть, вернуться к партии) и его сложность по дням недели:
+
+```
+godot --headless --path . --fixed-fps 60 -s tests/challenge_flow.gd
+godot --headless --path . -s tests/challenge_difficulty.gd
 ```
 
 Баланс и стресс-тест без Godot (бот играет сотни партий по тем же правилам):

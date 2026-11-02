@@ -10,7 +10,7 @@ extends RefCounted
 ## попытка кончается только когда ходы вышли. Иначе 85% неудач были «застрял на 17-м ходу» — лотерея
 ## на выживание вместо гонки за целью (замер ботами разного навыка).
 ## Решатель работает на массиве 8×8 со счётчиками рядов и колонок: генерация занимает десятки
-## миллисекунд, и автозагрузка Challenge всё равно запускает её в фоновом потоке.
+## миллисекунд, и автозагрузка Challenge всё равно делит её на шаги по кадрам (Builder).
 
 const SIZE = 8
 const SETS = 12
@@ -19,35 +19,76 @@ const GOALS = ["lines", "score", "streak"]
 const MIN_TARGET = {"lines": 5, "score": 300, "streak": 3}
 const DAY_NAMES = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 
-# Задача на дату "ГГГГ-ММ-ДД"
+# Задача на дату "ГГГГ-ММ-ДД" целиком (тесты). Игра строит её по шагам — см. Builder ниже.
 static func build(date: String) -> Dictionary:
-	var day = weekday_index(date)
-	var goal = GOALS[posmod(hash("goal:" + date), GOALS.size())]
-	var fallback = {}
-	for attempt in range(12):
-		var rng = RandomNumberGenerator.new()
-		rng.seed = hash("challenge:%s:%d" % [date, attempt])
-		var start = make_start(rng, day)
-		var sets = make_sets(rng, day)
-		var results = []
-		for style in range(3):
-			results.append(simulate(start, sets, style))
+	var builder = Builder.new(date)
+	while not builder.step():
+		pass
+	return builder.result
+
+# Построение по шагам: один шаг — три набора одного прогона решателя (~5 мс на компьютере). Автозагрузка
+# Challenge делает по шагу в кадр на основном потоке: фоновый поток при первой загрузке классов
+# мог зависнуть навсегда (замечено в Godot), а пауза в полсекунды при открытии окна заметна.
+class Builder:
+	var date: String
+	var day: int
+	var goal: String
+	var attempt := 0
+	var style := 0
+	var start: Array = []
+	var sets: Array = []
+	var results: Array = []
+	var fallback: Dictionary = {}
+	var result: Dictionary = {}
+	var sim = null  # текущий прогон решателя
+
+	func _init(for_date: String) -> void:
+		date = for_date
+		day = ChallengePuzzle.weekday_index(date)
+		goal = ChallengePuzzle.GOALS[posmod(hash("goal:" + date), ChallengePuzzle.GOALS.size())]
+
+	# true — задача готова (в result)
+	func step() -> bool:
+		if not result.is_empty():
+			return true
+		if attempt >= 12:
+			result = fallback
+			return true
+		if sim == null:
+			if style == 0:
+				var rng = RandomNumberGenerator.new()
+				rng.seed = hash("challenge:%s:%d" % [date, attempt])
+				start = ChallengePuzzle.make_start(rng, day)
+				sets = ChallengePuzzle.make_sets(rng, day)
+				results = []
+			sim = ChallengePuzzle.Sim.new(start, sets, style)
+		# Шаг — три набора: на слабом телефоне это единицы миллисекунд за кадр
+		if not sim.advance(3):
+			return false
+		results.append(sim.stats)
+		sim = null
+		style += 1
+		if style < 3:
+			return false
+		style = 0
+		attempt += 1
 		var type = goal
-		if type == "streak" and best_of(results, "streak") < MIN_TARGET["streak"]:
+		if type == "streak" and ChallengePuzzle.best_of(results, "streak") < ChallengePuzzle.MIN_TARGET["streak"]:
 			type = "lines"
-		var value = best_of(results, type)
-		var played = best_of(results, "placed")
+		var value = ChallengePuzzle.best_of(results, type)
+		var played = ChallengePuzzle.best_of(results, "placed")
 		var puzzle = {
-			"date": date, "day": day, "goal": type, "moves": MOVES,
+			"date": date, "day": day, "goal": type, "moves": ChallengePuzzle.MOVES,
 			"start": start, "sets": sets, "solver": value,
-			"target": target_for(type, value, day),
+			"target": ChallengePuzzle.target_for(type, value, day),
 		}
 		if fallback.is_empty() and value > 0:
 			fallback = puzzle
 		# Решатель должен поставить большую часть фигур: задача — про цель, а не про выживание
-		if played >= MOVES * 3 / 4 and value >= MIN_TARGET[type]:
-			return puzzle
-	return fallback
+		if played >= ChallengePuzzle.MOVES * 3 / 4 and value >= ChallengePuzzle.MIN_TARGET[type]:
+			result = puzzle
+			return true
+		return false
 
 # Цель — доля от результата решателя по дню недели (подобрано замером ботами разного навыка,
 # tests/challenge_difficulty.gd): с понедельника по субботу проходят 75–90% попыток, в воскресенье ~35%
@@ -117,20 +158,43 @@ static func make_sets(rng: RandomNumberGenerator, day: int) -> Array:
 # Возвращает {"lines", "score", "streak", "combos", "placed"}; очки и серию считает тот же Scoring, что и игра.
 # Правило как в игре: набор, из которого ничего не помещается, сгорает — дальше следующий.
 static func simulate(start: Array, sets: Array, style: int) -> Dictionary:
-	var grid = PackedByteArray()
-	grid.resize(SIZE * SIZE)
-	var rows = PackedInt32Array()
-	rows.resize(SIZE)
-	var cols = PackedInt32Array()
-	cols.resize(SIZE)
-	for cell in start:
-		grid[cell[1] * SIZE + cell[0]] = 1
-		rows[cell[1]] += 1
-		cols[cell[0]] += 1
-	var scoring = Scoring.new()
-	var stats = {"lines": 0, "score": 0, "streak": 0, "combos": 0, "placed": 0}
+	var sim = Sim.new(start, sets, style)
+	sim.advance(sets.size())
+	return sim.stats
 
-	for shapes in sets:
+# Прогон решателя, который можно продвигать по нескольку наборов (Builder делает так по кадрам)
+class Sim:
+	var grid := PackedByteArray()
+	var rows := PackedInt32Array()
+	var cols := PackedInt32Array()
+	var scoring := Scoring.new()
+	var stats = {"lines": 0, "score": 0, "streak": 0, "combos": 0, "placed": 0}
+	var sets: Array
+	var style: int
+	var set_index := 0
+
+	func _init(start: Array, sets_to_play: Array, play_style: int) -> void:
+		sets = sets_to_play
+		style = play_style
+		grid.resize(ChallengePuzzle.SIZE * ChallengePuzzle.SIZE)
+		rows.resize(ChallengePuzzle.SIZE)
+		cols.resize(ChallengePuzzle.SIZE)
+		for cell in start:
+			grid[cell[1] * ChallengePuzzle.SIZE + cell[0]] = 1
+			rows[cell[1]] += 1
+			cols[cell[0]] += 1
+
+	# Играет до count наборов. true — все наборы сыграны
+	func advance(count: int) -> bool:
+		for k in range(count):
+			if set_index >= sets.size():
+				return true
+			play_set(sets[set_index])
+			set_index += 1
+		return set_index >= sets.size()
+
+	func play_set(shapes: Array) -> void:
+		var size = ChallengePuzzle.SIZE
 		var remaining = []
 		for shape in shapes:
 			var offsets = []
@@ -142,19 +206,19 @@ static func simulate(start: Array, sets: Array, style: int) -> Dictionary:
 			var best = []
 			for index in range(remaining.size()):
 				var offsets: Array = remaining[index]
-				for y in range(SIZE):
-					for x in range(SIZE):
-						if not _fits(grid, offsets, x, y):
+				for y in range(size):
+					for x in range(size):
+						if not ChallengePuzzle._fits(grid, offsets, x, y):
 							continue
-						var value = _evaluate(grid, rows, cols, offsets, x, y, style)
+						var value = ChallengePuzzle._evaluate(grid, rows, cols, offsets, x, y, style)
 						if value > best_value:
 							best_value = value
 							best = [index, x, y]
 			if best.is_empty():
-				break  # ничего не помещается — набор сгорает
+				return  # ничего не помещается — набор сгорает
 			var placed: Array = remaining[best[0]]
 			remaining.remove_at(best[0])
-			var lines = _apply(grid, rows, cols, placed, best[1], best[2])
+			var lines = ChallengePuzzle._apply(grid, rows, cols, placed, best[1], best[2])
 			var empty = true
 			for v in grid:
 				if v != 0:
@@ -167,7 +231,6 @@ static func simulate(start: Array, sets: Array, style: int) -> Dictionary:
 			stats["streak"] = maxi(stats["streak"], result["streak"])
 			if lines >= 2:
 				stats["combos"] += 1
-	return stats
 
 static func _fits(grid: PackedByteArray, offsets: Array, x: int, y: int) -> bool:
 	for o in offsets:

@@ -3,8 +3,8 @@ extends Node
 ## Испытание дня (автозагрузка Challenge): задача на сегодня, попытки и цена повтора,
 ## пройденные дни и серия. Первая попытка бесплатна, каждая следующая — вдвое дороже
 ## (100 → 200 → 400 …): так монеты уходят на то, что зависит от мастерства, а не копятся.
-## Задачу строит ChallengePuzzle — в фоновом потоке, раз в день; готовая хранится в сохранении,
-## поэтому после перезапуска игры начатая попытка продолжается сразу.
+## Задачу строит ChallengePuzzle.Builder — по шагу за кадр на основном потоке, раз в день; готовая
+## хранится в сохранении, поэтому после перезапуска игры начатая попытка продолжается сразу.
 
 signal puzzle_ready
 signal state_changed
@@ -29,8 +29,7 @@ var active := false        # Game запускает испытание вмес
 var coins_spent := 0       # всего монет на повторы
 var puzzle: Dictionary = {}
 
-var _task_id := -1
-var _built: Dictionary = {}
+var _builder = null  # ChallengePuzzle.Builder, пока задача строится
 
 func _ready() -> void:
 	set_process(false)
@@ -49,20 +48,20 @@ func ensure_today() -> void:
 		active = false
 		save_state()
 		state_changed.emit()
-	if puzzle.get("date", "") != today and _task_id < 0:
-		_task_id = WorkerThreadPool.add_task(_build.bind(today), false, "Испытание дня")
+	if puzzle.get("date", "") != today and (_builder == null or _builder.date != today):
+		_builder = ChallengePuzzle.Builder.new(today)
 		set_process(true)
 
-func _build(for_date: String) -> void:
-	_built = ChallengePuzzle.build(for_date)
-
+# Один прогон решателя за кадр — без рывков и без фонового потока
 func _process(_delta: float) -> void:
-	if _task_id < 0 or not WorkerThreadPool.is_task_completed(_task_id):
+	if _builder == null:
+		set_process(false)
 		return
-	WorkerThreadPool.wait_for_task_completion(_task_id)
-	_task_id = -1
+	if not _builder.step():
+		return
+	puzzle = _builder.result
+	_builder = null
 	set_process(false)
-	puzzle = _built
 	save_state()
 	puzzle_ready.emit()
 	state_changed.emit()
@@ -95,8 +94,11 @@ func begin() -> bool:
 	state_changed.emit()
 	return true
 
-# Итог попытки. Возвращает {"success", "xp", "new_streak", "milestone"}
+# Итог попытки. Возвращает {"success", "xp", "streak", "milestone", "expired"}
 func finish(success: bool, progress: int) -> Dictionary:
+	# Попытку начали вчера, а за полночь ensure_today() её закрыл: новому дню она не засчитывается
+	if not active:
+		return {"success": false, "xp": 0, "milestone": 0, "streak": streak, "expired": true}
 	active = false
 	best_today = maxi(best_today, progress)
 	var result = {"success": success, "xp": 0, "milestone": 0}
