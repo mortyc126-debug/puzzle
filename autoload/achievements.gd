@@ -31,15 +31,15 @@ const LIST = [
 	{"id": "daily", "icon": "📅", "title": "Каждый день", "desc": "Заберите награду дня %s раз",
 		"stat": "daily_claims", "tiers": [3, 7, 30, 100, 365]},
 	{"id": "coins", "icon": "💰", "title": "Копилка", "desc": "Заработайте %s монет",
-		"stat": "coins_earned", "tiers": [500, 2500, 10000, 50000, 200000]},
+		"stat": "coins_earned", "tiers": [1000, 5000, 15000, 50000, 200000]},
 	{"id": "collector", "icon": "🗂️", "title": "Коллекционер", "desc": "Откройте %s аватарок",
-		"stat": "avatars_unlocked", "tiers": [6, 10, 16]},
+		"stat": "avatars_unlocked", "tiers": [8, 16, 30]},
 
 	# Поле и линии
 	{"id": "lines", "icon": "⭐", "title": "Чистильщик", "desc": "Очистите %s линий",
-		"stat": "lines_cleared", "tiers": [25, 250, 1000, 5000, 20000]},
+		"stat": "lines_cleared", "tiers": [50, 250, 1000, 5000, 20000]},
 	{"id": "pieces", "icon": "🧱", "title": "Строитель", "desc": "Поставьте %s фигур",
-		"stat": "pieces_placed", "tiers": [100, 1000, 5000, 20000, 100000]},
+		"stat": "pieces_placed", "tiers": [200, 1000, 5000, 20000, 100000]},
 	{"id": "run_lines", "icon": "🏃", "title": "Длинная дистанция", "desc": "Очистите %s линий за одну партию",
 		"stat": "best_run_lines", "tiers": [20, 50, 100, 200]},
 	{"id": "score", "icon": "🏆", "title": "Рекордсмен", "desc": "Наберите %s очков за партию",
@@ -57,7 +57,7 @@ const LIST = [
 	{"id": "traveler", "icon": "🗺️", "title": "Путешественник", "desc": "Сыграйте хотя бы партию в %s разных темах",
 		"stat": "themes_played", "tiers": [2, 5, 8, 11]},
 	{"id": "multi", "icon": "⚡", "title": "Комбинатор", "desc": "Очистите 2 и больше линий одним ходом %s раз",
-		"stat": "multi_clears", "tiers": [10, 100, 500, 2000]},
+		"stat": "multi_clears", "tiers": [15, 100, 500, 2000]},
 
 	# Коллекция и привычки
 	{"id": "themes", "icon": "🎨", "title": "Коллекция тем", "desc": "Откройте %s тем",
@@ -176,24 +176,26 @@ func get_total_progress() -> Dictionary:
 	var percent = (float(unlocked) / float(total) * 100.0) if total > 0 else 0.0
 	return {"unlocked": unlocked, "total": total, "percent": percent}
 
+# Проверка в конце партии (и после награды дня). За одну проверку достижение поднимается
+# не больше чем на одну ступень: иначе первая партия сильного игрока давала 15–20 ступеней
+# разом, а дальше — почти ничего (симуляция плейтеста). Остальные ступени придут в следующих партиях.
 func check_all() -> void:
-	# Награды одних достижений (монеты, аватарки, уровни) могут выполнить другие —
-	# поэтому проходим список, пока что-то меняется
-	var changed_any = false
+	var advanced = {}
+	# Награды одних достижений (монеты, аватарки) могут выполнить другие — несколько проходов
 	for pass_index in range(4):
 		var changed = false
 		for def in LIST:
+			if advanced.has(def["id"]):
+				continue
 			var tiers: Array = def["tiers"]
-			var value = Progression.get_stat(def["stat"])
 			var tier = get_tier(def["id"])
-			while tier < tiers.size() and value >= tiers[tier]:
-				tier += 1
-				_unlock(def, tier)
+			if tier < tiers.size() and Progression.get_stat(def["stat"]) >= tiers[tier]:
+				_unlock(def, tier + 1)
+				advanced[def["id"]] = true
 				changed = true
 		if not changed:
 			break
-		changed_any = true
-	if changed_any:
+	if not advanced.is_empty():
 		save_progress()
 
 func _unlock(def: Dictionary, tier: int) -> void:

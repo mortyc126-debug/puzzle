@@ -27,6 +27,7 @@ const ZEN_REFRESH_SHARE = 0.4  # Какую долю занятых клеток
 const RUN_SAVE_PATH = "user://run.save"
 const CONTINUE_BASE_COST = 100
 const FREE_CONTINUE_GAMES = 2  # в стольких первых партиях одно продолжение бесплатно
+const RUN_XP_SOFT_CAP = 600   # опыт за партию сверх этого — вполовину
 const PLAY_TIME_STEP = 10.0
 
 var block_scene = preload("res://block.tscn")
@@ -556,7 +557,7 @@ func update_xp_display():
 		else:
 			text += " · %d / %d XP" % [progression.current_xp, progression.get_xp_for_next_level()]
 		if run_xp > 0 and not run_finished:
-			text += "  (+%d за партию)" % run_xp
+			text += "  (+%d за партию)" % effective_run_xp(run_xp)
 		xp_label.text = text
 
 func update_streak_display(streak: int):
@@ -1230,6 +1231,13 @@ func _on_restart_confirm(box):
 
 # === НАГРАДЫ ЗА ПАРТИЮ ===
 
+# Опыт за очень длинную партию идёт с убывающей отдачей: после RUN_XP_SOFT_CAP — половина.
+# Обычные партии не задевает, а марафоны с продолжениями не пролетают десять уровней разом.
+func effective_run_xp(raw: int) -> int:
+	if raw <= RUN_XP_SOFT_CAP:
+		return raw
+	return RUN_XP_SOFT_CAP + int((raw - RUN_XP_SOFT_CAP) * 0.5)
+
 # XP за партию с таким счётом
 func get_game_xp_for_score(value: int) -> int:
 	if value <= 0:
@@ -1262,6 +1270,7 @@ func award_game_over_rewards():
 		run_coins += 20
 
 	run_xp += get_game_xp_for_score(score)
+	run_xp = effective_run_xp(run_xp)
 	if run_xp > 0:
 		progression.gain_xp(run_xp)
 
