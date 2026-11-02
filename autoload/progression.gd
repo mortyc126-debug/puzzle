@@ -57,6 +57,7 @@ var multi_clears = 0        # Ходы, очистившие 2 и больше �
 var missions_done = 0       # Выполнено заданий дня
 var full_days = 0           # Дни, когда выполнены все три задания
 var zen_games = 0           # Партии в спокойном режиме
+var coins_spent = 0         # Потрачено монет на покупки в профиле
 
 # Индикаторы новых предметов
 var has_new_items = {
@@ -166,8 +167,9 @@ func get_rank_unlocked_at(level: int) -> String:
 			return entry[1]
 	return ""
 
-# Строки наград уровня: для итогов партии и подсказки «следующая награда»
-func get_level_reward_lines(level: int, include_coins: bool = true) -> Array:
+# Строки наград уровня: для итогов партии и подсказки «следующая награда».
+# skip_owned — не показывать предметы, которые уже открыты (куплены заранее)
+func get_level_reward_lines(level: int, include_coins: bool = true, skip_owned: bool = false) -> Array:
 	var lines = []
 	if include_coins:
 		lines.append("%d монет" % get_level_coins(level))
@@ -177,6 +179,8 @@ func get_level_reward_lines(level: int, include_coins: bool = true) -> Array:
 	if rank != "":
 		lines.append("Звание «%s»" % rank)
 	for item in get_level_items(level):
+		if skip_owned and is_unlocked(item["type"], item["id"]):
+			continue
 		lines.append(get_item_label(item["type"], item["id"]))
 	return lines
 
@@ -200,7 +204,7 @@ func get_next_special_reward() -> Dictionary:
 	_next_special_level = current_level
 	_next_special_cache = {}
 	for level in range(current_level + 1, MAX_LEVEL + 1):
-		var lines = get_level_reward_lines(level, false)
+		var lines = get_level_reward_lines(level, false, true)
 		if not lines.is_empty():
 			_next_special_cache = {"level": level, "lines": lines}
 			break
@@ -267,6 +271,73 @@ func spend_coins(amount: int) -> bool:
 	return false
 
 # === ПРЕДМЕТЫ ===
+
+# Покупка за монеты: предметы, которые открываются уровнем, можно взять раньше.
+# Предметы за достижения остаются наградой за достижения, мифические — только за уровень.
+const PRICES = {"COMMON": 300, "UNCOMMON": 600, "RARE": 1200, "EPIC": 2500, "LEGENDARY": 5000}
+const COLOR_PRICE = 200
+const THEME_PRICE_FACTOR = 1.5
+
+func get_item_unlock(item_type: String, item_id) -> Dictionary:
+	match item_type:
+		"avatar":
+			return ItemsDB.get_avatar_data(int(item_id)).get("unlock", {})
+		"frame":
+			return ItemsDB.get_frame_data(int(item_id)).get("unlock", {})
+		"effect":
+			return ItemsDB.get_effect_data(int(item_id)).get("unlock", {})
+		"theme":
+			var theme = ThemeManager.get_theme_by_id(str(item_id))
+			return theme.unlock if theme else {}
+		"color":
+			return ItemsDB.get_color_unlock(int(item_id))
+	return {}
+
+func get_item_rarity(item_type: String, item_id) -> String:
+	match item_type:
+		"avatar":
+			return ItemsDB.get_avatar_data(int(item_id)).get("rarity", "COMMON")
+		"frame":
+			return ItemsDB.get_frame_data(int(item_id)).get("rarity", "COMMON")
+		"effect":
+			return ItemsDB.get_effect_data(int(item_id)).get("rarity", "COMMON")
+		"theme":
+			var theme = ThemeManager.get_theme_by_id(str(item_id))
+			return theme.rarity if theme else "COMMON"
+	return "COMMON"
+
+# Цена в монетах; 0 — купить нельзя (уже открыт, открывается не уровнем или мифический)
+func get_price(item_type: String, item_id) -> int:
+	if is_unlocked(item_type, item_id) or get_item_unlock(item_type, item_id).get("type", "") != "level":
+		return 0
+	if item_type == "color":
+		return COLOR_PRICE
+	var rarity = get_item_rarity(item_type, item_id)
+	if not PRICES.has(rarity):
+		return 0
+	var price: int = PRICES[rarity]
+	if item_type == "theme":
+		price = int(price * THEME_PRICE_FACTOR)
+	return price
+
+func buy_item(item_type: String, item_id) -> bool:
+	var price = get_price(item_type, item_id)
+	if price <= 0 or not spend_coins(price):
+		return false
+	unlock_item(item_type, item_id)
+	coins_spent += price
+	_next_special_level = -1  # купленный предмет больше не «следующая награда»
+	save_progress()
+	return true
+
+# Самый ценный предмет, на который уже хватает монет: {"type", "id", "price"} или {}
+func best_affordable_item() -> Dictionary:
+	var best = {}
+	for item in get_all_items():
+		var price = get_price(item["type"], item["id"])
+		if price > 0 and price <= total_coins and price > int(best.get("price", 0)):
+			best = {"type": item["type"], "id": item["id"], "price": price}
+	return best
 
 func is_unlocked(item_type: String, item_id) -> bool:
 	match item_type:
@@ -465,6 +536,7 @@ func save_progress():
 		"missions_done": missions_done,
 		"full_days": full_days,
 		"zen_games": zen_games,
+		"coins_spent": coins_spent,
 		"has_new_items": has_new_items,
 	}
 
@@ -533,6 +605,7 @@ func load_progress():
 	missions_done = save_data.get("missions_done", 0)
 	full_days = save_data.get("full_days", 0)
 	zen_games = save_data.get("zen_games", 0)
+	coins_spent = save_data.get("coins_spent", 0)
 
 	var saved_flags = save_data.get("has_new_items", {})
 	for key in has_new_items.keys():

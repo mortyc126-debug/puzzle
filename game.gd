@@ -1592,6 +1592,10 @@ func get_summary_lines() -> Array:
 	if achievement_coins > 0:
 		lines.append(["За достижения: +%d монет" % achievement_coins, gold])
 	lines.append(["Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
+	# Монеты — это цель: подсказываем, что на них уже можно купить
+	var deal = progression.best_affordable_item()
+	if not deal.is_empty():
+		lines.append(["Хватает на: %s — %d монет (профиль)" % [progression.get_item_label(deal["type"], deal["id"]), deal["price"]], GOLD])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():

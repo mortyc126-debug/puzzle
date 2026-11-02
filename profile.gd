@@ -432,6 +432,11 @@ func create_colors_list():
 			lock_label.add_theme_font_size_override("font_size", 20)
 			lock_label.tooltip_text = ItemsDB.color_names[i]
 			color_container.add_child(lock_label)
+			var buy_btn = Button.new()
+			buy_btn.flat = true
+			buy_btn.size = Vector2(80, 80)
+			buy_btn.pressed.connect(show_locked_card.bind("color", i))
+			color_container.add_child(buy_btn)
 			all_colors_container.add_child(color_container)
 			continue
 
@@ -507,7 +512,7 @@ func _on_theme_clicked(theme_id: String):
 	if block_theme == null:
 		return
 	if not progression.is_unlocked("theme", theme_id):
-		show_info_popup(block_theme.display_name, block_theme.description + "\n\n" + ItemsDB.get_unlock_text(block_theme.unlock))
+		show_locked_card("theme", theme_id)
 		return
 	progression.select_theme(theme_id)
 	create_themes_list()
@@ -558,7 +563,7 @@ func create_effects_list():
 func _on_effect_clicked(effect_id: int):
 	var data = ItemsDB.get_effect_data(effect_id)
 	if not progression.is_unlocked("effect", effect_id):
-		show_info_popup(data.get("name", "?"), data.get("description", "") + "\n\n" + ItemsDB.get_unlock_text(data.get("unlock", {})))
+		show_locked_card("effect", effect_id)
 		return
 	progression.player_effect = effect_id
 	progression.request_save()
@@ -643,6 +648,18 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 		if item_id == selected_id:
 			card.add_theme_stylebox_override("normal", make_highlight_box(GOLD))
 
+		# Рамка показывается на аватарке игрока — сразу видно, как она будет выглядеть
+		if item_type == "frame":
+			var avatar = TextureRect.new()
+			avatar.texture = ItemsDB.get_avatar_texture(progression.player_avatar)
+			avatar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			avatar.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			avatar.position = Vector2(22, 21)
+			avatar.size = Vector2(112, 112)
+			avatar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			if not unlocked:
+				avatar.modulate = Color(0.45, 0.45, 0.5)
+			card.add_child(avatar)
 		var picture = TextureRect.new()
 		picture.texture = texture
 		picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -651,11 +668,14 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 		picture.size = Vector2(130, 130)
 		picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if not unlocked:
-			picture.modulate = Color(0.25, 0.25, 0.3)
+			picture.modulate = Color(0.55, 0.55, 0.6) if item_type == "frame" else Color(0.25, 0.25, 0.3)
 		card.add_child(picture)
 
-		var caption = make_label(data.get("name", "?") if unlocked else "Закрыто", 18,
-			ItemsDB.get_rarity_color(data.get("rarity", "COMMON")))
+		# Закрытый предмет, который можно купить, показывает цену — это цель, а не тупик
+		var price = progression.get_price(item_type, item_id)
+		var caption_text = data.get("name", "?") if unlocked else ("%d монет" % price if price > 0 else "Закрыто")
+		var caption = make_label(caption_text, 18,
+			GOLD if (not unlocked and price > 0) else ItemsDB.get_rarity_color(data.get("rarity", "COMMON")))
 		caption.position = Vector2(4, 146)
 		caption.size = Vector2(148, 36)
 		card.add_child(caption)
@@ -671,14 +691,29 @@ func show_item_card(item_type: String, item_id: int):
 
 	var preview_holder = CenterContainer.new()
 	preview_holder.custom_minimum_size = Vector2(540, 230)
+	if item_type == "frame":
+		# Рамка — на аватарке игрока
+		var stack = Control.new()
+		stack.custom_minimum_size = Vector2(220, 220)
+		var avatar = TextureRect.new()
+		avatar.texture = ItemsDB.get_avatar_texture(progression.player_avatar)
+		avatar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		avatar.position = Vector2(15, 15)
+		avatar.size = Vector2(190, 190)
+		stack.add_child(avatar)
+		preview_holder.add_child(stack)
 	var preview = TextureRect.new()
 	preview.custom_minimum_size = Vector2(220, 220)
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	preview.texture = ItemsDB.get_avatar_texture(item_id) if item_type == "avatar" else ItemsDB.get_frame_texture(item_id)
-	if not unlocked:
+	if not unlocked and item_type != "frame":
 		preview.modulate = Color(0.35, 0.35, 0.4)
-	preview_holder.add_child(preview)
+	if item_type == "frame":
+		preview.size = Vector2(220, 220)
+		preview_holder.get_child(0).add_child(preview)
+	else:
+		preview_holder.add_child(preview)
 	box.add_child(preview_holder)
 
 	var rarity = data.get("rarity", "COMMON")
@@ -688,6 +723,10 @@ func show_item_card(item_type: String, item_id: int):
 	box.add_child(make_label(data.get("description", ""), 22, Color(0.88, 0.9, 1)))
 	if not unlocked:
 		box.add_child(make_label(ItemsDB.get_unlock_text(data.get("unlock", {})), 22, GOLD))
+
+	if not unlocked:
+		add_buy_row(box, item_type, item_id)
+		return
 
 	var selected = (item_type == "avatar" and item_id == progression.player_avatar) \
 		or (item_type == "frame" and item_id == progression.player_frame)
@@ -732,6 +771,100 @@ func _on_select_item(item_type: String, item_id: int, box):
 	update_profile()
 	update_game_profile_button()
 	close_popup(box)
+
+# === ПОКУПКА ЗА МОНЕТЫ ===
+
+# Карточка закрытой темы, эффекта или цвета: превью, как открыть, кнопка «Купить»
+func show_locked_card(item_type: String, item_id):
+	var title = ""
+	var description = ""
+	var rarity = progression.get_item_rarity(item_type, item_id)
+	var preview: Control
+	match item_type:
+		"theme":
+			var block_theme = ThemeManager.get_theme_by_id(str(item_id))
+			if block_theme == null:
+				return
+			title = block_theme.display_name
+			description = block_theme.description
+			var theme_preview = ThemePreview.new()
+			theme_preview.set_theme_resource(block_theme, false)
+			preview = theme_preview
+			preview.custom_minimum_size = Vector2(380, 230)
+		"effect":
+			var data = ItemsDB.get_effect_data(int(item_id))
+			title = data.get("name", "?")
+			description = data.get("description", "")
+			var effect_preview = EffectPreview.new()
+			effect_preview.setup(data.get("kind", "sparks"), ThemeManager.get_block_color(int(item_id)))
+			preview = effect_preview
+			preview.custom_minimum_size = Vector2(380, 220)
+		"color":
+			title = "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
+			description = "Цвет блоков для темы «Классика». Включается во вкладке «Цвета»."
+			var swatch = ColorRect.new()
+			swatch.color = all_colors[int(item_id)]
+			swatch.custom_minimum_size = Vector2(150, 150)
+			preview = swatch
+	var box = open_popup(580)
+	var holder = CenterContainer.new()
+	holder.custom_minimum_size = Vector2(540, preview.custom_minimum_size.y + 10)
+	holder.add_child(preview)
+	box.add_child(holder)
+	box.add_child(make_label(title, 34, Color.WHITE))
+	if item_type != "color":
+		box.add_child(make_label(ItemsDB.get_rarity_name(rarity), 22, ItemsDB.get_rarity_color(rarity)))
+	box.add_child(HSeparator.new())
+	box.add_child(make_label(description, 22, Color(0.88, 0.9, 1)))
+	box.add_child(make_label(ItemsDB.get_unlock_text(progression.get_item_unlock(item_type, item_id)), 22, GOLD))
+	add_buy_row(box, item_type, item_id)
+
+# Цена, сколько монет у игрока и кнопки «Купить» / «Закрыть»
+func add_buy_row(box: Control, item_type: String, item_id):
+	var price = progression.get_price(item_type, item_id)
+	if price > 0:
+		var coins = progression.total_coins
+		var hint = "Можно купить сразу: %d монет. У вас %d." % [price, coins] if coins >= price \
+			else "Или купить за %d монет — не хватает %d." % [price, price - coins]
+		box.add_child(make_label(hint, 21, Color(0.85, 0.88, 1)))
+	var row = HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 20)
+	box.add_child(row)
+	if price > 0:
+		var buy_btn = Button.new()
+		buy_btn.custom_minimum_size = Vector2(240, 76)
+		buy_btn.add_theme_font_size_override("font_size", 26)
+		buy_btn.icon = icon_texture("coin")
+		buy_btn.add_theme_constant_override("icon_max_width", 32)
+		buy_btn.text = "КУПИТЬ · %d" % price
+		buy_btn.theme_type_variation = &"GoldButton"
+		buy_btn.disabled = progression.total_coins < price
+		buy_btn.pressed.connect(_on_buy.bind(item_type, item_id, box))
+		row.add_child(buy_btn)
+	var close_btn = Button.new()
+	close_btn.text = "ЗАКРЫТЬ"
+	close_btn.custom_minimum_size = Vector2(220, 76)
+	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.pressed.connect(close_popup.bind(box))
+	row.add_child(close_btn)
+
+func _on_buy(item_type: String, item_id, box):
+	if not progression.buy_item(item_type, item_id):
+		return
+	close_popup(box)
+	var category = {"avatar": "avatars", "frame": "frames", "theme": "themes", "effect": "effects", "color": "colors"}.get(item_type, "")
+	progression.mark_items_as_seen(category)
+	var rebuild = {"avatar": [TAB_AVATARS, create_avatars_list], "frame": [TAB_FRAMES, create_frames_list],
+		"theme": [TAB_THEMES, create_themes_list], "effect": [TAB_EFFECTS, create_effects_list],
+		"color": [TAB_COLORS, create_colors_list]}.get(item_type, [])
+	if not rebuild.is_empty() and built_tabs.has(rebuild[0]):
+		rebuild[1].call()
+	if built_tabs.has(TAB_REWARDS):
+		create_rewards_list()
+	update_profile()
+	update_tab_titles()
+	update_game_profile_button()
 
 # === ДОСТИЖЕНИЯ ===
 
