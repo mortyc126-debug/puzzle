@@ -18,7 +18,7 @@ func _paint_static() -> void:
 	vertical_gradient(horizon, area.y, Color(0.12, 0.0, 0.2), Color(0.03, 0.0, 0.08))
 	for star in stars:
 		draw_circle(star[0], star[1], Color(1, 1, 1, 0.55))
-	# Солнце: жёлто-розовое, нижняя половина разрезана полосами
+	# Солнце: жёлто-розовое, нижняя часть разрезана полосами, ниже горизонта обрезано
 	var sun = Vector2(area.x * 0.5, horizon - area.x * 0.04)
 	var r = area.x * 0.3
 	soft_blob(self, sun, area.x * 0.75, Color(1.0, 0.3, 0.6, 0.55))
@@ -27,7 +27,7 @@ func _paint_static() -> void:
 		var y = sun.y - r + 2.0 * r * t
 		var half = sqrt(maxf(r * r - pow(y - sun.y, 2), 0.0))
 		var gap = t > 0.55 and int(t * 30) % 3 == 0
-		if not gap:
+		if not gap and y < horizon:  # солнце садится: ниже горизонта его не видно
 			draw_rect(Rect2(sun.x - half, y, half * 2.0, 2.0 * r / 23.0 + 1.0), Color(1.0, 0.85, 0.3).lerp(Color(1.0, 0.2, 0.6), t))
 	draw_rect(Rect2(0, horizon - 2, area.x, 4), Color(1, 0.4, 0.85, 0.8))
 
