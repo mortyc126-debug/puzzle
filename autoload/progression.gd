@@ -9,6 +9,9 @@ signal coins_changed(new_amount)
 signal reward_unlocked(reward_type, reward_data)
 signal daily_reward_available
 signal daily_reward_claimed(day, reward)
+signal item_upgraded(item_type, item_id, tier)
+signal title_unlocked(title_id)
+signal name_style_changed
 
 const SAVE_PATH = "user://progression.save"
 const OLD_BEST_SCORE_PATH = "user://best_score.save"
@@ -59,6 +62,16 @@ var missions_done = 0       # Выполнено заданий дня
 var full_days = 0           # Дни, когда выполнены все три задания
 var zen_games = 0           # Партии в спокойном режиме
 var coins_spent = 0         # Потрачено монет на покупки в профиле
+
+# Улучшенные версии аватарок и рамок: {"frame:3": 1, "avatar:5": 2} — 1 сияющая, 2 золотая
+var item_tiers = {}
+# Титулы и оформление имени
+var owned_titles: Array = []
+var player_title := ""
+var owned_name_colors: Array = ["white"]
+var name_color := "white"
+var name_glow_owned := false
+var name_glow := false
 
 # Индикаторы новых предметов
 var has_new_items = {
@@ -331,14 +344,198 @@ func buy_item(item_type: String, item_id) -> bool:
 	save_progress()
 	return true
 
-# Самый ценный предмет, на который уже хватает монет: {"type", "id", "price"} или {}
+# Самый ценный предмет, на который уже хватает монет: {"type", "id", "price"} или {}.
+# Когда новых предметов по карману нет — самое ценное улучшение ({"upgrade": ступень}).
 func best_affordable_item() -> Dictionary:
 	var best = {}
 	for item in get_all_items():
 		var price = get_price(item["type"], item["id"])
 		if price > 0 and price <= total_coins and price > int(best.get("price", 0)):
 			best = {"type": item["type"], "id": item["id"], "price": price}
+	if not best.is_empty():
+		return best
+	for item_type in UPGRADABLE:
+		var ids = ItemsDB.get_avatar_ids() if item_type == "avatar" else ItemsDB.get_frame_ids()
+		for item_id in ids:
+			var price = get_upgrade_price(item_type, item_id)
+			if price > 0 and price <= total_coins and price > int(best.get("price", 0)):
+				best = {"type": item_type, "id": item_id, "price": price, "upgrade": get_item_tier(item_type, item_id) + 1}
 	return best
+
+# Покупает то, что вернул best_affordable_item (предмет или улучшение)
+func buy_offer(offer: Dictionary) -> bool:
+	if offer.has("upgrade"):
+		return upgrade_item(offer["type"], offer["id"])
+	return buy_item(offer["type"], offer["id"])
+
+func get_offer_label(offer: Dictionary) -> String:
+	if offer.has("upgrade"):
+		return get_upgraded_label(offer["type"], offer["id"], int(offer["upgrade"]))
+	return get_item_label(offer["type"], offer["id"])
+
+# === УЛУЧШЕННЫЕ ВЕРСИИ: СИЯЮЩАЯ И ЗОЛОТАЯ ===
+# Открытую аватарку или рамку можно улучшить: блик (×2 цены редкости), потом золото с искрами (×4).
+# Новых картинок не нужно — эффект рисует шейдер ui/item_shine.gdshader.
+
+const UPGRADABLE = ["avatar", "frame"]
+const UPGRADE_BASE = {"COMMON": 300, "UNCOMMON": 600, "RARE": 1200, "EPIC": 2500, "LEGENDARY": 5000, "MYTHIC": 8000}
+const UPGRADE_MULTIPLIERS = [2, 4]
+const TIER_NAMES = ["", "Сияющая", "Золотая"]
+
+func get_item_tier(item_type: String, item_id) -> int:
+	return int(item_tiers.get("%s:%d" % [item_type, int(item_id)], 0))
+
+func get_upgrade_price(item_type: String, item_id) -> int:
+	if not item_type in UPGRADABLE or not is_unlocked(item_type, item_id):
+		return 0
+	var tier = get_item_tier(item_type, item_id)
+	if tier >= UPGRADE_MULTIPLIERS.size():
+		return 0
+	var base = int(UPGRADE_BASE.get(get_item_rarity(item_type, item_id), 300))
+	return base * UPGRADE_MULTIPLIERS[tier]
+
+func upgrade_item(item_type: String, item_id) -> bool:
+	var price = get_upgrade_price(item_type, item_id)
+	if price <= 0 or not spend_coins(price):
+		return false
+	var tier = get_item_tier(item_type, item_id) + 1
+	item_tiers["%s:%d" % [item_type, int(item_id)]] = tier
+	coins_spent += price
+	save_progress()
+	item_upgraded.emit(item_type, item_id, tier)
+	return true
+
+# «Золотая рамка «Магма»»
+func get_upgraded_label(item_type: String, item_id, tier: int) -> String:
+	var noun = "аватарка" if item_type == "avatar" else "рамка"
+	var data = ItemsDB.get_avatar_data(int(item_id)) if item_type == "avatar" else ItemsDB.get_frame_data(int(item_id))
+	return "%s %s «%s»" % [TIER_NAMES[clampi(tier, 0, 2)], noun, data.get("name", "?")]
+
+# === ТИТУЛЫ И ОФОРМЛЕНИЕ ИМЕНИ ===
+# Подпись под именем: заслуженные приходят сами (по статистике), остальные покупаются.
+# Видны в профиле и рядом с аватаркой на экране игры. Только текст — расширять можно бесконечно.
+
+const TITLES = [
+	{"id": "challenge_1", "name": "Испытатель", "stat": "challenge_days", "value": 1},
+	{"id": "challenge_7", "name": "Неделя испытаний", "stat": "challenge_days", "value": 7},
+	{"id": "challenge_30", "name": "Месяц испытаний", "stat": "challenge_days", "value": 30},
+	{"id": "challenge_100", "name": "Сто испытаний", "stat": "challenge_days", "value": 100},
+	{"id": "streak_10", "name": "Неудержимый", "stat": "max_streak", "value": 10},
+	{"id": "perfect_10", "name": "Чистое поле", "stat": "perfect_clears", "value": 10},
+	{"id": "clean_3000", "name": "Без единого бонуса", "stat": "best_clean_score", "value": 3000},
+	{"id": "score_10000", "name": "Пятизначный", "stat": "best_score", "value": 10000},
+	{"id": "zen_50", "name": "Дзен-мастер", "stat": "zen_games", "value": 50},
+	{"id": "games_500", "name": "Старожил", "stat": "games_played", "value": 500},
+	{"id": "puzzler", "name": "Любитель головоломок", "price": 500},
+	{"id": "quiet", "name": "Тихий гений", "price": 1000},
+	{"id": "corners", "name": "Мастер углов", "price": 1500},
+	{"id": "tamer", "name": "Укротитель фигур", "price": 2000},
+	{"id": "collector", "name": "Собиратель линий", "price": 2500},
+	{"id": "night", "name": "Ночной стратег", "price": 3500},
+	{"id": "calm", "name": "Невозмутимый", "price": 5000},
+	{"id": "void", "name": "Архитектор пустоты", "price": 7500},
+	{"id": "storm", "name": "Гроза рекордов", "price": 10000},
+	{"id": "lord", "name": "Лорд линий", "price": 15000},
+	{"id": "emperor", "name": "Император блоков", "price": 25000},
+	{"id": "living", "name": "Живая легенда", "price": 40000},
+	{"id": "infinite", "name": "Бесконечность", "price": 60000},
+]
+const NAME_COLORS = [
+	{"id": "white", "name": "Белый", "color": Color(1, 1, 1), "price": 0},
+	{"id": "gold", "name": "Золотой", "color": Color(1, 0.82, 0.3), "price": 1500},
+	{"id": "rose", "name": "Розовый", "color": Color(1, 0.62, 0.8), "price": 1500},
+	{"id": "mint", "name": "Мятный", "color": Color(0.55, 1, 0.8), "price": 1500},
+	{"id": "sky", "name": "Небесный", "color": Color(0.55, 0.82, 1), "price": 1500},
+	{"id": "lavender", "name": "Лавандовый", "color": Color(0.8, 0.68, 1), "price": 2500},
+	{"id": "fire", "name": "Огненный", "color": Color(1, 0.55, 0.25), "price": 3500},
+	{"id": "ice", "name": "Ледяной", "color": Color(0.75, 0.97, 1), "price": 3500},
+	{"id": "rainbow", "name": "Радужный", "color": Color(1, 1, 1), "price": 12000, "rainbow": true},
+]
+const NAME_GLOW_PRICE = 6000
+
+func get_title_def(title_id: String) -> Dictionary:
+	for def in TITLES:
+		if def["id"] == title_id:
+			return def
+	return {}
+
+func get_title_name(title_id: String) -> String:
+	return get_title_def(title_id).get("name", "")
+
+func has_title(title_id: String) -> bool:
+	return owned_titles.has(title_id)
+
+# Заслуженные титулы, условие которых уже выполнено. Возвращает новые id (и сообщает о каждом).
+func check_titles() -> Array:
+	var fresh = []
+	for def in TITLES:
+		if not def.has("stat") or owned_titles.has(def["id"]):
+			continue
+		if get_stat(def["stat"]) >= int(def["value"]):
+			owned_titles.append(def["id"])
+			fresh.append(def["id"])
+	if not fresh.is_empty():
+		request_save()
+		for title_id in fresh:
+			title_unlocked.emit(title_id)
+	return fresh
+
+func buy_title(title_id: String) -> bool:
+	var def = get_title_def(title_id)
+	if def.is_empty() or not def.has("price") or owned_titles.has(title_id):
+		return false
+	if not spend_coins(int(def["price"])):
+		return false
+	owned_titles.append(title_id)
+	coins_spent += int(def["price"])
+	player_title = title_id
+	save_progress()
+	name_style_changed.emit()
+	return true
+
+func set_title(title_id: String) -> void:
+	if title_id == "" or owned_titles.has(title_id):
+		player_title = title_id
+		request_save()
+		name_style_changed.emit()
+
+func get_name_color_def(color_id: String) -> Dictionary:
+	for def in NAME_COLORS:
+		if def["id"] == color_id:
+			return def
+	return NAME_COLORS[0]
+
+func buy_name_color(color_id: String) -> bool:
+	var def = get_name_color_def(color_id)
+	if def["id"] != color_id or owned_name_colors.has(color_id) or not spend_coins(int(def["price"])):
+		return false
+	owned_name_colors.append(color_id)
+	coins_spent += int(def["price"])
+	name_color = color_id
+	save_progress()
+	name_style_changed.emit()
+	return true
+
+func set_name_color(color_id: String) -> void:
+	if owned_name_colors.has(color_id):
+		name_color = color_id
+		request_save()
+		name_style_changed.emit()
+
+func buy_name_glow() -> bool:
+	if name_glow_owned or not spend_coins(NAME_GLOW_PRICE):
+		return false
+	name_glow_owned = true
+	name_glow = true
+	coins_spent += NAME_GLOW_PRICE
+	save_progress()
+	name_style_changed.emit()
+	return true
+
+func set_name_glow(enabled: bool) -> void:
+	name_glow = enabled and name_glow_owned
+	request_save()
+	name_style_changed.emit()
 
 func is_unlocked(item_type: String, item_id) -> bool:
 	match item_type:
@@ -539,6 +736,13 @@ func save_progress():
 		"full_days": full_days,
 		"zen_games": zen_games,
 		"coins_spent": coins_spent,
+		"item_tiers": item_tiers,
+		"owned_titles": owned_titles,
+		"player_title": player_title,
+		"owned_name_colors": owned_name_colors,
+		"name_color": name_color,
+		"name_glow_owned": name_glow_owned,
+		"name_glow": name_glow,
 		"has_new_items": has_new_items,
 	}
 
@@ -609,6 +813,13 @@ func load_progress():
 	zen_games = save_data.get("zen_games", 0)
 	best_zen_score = save_data.get("best_zen_score", 0)
 	coins_spent = save_data.get("coins_spent", 0)
+	item_tiers = save_data.get("item_tiers", {})
+	owned_titles = save_data.get("owned_titles", [])
+	player_title = save_data.get("player_title", "")
+	owned_name_colors = save_data.get("owned_name_colors", ["white"])
+	name_color = save_data.get("name_color", "white")
+	name_glow_owned = save_data.get("name_glow_owned", false)
+	name_glow = save_data.get("name_glow", false) and name_glow_owned
 
 	var saved_flags = save_data.get("has_new_items", {})
 	for key in has_new_items.keys():
@@ -714,8 +925,15 @@ func get_daily_reward_for_day(day: int) -> Dictionary:
 		7: return {"coins": 300, "xp": 200}
 		_: return {"coins": 50}
 
+# Только для тестов (tests/persona_bot.gd): «сегодня» сдвигается на N дней, чтобы прогнать
+# несколько дней игры за минуту — задания, награда дня и испытание обновляются как в жизни
+var debug_day_offset := 0
+
 func get_current_date() -> String:
 	var datetime = Time.get_datetime_dict_from_system()
+	if debug_day_offset != 0:
+		var unix = Time.get_unix_time_from_datetime_dict(datetime) + debug_day_offset * 86400
+		datetime = Time.get_datetime_dict_from_unix_time(unix)
 	return "%04d-%02d-%02d" % [datetime.year, datetime.month, datetime.day]
 
 func get_days_between(date1: String, date2: String) -> int:
@@ -747,6 +965,10 @@ func get_stat(stat_id: String) -> int:
 			return best_score
 		"best_zen_score":
 			return best_zen_score
+		"challenge_days":
+			return Challenge.total_done
+		"challenge_best_streak":
+			return Challenge.best_streak
 		"pieces_placed":
 			return total_pieces_placed
 		"max_streak":

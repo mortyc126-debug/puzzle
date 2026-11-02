@@ -37,6 +37,7 @@ ThemeManager="*res://autoload/theme_manager.gd"
 Progression="*res://autoload/progression.gd"
 Achievements="*res://autoload/achievements.gd"
 Missions="*res://autoload/missions.gd"
+Challenge="*res://autoload/challenge.gd"
 
 [display]
 

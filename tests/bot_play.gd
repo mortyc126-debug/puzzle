@@ -50,7 +50,8 @@ func _initialize() -> void:
 
 # === СОХРАНЕНИЯ ИГРОКА ===
 
-const SAVE_FILES = ["progression.save", "achievements.save", "missions.save", "settings.save", "run.save", "best_score.save"]
+const SAVE_FILES = ["progression.save", "achievements.save", "missions.save", "settings.save", "run.save", "best_score.save",
+	"challenge.save", "challenge_run.save"]
 const BACKUP_DIR = "user://bot_backup/"
 
 func save_variants() -> Array:

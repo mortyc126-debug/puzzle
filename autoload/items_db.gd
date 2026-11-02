@@ -560,3 +560,33 @@ func get_rarity_color(rarity: String) -> Color:
 			return Color(1, 0.84, 0)
 		_:
 			return Color.WHITE
+
+# === УЛУЧШЕННЫЕ ВЕРСИИ (СИЯЮЩАЯ / ЗОЛОТАЯ) ===
+
+const SHINE_SHADER = preload("res://ui/item_shine.gdshader")
+var _shine_materials = {}
+
+# Блеск для картинки аватарки или рамки по её ступени (Progression.item_tiers).
+# Материалы общие для всех картинок одной ступени — сотня карточек не создаёт сотню материалов.
+# phase сдвигает блик, чтобы аватарка и рамка не мигали строго одновременно.
+func style_item_rect(rect: CanvasItem, item_type: String, item_id: int, tier: int = -1) -> void:
+	if rect == null:
+		return
+	if tier < 0:
+		tier = Progression.get_item_tier(item_type, item_id)
+	if tier <= 0:
+		rect.material = null
+		return
+	var key = "%s:%d" % [item_type, tier]
+	if not _shine_materials.has(key):
+		var material = ShaderMaterial.new()
+		material.shader = SHINE_SHADER
+		material.set_shader_parameter("tier", float(tier))
+		# Рамка уходит в золото сильно, аватарка — только теплеет: лицо должно остаться узнаваемым
+		var gold = 0.0
+		if tier >= 2:
+			gold = 0.75 if item_type == "frame" else 0.28
+		material.set_shader_parameter("gold_mix", gold)
+		material.set_shader_parameter("phase", 0.0 if item_type == "frame" else 0.5)
+		_shine_materials[key] = material
+	rect.material = _shine_materials[key]

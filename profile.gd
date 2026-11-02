@@ -27,6 +27,7 @@ const GOLD = Color(1, 0.84, 0)
 var progression = null
 var all_colors = ItemsDB.block_colors
 var best_value_label: Label
+var title_button: Button   # титул под именем: нажатие — окно «Титул и оформление имени»
 var coins_value_label: Label
 var built_tabs = {}  # Вкладки строятся при первом открытии — профиль открывается быстрее
 var popups: Array = []  # Открытые окна поверх профиля (закрываются кнопкой «Назад» по очереди)
@@ -93,9 +94,24 @@ func style_header():
 		name_label.theme_type_variation = &"DisplayLabel"
 		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 
+	# Аватарка и имя поднимаются на 14 px, чтобы под именем поместилась строка титула
+	for node_name in ["AvatarDisplay", "FrameDisplay", "EditNameButton", "PlayerNameLabel"]:
+		var node = get_node_or_null(node_name)
+		if node:
+			node.position.y -= 14 if node_name != "PlayerNameLabel" else 18
+	title_button = Button.new()
+	title_button.theme_type_variation = &"IconButton"
+	title_button.icon = icon_texture("star")
+	title_button.add_theme_constant_override("icon_max_width", 24)
+	title_button.add_theme_font_size_override("font_size", 22)
+	title_button.position = Vector2(150, 314)
+	title_button.size = Vector2(600, 40)
+	title_button.pressed.connect(show_title_popup)
+	add_child(title_button)
+
 	var row = HBoxContainer.new()
-	row.position = Vector2(150, 346)
-	row.size = Vector2(600, 64)
+	row.position = Vector2(150, 356)
+	row.size = Vector2(600, 60)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 16)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -131,14 +147,24 @@ func update_profile():
 		name_label.text = progression.player_name
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		adjust_text_size(name_label, 520)
+		NameStyle.apply(name_label)
+
+	if title_button:
+		var title = NameStyle.title_text()
+		title_button.text = title if title != "" else "Выбрать титул"
+		title_button.add_theme_color_override("font_color", Color(1, 0.78, 0.4) if title != "" else Color(0.75, 0.78, 0.95))
+		title_button.size = Vector2.ZERO
+		title_button.position.x = (size.x - title_button.size.x) / 2.0 if size.x > 0 else 450 - title_button.size.x / 2.0
 
 	var avatar_display = get_node_or_null("AvatarDisplay")
 	if avatar_display:
 		avatar_display.texture = ItemsDB.get_avatar_texture(progression.player_avatar)
+		ItemsDB.style_item_rect(avatar_display, "avatar", progression.player_avatar)
 
 	var frame_display = get_node_or_null("FrameDisplay")
 	if frame_display:
 		frame_display.texture = ItemsDB.get_frame_texture(progression.player_frame)
+		ItemsDB.style_item_rect(frame_display, "frame", progression.player_frame)
 
 	var level_label = get_node_or_null("AvatarLevelLabel")
 	if level_label:
@@ -317,6 +343,7 @@ const STAT_CARDS = [
 	["combo", "Линий за один ход"], ["perfect", "Чистых полей"],
 	["time", "Время в игре"], ["coins", "Заработано монет"],
 	["zen_best", "Рекорд спокойного"], ["zen_games", "Спокойных партий"],
+	["challenge_days", "Испытаний пройдено"], ["challenge_streak", "Испытаний подряд"],
 ]
 
 func create_stats_list():
@@ -388,6 +415,8 @@ func update_stats_labels():
 		"coins": str(progression.total_coins_earned),
 		"zen_best": str(progression.best_zen_score),
 		"zen_games": str(progression.zen_games),
+		"challenge_days": str(Challenge.total_done),
+		"challenge_streak": "%d (лучшая %d)" % [Challenge.current_streak(), Challenge.best_streak],
 	}
 	for key in values.keys():
 		stat_values[key].text = values[key]
@@ -734,7 +763,20 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 		picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if not unlocked:
 			picture.modulate = Color(0.55, 0.55, 0.6) if item_type == "frame" else Color(0.25, 0.25, 0.3)
+		else:
+			ItemsDB.style_item_rect(picture, item_type, item_id)
 		card.add_child(picture)
+		var tier = progression.get_item_tier(item_type, item_id) if unlocked else 0
+		if tier > 0:
+			# Значок ступени: серебряная звезда — сияющая, золотая — золотая
+			var badge = TextureRect.new()
+			badge.texture = icon_texture("star")
+			badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			badge.position = Vector2(120, 6)
+			badge.size = Vector2(30, 30)
+			badge.modulate = GOLD if tier >= 2 else Color(0.85, 0.92, 1)
+			badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(badge)
 
 		# Закрытый предмет, который можно купить, показывает цену — это цель, а не тупик
 		var price = progression.get_price(item_type, item_id)
@@ -766,6 +808,7 @@ func show_item_card(item_type: String, item_id: int):
 		avatar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		avatar.position = Vector2(15, 15)
 		avatar.size = Vector2(190, 190)
+		ItemsDB.style_item_rect(avatar, "avatar", progression.player_avatar)
 		stack.add_child(avatar)
 		preview_holder.add_child(stack)
 	var preview = TextureRect.new()
@@ -775,6 +818,8 @@ func show_item_card(item_type: String, item_id: int):
 	preview.texture = ItemsDB.get_avatar_texture(item_id) if item_type == "avatar" else ItemsDB.get_frame_texture(item_id)
 	if not unlocked and item_type != "frame":
 		preview.modulate = Color(0.35, 0.35, 0.4)
+	if unlocked:
+		ItemsDB.style_item_rect(preview, item_type, item_id)
 	if item_type == "frame":
 		preview.size = Vector2(220, 220)
 		preview_holder.get_child(0).add_child(preview)
@@ -793,6 +838,8 @@ func show_item_card(item_type: String, item_id: int):
 	if not unlocked:
 		add_buy_row(box, item_type, item_id)
 		return
+
+	add_upgrade_row(box, item_type, item_id)
 
 	var selected = (item_type == "avatar" and item_id == progression.player_avatar) \
 		or (item_type == "frame" and item_id == progression.player_frame)
@@ -822,6 +869,254 @@ func show_item_card(item_type: String, item_id: int):
 	close_btn.add_theme_font_size_override("font_size", 28)
 	close_btn.pressed.connect(close_popup.bind(box))
 	row.add_child(close_btn)
+
+# Улучшение открытой аватарки или рамки: маленькое превью «как будет», цена и кнопка
+func add_upgrade_row(box: Control, item_type: String, item_id: int):
+	var tier = progression.get_item_tier(item_type, item_id)
+	box.add_child(HSeparator.new())
+	if tier >= 2:
+		box.add_child(make_label("Золотая версия — высшая ступень", 24, GOLD))
+		return
+	var next = tier + 1
+	var price = progression.get_upgrade_price(item_type, item_id)
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	box.add_child(row)
+	var sample_holder = Control.new()
+	sample_holder.custom_minimum_size = Vector2(116, 116)
+	row.add_child(sample_holder)
+	if item_type == "frame":
+		# Рамка — на аватарке игрока, как в сетке
+		var under = TextureRect.new()
+		under.texture = ItemsDB.get_avatar_texture(progression.player_avatar)
+		under.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		under.position = Vector2(8, 8)
+		under.size = Vector2(100, 100)
+		sample_holder.add_child(under)
+	var sample = TextureRect.new()
+	sample.texture = ItemsDB.get_avatar_texture(item_id) if item_type == "avatar" else ItemsDB.get_frame_texture(item_id)
+	sample.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sample.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	sample.size = Vector2(116, 116)
+	ItemsDB.style_item_rect(sample, item_type, item_id, next)
+	sample_holder.add_child(sample)
+	var texts = VBoxContainer.new()
+	texts.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	texts.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(texts)
+	var what = "по картинке пробегает блик" if next == 1 else "золото и мерцающие искры"
+	texts.add_child(make_label("%s версия" % Progression.TIER_NAMES[next], 26, GOLD if next == 2 else Color(0.85, 0.92, 1),
+		HORIZONTAL_ALIGNMENT_LEFT))
+	texts.add_child(make_label("Видна везде: %s." % what, 21, Color(0.85, 0.88, 1), HORIZONTAL_ALIGNMENT_LEFT))
+	if progression.total_coins < price:
+		texts.add_child(make_label("Не хватает %d монет" % (price - progression.total_coins), 21, Color(1, 0.62, 0.3),
+			HORIZONTAL_ALIGNMENT_LEFT))
+	var button = Button.new()
+	button.theme_type_variation = &"GoldButton"
+	button.icon = icon_texture("coin")
+	button.add_theme_constant_override("icon_max_width", 30)
+	button.add_theme_font_size_override("font_size", 24)
+	for state in ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color"]:
+		button.add_theme_color_override(state, Color.WHITE)
+	button.add_theme_color_override("icon_disabled_color", Color(1, 1, 1, 0.5))
+	button.text = "УЛУЧШИТЬ · %d" % price
+	button.custom_minimum_size = Vector2(0, 72)
+	button.disabled = progression.total_coins < price
+	button.pressed.connect(_on_upgrade.bind(item_type, item_id, box))
+	box.add_child(button)
+
+func _on_upgrade(item_type: String, item_id: int, box):
+	if not progression.upgrade_item(item_type, item_id):
+		return
+	Sfx.play("reward")
+	close_popup(box)
+	if item_type == "avatar":
+		create_avatars_list()
+	else:
+		create_frames_list()
+	update_profile()
+	update_game_profile_button()
+	show_item_card(item_type, item_id)
+
+# === ТИТУЛ И ОФОРМЛЕНИЕ ИМЕНИ ===
+
+func show_title_popup():
+	var box = open_popup(640)
+	box.add_child(make_label("Титул и имя", 36, GOLD))
+	box.add_child(make_label("Титул виден под именем — в профиле и на экране игры.", 21, Color(0.85, 0.88, 1)))
+
+	var name_row = HBoxContainer.new()
+	name_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(name_row)
+	var preview = Label.new()
+	preview.theme_type_variation = &"DisplayLabel"
+	preview.add_theme_font_size_override("font_size", 40)
+	preview.text = progression.player_name
+	NameStyle.apply(preview)
+	name_row.add_child(preview)
+
+	box.add_child(make_label("ЦВЕТ ИМЕНИ", 22, Color(0.64, 0.67, 0.85)))
+	var colors = GridContainer.new()
+	colors.columns = 3
+	colors.add_theme_constant_override("h_separation", 10)
+	colors.add_theme_constant_override("v_separation", 10)
+	box.add_child(colors)
+	for def in Progression.NAME_COLORS:
+		var owned = progression.owned_name_colors.has(def["id"])
+		var button = Button.new()
+		button.custom_minimum_size = Vector2(196, 64)
+		button.add_theme_font_size_override("font_size", 21)
+		button.text = def["name"] if owned else "%s · %d" % [def["name"], def["price"]]
+		button.add_theme_color_override("font_color", def["color"] if not def.get("rainbow", false) else Color(1, 0.8, 0.95))
+		if progression.name_color == def["id"]:
+			for style in ["normal", "hover", "pressed", "focus"]:
+				button.add_theme_stylebox_override(style, make_highlight_box(GOLD, 0.2))
+		elif not owned and progression.total_coins < int(def["price"]):
+			button.modulate = Color(1, 1, 1, 0.55)
+		button.pressed.connect(_on_name_color.bind(def["id"], box))
+		colors.add_child(button)
+
+	var glow = Button.new()
+	glow.custom_minimum_size = Vector2(0, 64)
+	glow.add_theme_font_size_override("font_size", 22)
+	if progression.name_glow_owned:
+		glow.text = "Свечение имени: %s" % ("включено" if progression.name_glow else "выключено")
+	else:
+		glow.text = "Свечение имени · %d" % Progression.NAME_GLOW_PRICE
+		glow.icon = icon_texture("coin")
+		glow.add_theme_constant_override("icon_max_width", 28)
+		if progression.total_coins < Progression.NAME_GLOW_PRICE:
+			glow.modulate = Color(1, 1, 1, 0.55)
+	glow.pressed.connect(_on_name_glow.bind(box))
+	box.add_child(glow)
+
+	box.add_child(make_label("ТИТУЛЫ", 22, Color(0.64, 0.67, 0.85)))
+	var none = Button.new()
+	none.text = "Без титула"
+	none.custom_minimum_size = Vector2(0, 60)
+	none.add_theme_font_size_override("font_size", 22)
+	if progression.player_title == "":
+		for style in ["normal", "hover", "pressed", "focus"]:
+			none.add_theme_stylebox_override(style, make_highlight_box(GOLD, 0.2))
+	none.pressed.connect(_on_title_pick.bind("", box))
+	box.add_child(none)
+	for def in Progression.TITLES:
+		box.add_child(make_title_row(def, box))
+
+	var close_btn = Button.new()
+	close_btn.text = "ЗАКРЫТЬ"
+	close_btn.custom_minimum_size = Vector2(0, 72)
+	close_btn.add_theme_font_size_override("font_size", 26)
+	close_btn.pressed.connect(close_popup.bind(box))
+	box.add_child(close_btn)
+
+# Строка титула: название и состояние (выбран, есть, цена, условие)
+func make_title_row(def: Dictionary, box: Control) -> Control:
+	var owned = progression.has_title(def["id"])
+	var button = Button.new()
+	button.custom_minimum_size = Vector2(0, 74)
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var row = HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.offset_left = 18
+	row.offset_right = -18
+	button.add_child(row)
+	var name_label = make_label(def["name"], 24, GOLD if owned else Color(0.85, 0.87, 1), HORIZONTAL_ALIGNMENT_LEFT, false)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	var status = ""
+	var status_color = Color(0.7, 0.74, 0.92)
+	if progression.player_title == def["id"]:
+		status = "Выбран"
+		status_color = GOLD
+		for style in ["normal", "hover", "pressed", "focus"]:
+			button.add_theme_stylebox_override(style, make_highlight_box(GOLD, 0.2))
+	elif owned:
+		status = "Выбрать"
+	elif def.has("price"):
+		status = "%d монет" % def["price"]
+		status_color = GOLD if progression.total_coins >= int(def["price"]) else Color(0.7, 0.72, 0.85)
+	else:
+		status = title_condition(def)
+	var status_label = make_label(status, 21, status_color, HORIZONTAL_ALIGNMENT_RIGHT, false)
+	row.add_child(status_label)
+	button.pressed.connect(_on_title_pick.bind(def["id"], box))
+	return button
+
+func title_condition(def: Dictionary) -> String:
+	var value = int(def.get("value", 0))
+	var have = progression.get_stat(def.get("stat", ""))
+	match def.get("stat", ""):
+		"challenge_days":
+			return "Испытания: %d / %d" % [mini(have, value), value]
+		"max_streak":
+			return "Серия ×%d" % value
+		"perfect_clears":
+			return "Чистых полей: %d / %d" % [mini(have, value), value]
+		"best_clean_score":
+			return "%d очков без бонусов" % value
+		"best_score":
+			return "Рекорд %d" % value
+		"zen_games":
+			return "Спокойных партий: %d / %d" % [mini(have, value), value]
+		"games_played":
+			return "Партий: %d / %d" % [mini(have, value), value]
+	return ""
+
+func _on_title_pick(title_id: String, box):
+	if title_id == "" or progression.has_title(title_id):
+		progression.set_title(title_id)
+	else:
+		var def = progression.get_title_def(title_id)
+		if not def.has("price"):
+			return  # заслуженный титул ещё не получен: строка показывает условие
+		if progression.total_coins < int(def["price"]):
+			show_info_popup("Не хватает монет", "Титул «%s» стоит %d монет, у вас %d." % [def["name"], def["price"], progression.total_coins])
+			return
+		if not progression.buy_title(title_id):
+			return
+		Sfx.play("reward")
+	refresh_after_style_change(box)
+
+func _on_name_color(color_id: String, box):
+	if progression.owned_name_colors.has(color_id):
+		progression.set_name_color(color_id)
+	else:
+		var def = progression.get_name_color_def(color_id)
+		if progression.total_coins < int(def["price"]):
+			show_info_popup("Не хватает монет", "Цвет «%s» стоит %d монет, у вас %d." % [def["name"], def["price"], progression.total_coins])
+			return
+		if not progression.buy_name_color(color_id):
+			return
+		Sfx.play("reward")
+	refresh_after_style_change(box)
+
+func _on_name_glow(box):
+	if progression.name_glow_owned:
+		progression.set_name_glow(not progression.name_glow)
+	else:
+		if progression.total_coins < Progression.NAME_GLOW_PRICE:
+			show_info_popup("Не хватает монет", "Свечение имени стоит %d монет, у вас %d." % [Progression.NAME_GLOW_PRICE, progression.total_coins])
+			return
+		if not progression.buy_name_glow():
+			return
+		Sfx.play("reward")
+	refresh_after_style_change(box)
+
+# Окно перестраивается на месте с той же прокруткой — выбор виден сразу
+func refresh_after_style_change(box):
+	var scroll = box.get_parent() as ScrollContainer
+	var offset = scroll.scroll_vertical if scroll else 0
+	close_popup(box)
+	update_profile()
+	update_game_profile_button()
+	show_title_popup()
+	var fresh = popups[-1] if not popups.is_empty() else null
+	if fresh and offset > 0:
+		var fresh_scroll = fresh.get_parent() as ScrollContainer
+		if fresh_scroll:
+			fresh_scroll.set_deferred("scroll_vertical", offset)
 
 func _on_select_item(item_type: String, item_id: int, box):
 	if not progression.is_unlocked(item_type, item_id):
@@ -903,6 +1198,9 @@ func add_buy_row(box: Control, item_type: String, item_id):
 		buy_btn.add_theme_font_size_override("font_size", 26)
 		buy_btn.icon = icon_texture("coin")
 		buy_btn.add_theme_constant_override("icon_max_width", 32)
+		for state in ["icon_normal_color", "icon_hover_color", "icon_pressed_color", "icon_focus_color"]:
+			buy_btn.add_theme_color_override(state, Color.WHITE)
+		buy_btn.add_theme_color_override("icon_disabled_color", Color(1, 1, 1, 0.5))
 		buy_btn.text = "КУПИТЬ · %d" % price
 		buy_btn.theme_type_variation = &"GoldButton"
 		buy_btn.disabled = progression.total_coins < price

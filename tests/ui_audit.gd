@@ -51,6 +51,15 @@ func _process(_delta: float) -> bool:
 				prog.unlock_item("avatar", i, false)
 		if theme_id != "":
 			root.get_node("ThemeManager").apply_theme(theme_id)
+		# Оформление, ради которого тратят монеты: титул, цвет и свечение имени, улучшенные аватарка и рамка
+		prog.owned_titles.append("quiet")
+		prog.player_title = "quiet"
+		prog.owned_name_colors.append("gold")
+		prog.name_color = "gold"
+		prog.name_glow_owned = true
+		prog.name_glow = true
+		prog.item_tiers["avatar:%d" % prog.player_avatar] = 2
+		prog.item_tiers["frame:%d" % prog.player_frame] = 1
 		prog.save_progress()
 		game.clear_saved_run()
 		reload_current_scene()
@@ -120,6 +129,14 @@ func build_steps() -> void:
 				profile.get_node("CustomizeContainer").current_tab = tab)
 		steps.append(func(_game): shot("profile_tab_%d" % tab))
 	steps.append_array([
+		func(game): find_modal(game, "Profile").show_item_card("frame", root.get_node("Progression").player_frame),
+		func(_game): shot("item_card_upgrade"),
+		func(game): game.handle_back(),
+		func(game): find_modal(game, "Profile").show_title_popup(),
+		func(_game): shot("title_popup"),
+		func(game):
+			game.handle_back()
+			print("CHECK «Назад» закрыл окно титулов, профиль открыт: ", "да" if find_modal(game, "Profile") != null else "НЕТ"),
 		func(game):
 			game.handle_back(),
 		func(game): game.get_node("SettingsButton").pressed.emit(),
@@ -157,6 +174,22 @@ func build_steps() -> void:
 			game.game_over = true
 			game.show_final_game_over(),
 		func(_game): shot("game_over"),
+		# Испытание дня: поле с целью и ходами, затем итоги неудачной попытки
+		func(_game):
+			var challenge = root.get_node("Challenge")
+			if not challenge.begin():
+				print("CHECK испытание началось: НЕТ")
+			reload_current_scene()
+			return 40,
+		func(game):
+			if game.is_input_blocked():
+				game.handle_back()
+			print("CHECK поле испытания: ", "да" if not game.challenge.is_empty() and not game.get_node("HammerButton").visible else "НЕТ"),
+		func(_game): shot("challenge"),
+		func(game):
+			game.finish_challenge(false)
+			return 90,
+		func(_game): shot("challenge_result"),
 	])
 
 func find_modal(game, scene_name: String) -> Node:
@@ -178,6 +211,7 @@ func shot(shot_name: String) -> void:
 func audit(screen: String) -> void:
 	var small: Array = []
 	var cut: Array = []
+	var offscreen: Array = []
 	var total = 0
 	var sizes = {}
 	for node in all_nodes(root):
@@ -202,15 +236,30 @@ func audit(screen: String) -> void:
 		sizes[int(round(effective))] = sizes.get(int(round(effective)), 0) + 1
 		if effective < 19.5:
 			small.append("%s(%d)" % [text.replace("\n", " ").left(28), int(round(effective))])
+		# Надпись за краем экрана или раздутая по высоте (так пряталась цель испытания) —
+		# кроме содержимого прокрутки: оно законно уходит за край
+		var rect = node.get_global_rect()
+		if not in_scroll(node) and (rect.size.y > 700.0 or not root.get_visible_rect().intersects(rect)):
+			offscreen.append(text.replace("\n", " ").left(30))
 		if node is Label and node.text_overrun_behavior != TextServer.OVERRUN_NO_TRIMMING and not node.autowrap_mode:
 			var font = node.get_theme_font("font")
 			if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > node.size.x + 1:
 				cut.append(text.left(40))
-	print("AUDIT %s: надписей %d, мельче 20: %d, обрезано: %d" % [screen, total, small.size(), cut.size()])
+	print("AUDIT %s: надписей %d, мельче 20: %d, обрезано: %d, вне экрана: %d" % [screen, total, small.size(), cut.size(), offscreen.size()])
+	if not offscreen.is_empty():
+		print("  вне экрана: ", " | ".join(offscreen))
 	if not small.is_empty():
 		print("  мелкие: ", ", ".join(small.slice(0, 14)))
 	if not cut.is_empty():
 		print("  обрезаны: ", " | ".join(cut))
+
+func in_scroll(node: Node) -> bool:
+	var parent = node.get_parent()
+	while parent:
+		if parent is ScrollContainer:
+			return true
+		parent = parent.get_parent()
+	return false
 
 func all_nodes(node: Node) -> Array:
 	var result = [node]
@@ -220,7 +269,8 @@ func all_nodes(node: Node) -> Array:
 
 # === СОХРАНЕНИЯ ИГРОКА (как в bot_play.gd) ===
 
-const SAVE_FILES = ["progression.save", "achievements.save", "missions.save", "settings.save", "run.save", "best_score.save"]
+const SAVE_FILES = ["progression.save", "achievements.save", "missions.save", "settings.save", "run.save", "best_score.save",
+	"challenge.save", "challenge_run.save"]
 const BACKUP_DIR = "user://bot_backup/"
 
 func save_variants() -> Array:

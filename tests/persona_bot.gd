@@ -4,12 +4,15 @@ extends SceneTree
 ## и в конце печатает PERSONA_RESULT {…} — статистику по каждой партии.
 ##   godot --headless --path . --fixed-fps 60 -s tests/persona_bot.gd -- --persona=имя --games=8 --skill=0.5
 ##     --powerups=0.05 --continue=half|always|never|free --zen [--zen-moves=160] --interrupt=40
-##     --shop=300 --level=30
+##     --shop=300 --level=30 --days-every=3 --challenge=2 --vanity
 ## skill 0..1 — насколько аккуратно игрок ставит фигуры; powerups — вероятность бонуса на ходу;
 ## continue=free — продолжает, только когда это бесплатно (подарок новичку);
 ## interrupt — каждые N ходов «звонок»: партия сохраняется, игра перезапускается, бот сверяет поле;
 ## shop=N — после партии покупает в профиле самые ценные доступные предметы, оставляя N монет;
-## level=N — начать с уровня N (задания дня пересоздаются под него).
+## level=N — начать с уровня N (задания дня пересоздаются под него);
+## days-every=N — каждые N партий наступает следующий день (задания, награда дня, испытание);
+## challenge=R — каждый день играет испытание дня, при неудаче повторяет до R раз (если хватает монет);
+## vanity — в магазине покупает и титулы, цвет и свечение имени, а не только предметы и улучшения.
 ## ВНИМАНИЕ: бот играет на обычных сохранениях игры. Запускайте его на копии проекта с другим
 ## config/name в project.godot — иначе он продолжит ваш прогресс.
 
@@ -22,6 +25,15 @@ var zen := false
 var interrupt_every := 0
 var shop_reserve := -1  # --shop=N: после партии покупает самый ценный доступный предмет, оставляя N монет
 var bought: Array = []
+var days_every := 0
+var challenge_retries := -1   # -1 — испытание не играет
+var vanity := false
+var day := 0
+var days_advanced := {}
+var in_challenge := false
+var challenge_log: Array = []  # по дням: {"day", "attempts", "success", "progress", "target", "goal"}
+var challenge_today := {}
+var result_wait := 0
 var start_level := 0  # --level=N: начать с этого уровня (задания дня пересоздаются под него)
 var level_applied := false
 var zen_moves := 160  # в спокойном режиме проиграть нельзя — игрок сам заканчивает партию «Заново»
@@ -58,6 +70,9 @@ func _initialize() -> void:
 			"zen-moves": zen_moves = int(value)
 			"level": start_level = int(value)
 			"shop": shop_reserve = int(value)
+			"days-every": days_every = int(value)
+			"challenge": challenge_retries = int(value)
+			"vanity": vanity = true
 	OS.low_processor_usage_mode = false
 	if zen:
 		SafeFile.save_var("user://settings.save", {"sound": true, "music": true, "vibration": true, "rated": false, "zen_mode": true})
@@ -96,6 +111,11 @@ func step(game) -> void:
 		var missions = root.get_node("Missions")
 		missions.date = ""
 		missions.ensure_today()
+	if in_challenge or (("challenge" in game) and not game.challenge.is_empty()):
+		challenge_step(game)
+		return
+	if current.is_empty() and maybe_start_day(game):
+		return
 	if current.is_empty():
 		var prog = progression()
 		current = {"level_start": prog.current_level, "moves": 0, "powerups": 0, "continues": 0, "first_lines_at": -1}
@@ -135,6 +155,85 @@ func step(game) -> void:
 	current["moves"] += 1
 	if game.run_lines > lines_before and current["first_lines_at"] < 0:
 		current["first_lines_at"] = current["moves"]
+	wait_frames = 1
+
+# === ДНИ И ИСПЫТАНИЕ ДНЯ ===
+
+# Перед партией: если пора — наступает новый день; если испытание не пройдено — идём в него.
+# true — сцена перезапускается (ход сделан)
+func maybe_start_day(game) -> bool:
+	var prog = progression()
+	var challenge = root.get_node_or_null("Challenge")  # в старых версиях игры испытания нет
+	if days_every > 0 and games.size() > 0 and games.size() % days_every == 0 and not days_advanced.has(games.size()):
+		days_advanced[games.size()] = true
+		day += 1
+		prog.debug_day_offset += 1
+		prog.check_daily_reward()
+		prog.claim_daily_reward()
+		root.get_node("Missions").ensure_today()
+		if challenge:
+			challenge.ensure_today()
+		game.update_daily_button()
+	if challenge_retries < 0 or challenge == null or challenge.done_today:
+		return false
+	if not challenge.is_ready():
+		wait_frames = 5  # задача строится в фоне
+		return true
+	if challenge.attempts > challenge_retries:
+		return false
+	var price = challenge.retry_price()
+	if price > 0 and prog.total_coins - price < maxi(shop_reserve, 0):
+		return false
+	if not challenge.begin():
+		return false
+	if challenge_today.get("day", -1) != day:
+		challenge_today = {"day": day, "attempts": 0, "success": false, "goal": challenge.puzzle["goal"],
+			"target": challenge.puzzle["target"], "progress": 0, "spent": 0}
+		challenge_log.append(challenge_today)
+	challenge_today["attempts"] += 1
+	challenge_today["spent"] += price
+	in_challenge = true
+	reload_current_scene()
+	wait_frames = 4
+	return true
+
+func challenge_step(game) -> void:
+	if game.challenge.is_empty():
+		in_challenge = false
+		return
+	if game.game_over:
+		var list = buttons(game.ui_layer)
+		if list.is_empty():
+			result_wait += 1
+			wait_frames = 5  # итоги появятся после короткой анимации
+			return
+		result_wait = 0
+		var challenge = root.get_node("Challenge")
+		challenge_today["progress"] = maxi(int(challenge_today.get("progress", 0)), game.challenge_progress())
+		challenge_today["success"] = challenge.done_today
+		in_challenge = false
+		for button in list:
+			if button.text.begins_with("ЕЩЁ РАЗ"):
+				var price = challenge.retry_price()
+				if challenge.attempts <= challenge_retries and progression().total_coins - price >= maxi(shop_reserve, 0):
+					challenge_today["attempts"] += 1
+					challenge_today["spent"] += price
+					in_challenge = true
+					button.pressed.emit()
+					wait_frames = 4
+					return
+		press(list, "К ПАРТИИ")
+		wait_frames = 4
+		return
+	if game.is_input_blocked():
+		game.handle_back()  # подсказки и окна поверх поля
+		wait_frames = 2
+		return
+	var move = choose_move(game)
+	if move.is_empty():
+		wait_frames = 2
+		return
+	game.try_place_piece(move["block"], move["x"], move["y"])
 	wait_frames = 1
 
 func check_resume(game) -> void:
@@ -276,13 +375,43 @@ func shop_after_game(prog) -> int:
 	var count = 0
 	while true:
 		var best = prog.best_affordable_item()
+		if vanity:
+			var style = best_vanity(prog)
+			if not style.is_empty() and int(style["price"]) > int(best.get("price", 0)):
+				best = style
 		if best.is_empty() or prog.total_coins - int(best["price"]) < shop_reserve:
 			break
-		if not prog.buy_item(best["type"], best["id"]):
+		var ok = false
+		match best.get("kind", ""):
+			"title":
+				ok = prog.buy_title(best["id"])
+			"color":
+				ok = prog.buy_name_color(best["id"])
+			"glow":
+				ok = prog.buy_name_glow()
+			_:
+				ok = prog.buy_offer(best) if prog.has_method("buy_offer") else prog.buy_item(best["type"], best["id"])
+		if not ok:
 			break
-		bought.append("%s:%s" % [best["type"], best["id"]])
+		bought.append(best.get("kind", "") + ":" + str(best.get("id", "")) if best.has("kind") \
+			else "%s%s:%s" % ["up" if best.has("upgrade") else "", best["type"], best["id"]])
 		count += 1
 	return count
+
+# Самая дорогая покупка «для красоты», на которую хватает: титул, цвет имени, свечение
+func best_vanity(prog) -> Dictionary:
+	var best = {}
+	for def in prog.TITLES:
+		if def.has("price") and not prog.has_title(def["id"]) and int(def["price"]) <= prog.total_coins \
+				and int(def["price"]) > int(best.get("price", 0)):
+			best = {"kind": "title", "id": def["id"], "price": def["price"]}
+	for def in prog.NAME_COLORS:
+		if not prog.owned_name_colors.has(def["id"]) and int(def["price"]) <= prog.total_coins \
+				and int(def["price"]) > int(best.get("price", 0)):
+			best = {"kind": "color", "id": def["id"], "price": def["price"]}
+	if not prog.name_glow_owned and prog.NAME_GLOW_PRICE <= prog.total_coins and prog.NAME_GLOW_PRICE > int(best.get("price", 0)):
+		best = {"kind": "glow", "id": "glow", "price": prog.NAME_GLOW_PRICE}
+	return best
 
 func finish() -> bool:
 	var prog = progression()
@@ -305,6 +434,9 @@ func finish() -> bool:
 		"place_max": place_ms[-1] if not place_ms.is_empty() else 0.0,
 		"problems": problems, "seconds": (Time.get_ticks_msec() - start_time) / 1000.0,
 		"bought": bought, "coins_spent": prog.coins_spent, "best_zen": prog.best_zen_score,
+		"challenge": challenge_log,
+		"challenge_spent": root.get_node("Challenge").coins_spent if root.has_node("Challenge") else 0,
+		"titles": prog.owned_titles if "owned_titles" in prog else [], "days": day + 1,
 	}
 	print("PERSONA_RESULT " + JSON.stringify(result))
 	return true

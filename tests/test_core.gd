@@ -17,6 +17,7 @@ func _init() -> void:
 	test_scoring_perfect()
 	test_rotation()
 	test_safe_file()
+	test_challenge_puzzle()
 
 	print("")
 	print("Проверок: %d, ошибок: %d" % [checks, failures])
@@ -145,3 +146,29 @@ func test_safe_file() -> void:
 
 	SafeFile.remove(path)
 	check(not SafeFile.exists(path), "remove убирает основной файл и копии")
+
+# Испытание дня: одинаково для всех в один день, всегда проходимо, понедельник легче воскресенья
+func test_challenge_puzzle() -> void:
+	check(ChallengePuzzle.weekday_index("2026-11-02") == 0, "2 ноября 2026 — понедельник")
+	check(ChallengePuzzle.weekday_index("2026-11-08") == 6, "8 ноября 2026 — воскресенье")
+	var a = ChallengePuzzle.build("2026-11-05")
+	var b = ChallengePuzzle.build("2026-11-05")
+	check(var_to_str(a) == var_to_str(b), "испытание одной даты одинаково")
+	check(var_to_str(a) != var_to_str(ChallengePuzzle.build("2026-11-06")), "у разных дат разные испытания")
+	for i in range(7):
+		var date = "2026-11-%02d" % (2 + i)
+		var puzzle = ChallengePuzzle.build(date)
+		check(puzzle["sets"].size() == ChallengePuzzle.SETS, "%s: %d наборов" % [date, ChallengePuzzle.SETS])
+		check(puzzle["moves"] == ChallengePuzzle.SETS * 3, "%s: ходов = фигур" % date)
+		check(puzzle["goal"] in ChallengePuzzle.GOALS, "%s: известная цель" % date)
+		# Стартовое поле без готовых линий
+		var board = Board.new()
+		for cell in puzzle["start"]:
+			board.cells[cell[1]][cell[0]] = 0
+		check(Board.count_lines(board.find_full_lines()) == 0, "%s: на старте нет полных линий" % date)
+		# Проходимость: решатель по тем же правилам набирает не меньше цели
+		var best = 0
+		for style in range(3):
+			best = maxi(best, ChallengePuzzle.simulate(puzzle["start"], puzzle["sets"], style)[puzzle["goal"]])
+		check(best >= puzzle["target"], "%s: решатель проходит (%d ≥ %d)" % [date, best, puzzle["target"]])
+		check(puzzle["target"] > 0, "%s: цель больше нуля" % date)

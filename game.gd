@@ -25,6 +25,7 @@ const PRICE_ROTATE = 15
 const ZEN_COIN_RATE = 0.5    # В спокойном режиме монет за очки вдвое меньше: проиграть нельзя
 const ZEN_REFRESH_SHARE = 0.4  # Какую долю занятых клеток убирает «освежение» поля
 const RUN_SAVE_PATH = "user://run.save"
+const CHALLENGE_RUN_PATH = "user://challenge_run.save"  # попытка испытания хранится отдельно от партии
 const CONTINUE_BASE_COST = 100
 const FREE_CONTINUE_GAMES = 2  # в стольких первых партиях одно продолжение бесплатно
 const RUN_XP_SOFT_CAP = 600   # опыт за партию сверх этого — вполовину
@@ -83,6 +84,17 @@ var run_max_streak = 0
 var run_max_combo = 0
 var record_announced = false  # Баннер «Новый рекорд!» уже показан в этой партии
 
+# Испытание дня: задача от ChallengePuzzle (пусто — обычная партия). Бонусов и продолжений нет,
+# наборы фигур заданы заранее, конец — цель достигнута, ходы кончились или фигуры не помещаются.
+var challenge := {}
+var challenge_set := 0      # сколько наборов уже выдано
+var challenge_moves := 0    # сколько фигур поставлено
+var moves_pill: Control
+var hud_name_label: Label   # имя и титул рядом с аватаркой
+var hud_title_label: Label
+var moves_label: Label
+var challenge_info: Label
+
 # HUD
 const ICON_DIR = "res://assets/ui/icons/"
 const GOLD = Color(1, 0.81, 0.29)
@@ -126,6 +138,12 @@ func _ready():
 	progression = Progression
 	progression.reset_multiplier()
 	zen = GameSettings.zen_mode
+	if Challenge.active:
+		if Challenge.is_ready():
+			challenge = Challenge.puzzle
+			zen = false
+		else:
+			Challenge.abandon()  # сменился день — вчерашняя попытка закрыта
 	best_score_at_start = progression.best_zen_score if zen else progression.best_score
 	default_place_stream = sound_place.stream
 	default_clear_stream = sound_clear.stream
@@ -152,6 +170,10 @@ func _ready():
 	Events.item_unlocked.connect(_on_item_unlocked)
 	Missions.mission_completed.connect(_on_mission_completed)
 	Missions.all_missions_completed.connect(_on_all_missions_completed)
+	Challenge.state_changed.connect(update_daily_button)
+	progression.title_unlocked.connect(_on_title_unlocked)
+	progression.name_style_changed.connect(update_hud_name)
+	progression.item_upgraded.connect(func(_t, _i, _tier): refresh_profile_button())
 	ThemeManager.theme_changed.connect(apply_theme_visuals)
 
 	apply_theme_visuals(ThemeManager.current)
@@ -159,7 +181,12 @@ func _ready():
 	update_daily_button()
 
 	scoring.reset()
-	if not load_run():
+	if not challenge.is_empty():
+		setup_challenge_hud()
+		if not load_run():
+			start_challenge()
+			save_run()
+	elif not load_run():
 		spawn_blocks()
 		save_run()
 	update_zen_display()
@@ -287,6 +314,14 @@ func build_hud():
 	best_row.add_child(best_score_label)
 	score_box.add_child(best_row)
 
+	# Имя и титул — рядом с аватаркой: здесь видно, ради чего покупаются цвет имени и титулы
+	hud_name_label = styled_label("", 28, Color.WHITE, &"DisplayLabel")
+	hud_name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	add_child(hud_name_label)
+	hud_title_label = styled_label("", 22, Color(1, 0.78, 0.4))
+	hud_title_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	add_child(hud_title_label)
+
 	coin_pill = make_panel(&"Pill", Vector2.ZERO)
 	coin_pill.custom_minimum_size = Vector2(170, 0)
 	var coin_row = HBoxContainer.new()
@@ -394,6 +429,7 @@ func arrange_hud():
 	place($ProfileButton, Vector2(30, top + 10), Vector2(104, 104))
 	place($SettingsButton, Vector2(790, top + 18), Vector2(86, 86))
 	coin_pill.position = Vector2(602, top + 33)
+	update_hud_name()
 	var zone_top = top + 132.0
 
 	# Нижняя строка и бонусы над ней
@@ -423,6 +459,8 @@ func arrange_hud():
 	score_panel.position = Vector2(290, roundf(score_center - score_height / 2.0))
 	score_pills_y = roundf(score_center - 30)
 	arrange_score_pills()
+	if challenge_info:
+		place(challenge_info, Vector2(24, tools_y), Vector2(852, 100))
 
 	tray_center_y = roundf(grid_top + board_px + gap_tray + spare * 0.15 + TRAY_HEIGHT / 2.0)
 	for block in active_blocks:
@@ -446,6 +484,9 @@ func arrange_score_pills():
 	multiplier_pill.size = Vector2.ZERO
 	streak_pill.position = Vector2(score_panel.position.x - gap - streak_pill.size.x, score_pills_y)
 	multiplier_pill.position = Vector2(score_panel.position.x + score_panel.custom_minimum_size.x + gap, score_pills_y)
+	if moves_pill:
+		moves_pill.size = Vector2.ZERO
+		moves_pill.position = multiplier_pill.position
 
 func place(control: Control, pos: Vector2, control_size: Vector2):
 	control.position = pos
@@ -551,6 +592,9 @@ func connect_buttons():
 
 func update_score_display():
 	score_label.text = str(score)
+	if not challenge.is_empty():
+		update_challenge_display()
+		return  # в испытании рекорды не ставятся
 	# У спокойного режима свой рекорд: проиграть там нельзя, сравнивать с обычным нечестно
 	if progression.update_best_zen_score(score) if zen else progression.update_best_score(score):
 		best_score_label.text = "%d" % current_best_score()
@@ -565,6 +609,10 @@ func current_best_score() -> int:
 	return progression.best_zen_score if zen else progression.best_score
 
 func update_zen_display():
+	if not challenge.is_empty():
+		score_caption.text = "ИСПЫТАНИЕ ДНЯ"
+		update_challenge_display()
+		return
 	score_caption.text = "СПОКОЙНЫЙ РЕЖИМ" if zen else "ОЧКИ"
 	best_score_label.text = "%d" % current_best_score()
 
@@ -685,6 +733,10 @@ func spawn_blocks():
 	# Ход из прошлого набора отменить уже нельзя
 	last_move = null
 
+	if not challenge.is_empty():
+		spawn_challenge_set()
+		return
+
 	# Первые партии легче: резкий рост сложности — частая причина бросить игру.
 	# В первых трёх партиях генератор ещё и помогает (см. PieceGenerator.generate_set).
 	var games_played = progression.total_games_played
@@ -735,6 +787,8 @@ func try_place_piece(block, grid_x: int, grid_y: int) -> bool:
 	sound_place.play()
 	GameSettings.vibrate(15)
 	pieces_this_run += 1
+	if not challenge.is_empty():
+		challenge_moves += 1
 	run_max_streak = maxi(run_max_streak, result["streak"])
 	hide_tutorial()
 	progression.record_piece_placed()
@@ -755,6 +809,14 @@ func try_place_piece(block, grid_x: int, grid_y: int) -> bool:
 		}
 
 	grid.queue_redraw()
+	if not challenge.is_empty():
+		update_challenge_display()
+		if challenge_progress() >= int(challenge["target"]):
+			finish_challenge(true)
+			return true
+		if active_blocks.is_empty() and challenge_set >= challenge["sets"].size():
+			finish_challenge(false)  # ходы кончились
+			return true
 	if active_blocks.is_empty():
 		spawn_blocks()
 	else:
@@ -788,9 +850,10 @@ func on_lines_cleared(count: int, result: Dictionary, fill_before: float):
 
 	run_lines += count
 
-	# Множитель монет растёт со счётом
-	progression.score_multiplier = progression.calculate_multiplier(score)
-	update_multiplier_display()
+	# Множитель монет растёт со счётом (в испытании монет за очки нет)
+	if challenge.is_empty():
+		progression.score_multiplier = progression.calculate_multiplier(score)
+		update_multiplier_display()
 
 	# XP за линии копится и начисляется в конце партии. Множитель счёта на опыт не влияет:
 	# иначе сильные игроки проходили бы 500 уровней в разы быстрее, чем новички.
@@ -810,6 +873,9 @@ func check_game_over():
 	for block in active_blocks:
 		if is_instance_valid(block) and grid.board.can_place_anywhere(block.shape):
 			return
+	if not challenge.is_empty():
+		burn_challenge_set()  # фигуры не помещаются — набор сгорает, дальше следующий
+		return
 	if zen:
 		refresh_board()
 		return
@@ -1202,6 +1268,24 @@ func update_daily_button():
 	daily_btn.text = "Задания %d/3" % Missions.count_done()
 	# Есть неполученная награда дня — кнопка золотая
 	daily_btn.theme_type_variation = &"GoldButton" if has_news else &""
+	var dot = daily_btn.get_node_or_null("ChallengeDot")
+	if dot == null:
+		dot = Panel.new()
+		dot.name = "ChallengeDot"
+		var dot_style = StyleBoxFlat.new()
+		dot_style.bg_color = Color(0.75, 0.55, 1)
+		dot_style.set_corner_radius_all(8)
+		dot.add_theme_stylebox_override("panel", dot_style)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dot.anchor_left = 1.0
+		dot.anchor_right = 1.0
+		dot.offset_left = -24.0
+		dot.offset_right = -8.0
+		dot.offset_top = 8.0
+		dot.offset_bottom = 24.0
+		daily_btn.add_child(dot)
+	# Сиреневая точка — сегодняшнее испытание ещё ждёт
+	dot.visible = Challenge.is_ready() and not Challenge.done_today and Challenge.attempts == 0
 
 func _on_daily_available():
 	update_daily_button()
@@ -1241,6 +1325,9 @@ func show_tasks_popup():
 		reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	modal_text(box, "Все три — ещё +%d монет. Прогресс засчитывается в конце партии." % Missions.ALL_DONE_BONUS, 20)
 
+	Challenge.ensure_today()
+	add_challenge_section(box)
+
 	box.add_child(HSeparator.new())
 	modal_title(box, "НАГРАДА ДНЯ", Color(1, 0.84, 0), 34)
 	if progression.can_claim_daily:
@@ -1274,6 +1361,17 @@ func _on_claim_daily_reward(box):
 
 func _on_restart_button_pressed():
 	if is_input_blocked() or dragging_block != null:
+		return
+	if not challenge.is_empty():
+		var surrender = open_modal(540)
+		modal_title(surrender, "СДАТЬСЯ?", Color.YELLOW, 40)
+		modal_text(surrender, "Попытка закончится. Сейчас: %s." % challenge_progress_text())
+		modal_buttons(surrender, [
+			["ОТМЕНА", close_modal.bind(surrender)],
+			["СДАТЬСЯ", func():
+				close_modal(surrender)
+				finish_challenge(false)],
+		])
 		return
 	if score == 0:
 		clear_saved_run()
@@ -1364,6 +1462,7 @@ func finish_run():
 		if zen:
 			progression.record_zen_game()
 	Events.game_finished.emit(score, used_powerups)
+	progression.check_titles()
 	collecting_summary = false
 	clear_saved_run()
 
@@ -1641,6 +1740,8 @@ func get_summary_lines() -> Array:
 		lines.append(["%s  +%d монет" % [level_text, summary["level_coins"]], gold])
 	for rank in summary["ranks"]:
 		lines.append(["Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
+	for title_id in summary.get("titles", []):
+		lines.append(["Новый титул: «%s» — выберите в профиле" % progression.get_title_name(title_id), GOLD])
 	if summary["slots"] > 0:
 		lines.append(["+%d слот для цветов" % summary["slots"], Color(0.85, 0.88, 1)])
 	# Новые предметы показываются карточками ниже (add_reward_cards)
@@ -1670,7 +1771,7 @@ func get_summary_lines() -> Array:
 	# Монеты — это цель: подсказываем, что на них уже можно купить
 	var deal = progression.best_affordable_item()
 	if not deal.is_empty():
-		lines.append(["Хватает на: %s — %d монет (профиль)" % [progression.get_item_label(deal["type"], deal["id"]), deal["price"]], GOLD])
+		lines.append(["Хватает на: %s — %d монет (профиль)" % [progression.get_offer_label(deal), deal["price"]], GOLD])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():
@@ -1732,14 +1833,25 @@ func save_run():
 		"max_streak": run_max_streak,
 		"max_combo": run_max_combo,
 		"record_announced": record_announced,
+		"challenge_date": challenge.get("date", ""),
+		"challenge_set": challenge_set,
+		"challenge_moves": challenge_moves,
 	}
-	SafeFile.save_var(RUN_SAVE_PATH, data)
+	SafeFile.save_var(run_save_path(), data)
+
+func run_save_path() -> String:
+	return RUN_SAVE_PATH if challenge.is_empty() else CHALLENGE_RUN_PATH
 
 # Возвращает true, если партия восстановлена
 func load_run() -> bool:
-	var data = SafeFile.load_dict(RUN_SAVE_PATH)
+	var data = SafeFile.load_dict(run_save_path())
 	if not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
 		return false
+	if not challenge.is_empty():
+		if data.get("challenge_date", "") != challenge["date"]:
+			return false
+		challenge_set = data.get("challenge_set", 0)
+		challenge_moves = data.get("challenge_moves", 0)
 
 	grid.board.from_array(data["board"])
 	score = data.get("score", 0)
@@ -1775,7 +1887,214 @@ func load_run() -> bool:
 	return true
 
 func clear_saved_run():
-	SafeFile.remove(RUN_SAVE_PATH)
+	SafeFile.remove(run_save_path())
+
+# === ИСПЫТАНИЕ ДНЯ ===
+
+# Вместо бонусов — описание цели; справа от счёта — сколько ходов осталось
+func setup_challenge_hud():
+	for button in [$HammerButton, $RotateButton, $ShuffleButton, $UndoButton]:
+		button.visible = false
+	multiplier_pill.visible = false
+	challenge_info = styled_label("%s\nБез бонусов и продолжений" % ChallengePuzzle.goal_text(challenge), 24,
+		Color(0.88, 0.9, 1))
+	challenge_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	challenge_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	challenge_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Ширина — до добавления: иначе высота переноса считается для нулевой ширины и раздувается
+	challenge_info.custom_minimum_size = Vector2(852, 0)
+	add_child(challenge_info)
+
+	moves_pill = make_panel(&"Pill", Vector2.ZERO)
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.add_child(icon_rect("layers", 26, Color(0.75, 0.8, 1)))
+	moves_label = styled_label("Ходов: 36", 22, Color(0.85, 0.9, 1), &"DisplayLabel")
+	row.add_child(moves_label)
+	moves_pill.add_child(row)
+	moves_pill.resized.connect(arrange_score_pills, CONNECT_DEFERRED)
+	$RestartButton.tooltip_text = "Сдаться"
+	arrange_hud()
+
+func start_challenge():
+	grid.board.clear()
+	var palette = ThemeManager.get_spawn_color_indices()
+	for cell in challenge["start"]:
+		grid.board.cells[int(cell[1])][int(cell[0])] = palette[int(cell[2]) % palette.size()]
+	challenge_set = 0
+	challenge_moves = 0
+	spawn_blocks()
+	grid.queue_redraw()
+
+func spawn_challenge_set():
+	var sets: Array = challenge["sets"]
+	if challenge_set >= sets.size():
+		return
+	var shapes: Array = sets[challenge_set]
+	challenge_set += 1
+	var palette = ThemeManager.get_spawn_color_indices()
+	for i in range(shapes.size()):
+		create_block(shapes[i], palette[(challenge_set + i) % palette.size()], i)
+	refresh_tray()
+	update_challenge_display()
+
+# Ни одна фигура набора не помещается: набор сгорает вместе с ходами, приходит следующий.
+# Попытка кончается, только когда ходы вышли — у всех одна задача, и неудачный набор не обнуляет её
+func burn_challenge_set():
+	var burned = 0
+	for block in active_blocks:
+		if is_instance_valid(block):
+			burned += 1
+			block.queue_free()
+	active_blocks.clear()
+	last_move = null
+	challenge_moves += burned
+	if challenge_set >= challenge["sets"].size():
+		finish_challenge(false)
+		return
+	show_toast("Фигуры не помещаются — набор сгорел: −%d %s" % [burned, moves_word(burned)], Color(1, 0.7, 0.4))
+	GameSettings.vibrate(40)
+	spawn_blocks()
+	update_challenge_display()
+	check_game_over()
+	save_run()
+
+static func moves_word(count: int) -> String:
+	if count % 10 == 1 and count % 100 != 11:
+		return "ход"
+	if count % 10 in [2, 3, 4] and not (count % 100 in [12, 13, 14]):
+		return "хода"
+	return "ходов"
+
+func challenge_progress() -> int:
+	match challenge.get("goal", "lines"):
+		"score":
+			return score
+		"streak":
+			return run_max_streak
+		_:
+			return run_lines
+
+func challenge_progress_text() -> String:
+	return "%s %d / %d" % [ChallengePuzzle.goal_short(challenge.get("goal", "lines")).to_lower(),
+		mini(challenge_progress(), int(challenge["target"])), int(challenge["target"])]
+
+func update_challenge_display():
+	if challenge.is_empty() or best_score_label == null:
+		return
+	best_score_label.text = "%s: %d / %d" % [ChallengePuzzle.goal_short(challenge.get("goal", "lines")),
+		mini(challenge_progress(), int(challenge["target"])), int(challenge["target"])]
+	if moves_label:
+		moves_label.text = "Ходов: %d" % maxi(int(challenge["moves"]) - challenge_moves, 0)
+
+# Конец попытки: опыт за линии и бонус за прохождение, итоги — с полоской уровня и наградами
+func finish_challenge(success: bool):
+	if run_finished:
+		return
+	run_finished = true
+	game_over = true
+	if dragging_block != null and is_instance_valid(dragging_block):
+		dragging_block.cancel_drag()
+	var progress = challenge_progress()
+	level_before = progression.current_level
+	xp_before = progression.current_xp
+	collecting_summary = true
+	var result = Challenge.finish(success, progress)
+	run_xp = effective_run_xp(run_xp) + int(result.get("xp", 0))
+	if run_xp > 0:
+		progression.gain_xp(run_xp)
+	progression.check_titles()
+	collecting_summary = false
+	clear_saved_run()
+	progression.save_progress()
+	update_xp_display()
+	if success:
+		Sfx.play("record")
+		show_big_text("ПРОЙДЕНО!", GOLD, 6.0)
+	get_tree().create_timer(1.1 if success else 0.5).timeout.connect(show_challenge_result.bind(success, progress, result))
+
+func show_challenge_result(success: bool, progress: int, result: Dictionary):
+	if not is_inside_tree():
+		return
+	var box = open_modal(620, _on_challenge_exit)
+	var target = int(challenge["target"])
+	if success:
+		modal_title(box, "ИСПЫТАНИЕ ПРОЙДЕНО!", GOLD, 42)
+		modal_text(box, ChallengePuzzle.goal_text(challenge), 24)
+		var days = "Дней подряд: %d · всего пройдено: %d" % [Challenge.streak, Challenge.total_done]
+		modal_text(box, days, 26, Color(0.6, 1, 0.7))
+	else:
+		modal_title(box, "НЕ ХВАТИЛО", Color(1, 0.62, 0.3), 46)
+		var goal = ChallengePuzzle.goal_short(challenge.get("goal", "lines"))
+		modal_text(box, "%s: %d / %d" % [goal, mini(progress, target), target], 36, Color.WHITE)
+		modal_text(box, ChallengePuzzle.goal_text(challenge), 22)
+	for title_id in summary.get("titles", []):
+		modal_text(box, "Новый титул: «%s» — выберите в профиле" % progression.get_title_name(title_id), 26, GOLD)
+	add_level_progress(box)
+	add_reward_cards(box)
+
+	var buttons = []
+	if not success and Challenge.can_start():
+		var price = Challenge.retry_price()
+		if progression.total_coins >= price:
+			buttons.append(["ЕЩЁ РАЗ · %d" % price, _on_challenge_retry])
+		else:
+			modal_text(box, "На новую попытку нужно %d монет — у вас %d." % [price, progression.total_coins], 22)
+	buttons.append(["К ПАРТИИ", _on_challenge_exit])
+	modal_buttons(box, buttons)
+
+func _on_challenge_retry():
+	if Challenge.begin():
+		get_tree().reload_current_scene()
+
+# Обратно к обычной партии: она лежит в run.save и восстановится как после перезапуска
+func _on_challenge_exit():
+	if Challenge.active:
+		Challenge.abandon()
+	get_tree().reload_current_scene()
+
+# Окно заданий: кнопка испытания
+func _on_challenge_start(box):
+	if not Challenge.can_start():
+		return
+	var price = Challenge.retry_price()
+	if price > progression.total_coins:
+		show_toast("На новую попытку нужно %d монет — у вас %d." % [price, progression.total_coins], GOLD, 3.0)
+		return
+	if dragging_block != null and is_instance_valid(dragging_block):
+		dragging_block.cancel_drag()
+	save_run()  # обычная партия ждёт в run.save
+	if not Challenge.begin():
+		return
+	close_modal(box)
+	get_tree().reload_current_scene()
+
+func add_challenge_section(box: Control):
+	box.add_child(HSeparator.new())
+	modal_title(box, "ИСПЫТАНИЕ ДНЯ", Color(0.8, 0.68, 1), 34)
+	if not Challenge.is_ready():
+		modal_text(box, "Задача на сегодня готовится…", 24)
+		return
+	var puzzle = Challenge.puzzle
+	modal_text(box, ChallengePuzzle.goal_text(puzzle), 26, Color.WHITE)
+	modal_text(box, "Сложность: %s (%d из 7). Одна задача на всех — без бонусов и продолжений." \
+		% [ChallengePuzzle.DAY_NAMES[int(puzzle.get("day", 0))], int(puzzle.get("day", 0)) + 1], 22)
+	var streak_now = Challenge.current_streak()
+	if Challenge.done_today:
+		modal_text(box, "Пройдено! Дней подряд: %d. Новое испытание — завтра." % streak_now, 24, Color(0.6, 1, 0.7))
+		return
+	if Challenge.active:
+		modal_text(box, "Попытка идёт — закройте окно и продолжайте.", 24, Color(0.6, 1, 0.7))
+		return
+	var info = "Награда — опыт, серия дней и титулы за 1, 7, 30 и 100 пройденных дней."
+	if streak_now > 0:
+		info = "Дней подряд: %d — пройдите сегодня, чтобы не прервать серию." % streak_now
+	modal_text(box, info, 22, Color(0.85, 0.88, 1))
+	if Challenge.best_today > 0:
+		modal_text(box, "Лучшее сегодня: %d из %d" % [Challenge.best_today, int(puzzle["target"])], 22, Color(1, 0.75, 0.4))
+	var price = Challenge.retry_price()
+	var label = "НАЧАТЬ · БЕСПЛАТНО" if price == 0 else "ЕЩЁ ПОПЫТКА · %d" % price
+	modal_buttons(box, [[label, _on_challenge_start.bind(box)]])
 
 # === ПОДСКАЗКА НОВИЧКУ ===
 
@@ -1805,6 +2124,10 @@ func show_tip(tip_id: String, text: String):
 func show_start_tips():
 	if zen:
 		show_tip("zen", "Спокойный режим: проиграть нельзя — когда фигуры не влезают, поле освобождается. Рекорд здесь свой.")
+	elif not challenge.is_empty():
+		show_tip("challenge_rules", "Испытание дня: одна задача на всех, без бонусов. Цель — под счётом, ходы — справа.")
+	elif progression.total_games_played >= 3 and GameSettings.seen_tips.has("tasks"):
+		show_tip("challenge", "Новое: испытание дня — в окне «Задания». Первая попытка каждый день бесплатна.")
 	elif progression.total_games_played >= 1:
 		show_tip("tasks", "Задания дня — кнопка внизу справа: три задания каждый день за монеты и опыт.")
 
@@ -1933,12 +2256,14 @@ func refresh_profile_button():
 	profile_btn.ignore_texture_size = true
 	profile_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	profile_btn.texture_normal = ItemsDB.get_avatar_texture(progression.player_avatar)
+	ItemsDB.style_item_rect(profile_btn, "avatar", progression.player_avatar)
 
 	var profile_frame = profile_btn.get_node_or_null("ProfileFrame")
 	if profile_frame:
 		profile_frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		profile_frame.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		profile_frame.texture = ItemsDB.get_frame_texture(progression.player_frame)
+		ItemsDB.style_item_rect(profile_frame, "frame", progression.player_frame)
 
 	var profile_level_label = profile_btn.get_node_or_null("ProfileLevelLabel")
 	if profile_level_label:
@@ -1954,7 +2279,41 @@ func update_achievements_indicator():
 	if indicator:
 		indicator.visible = progression.has_any_new_items()
 
+# Имя и титул в верхней строке. Без титула имя стоит по центру строки, с титулом — над ним.
+func update_hud_name():
+	if hud_name_label == null:
+		return
+	var top = 24.0
+	hud_name_label.text = progression.player_name
+	NameStyle.apply(hud_name_label)
+	fit_font_size_to(hud_name_label, 28, 22, 420.0)
+	var title = NameStyle.title_text()
+	hud_title_label.text = title
+	hud_title_label.visible = title != ""
+	if title == "":
+		place(hud_name_label, Vector2(152, top + 42), Vector2(420, 40))
+	else:
+		place(hud_name_label, Vector2(152, top + 22), Vector2(420, 40))
+		place(hud_title_label, Vector2(152, top + 64), Vector2(420, 32))
+		fit_font_size_to(hud_title_label, 22, 20, 420.0)
+
+func fit_font_size_to(label: Label, max_size: int, min_size: int, width: float) -> void:
+	var font = label.get_theme_font("font")
+	var font_size = max_size
+	while font_size > min_size and font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > width:
+		font_size -= 1
+	label.add_theme_font_size_override("font_size", font_size)
+
+func _on_title_unlocked(title_id: String):
+	var text = "Новый титул: «%s» — выберите его в профиле" % progression.get_title_name(title_id)
+	if collecting_summary:
+		summary["titles"] = summary.get("titles", []) + [title_id]
+	else:
+		show_toast(text, GOLD, 3.5)
+		Sfx.play("reward")
+
 func update_profile_name_display():
+	update_hud_name()
 	var profile_btn = get_node_or_null("ProfileButton")
 	if profile_btn == null:
 		return
