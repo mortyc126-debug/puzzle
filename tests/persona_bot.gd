@@ -4,9 +4,12 @@ extends SceneTree
 ## и в конце печатает PERSONA_RESULT {…} — статистику по каждой партии.
 ##   godot --headless --path . --fixed-fps 60 -s tests/persona_bot.gd -- --persona=имя --games=8 --skill=0.5
 ##     --powerups=0.05 --continue=half|always|never|free --zen [--zen-moves=160] --interrupt=40
+##     --shop=300 --level=30
 ## skill 0..1 — насколько аккуратно игрок ставит фигуры; powerups — вероятность бонуса на ходу;
 ## continue=free — продолжает, только когда это бесплатно (подарок новичку);
-## interrupt — каждые N ходов «звонок»: партия сохраняется, игра перезапускается, бот сверяет поле.
+## interrupt — каждые N ходов «звонок»: партия сохраняется, игра перезапускается, бот сверяет поле;
+## shop=N — после партии покупает в профиле самые ценные доступные предметы, оставляя N монет;
+## level=N — начать с уровня N (задания дня пересоздаются под него).
 ## ВНИМАНИЕ: бот играет на обычных сохранениях игры. Запускайте его на копии проекта с другим
 ## config/name в project.godot — иначе он продолжит ваш прогресс.
 
@@ -17,6 +20,10 @@ var powerup_rate := 0.03
 var continue_policy := "half"
 var zen := false
 var interrupt_every := 0
+var shop_reserve := -1  # --shop=N: после партии покупает самый ценный доступный предмет, оставляя N монет
+var bought: Array = []
+var start_level := 0  # --level=N: начать с этого уровня (задания дня пересоздаются под него)
+var level_applied := false
 var zen_moves := 160  # в спокойном режиме проиграть нельзя — игрок сам заканчивает партию «Заново»
 
 var games: Array = []
@@ -49,6 +56,8 @@ func _initialize() -> void:
 			"zen": zen = true
 			"interrupt": interrupt_every = int(value)
 			"zen-moves": zen_moves = int(value)
+			"level": start_level = int(value)
+			"shop": shop_reserve = int(value)
 	OS.low_processor_usage_mode = false
 	if zen:
 		SafeFile.save_var("user://settings.save", {"sound": true, "music": true, "vibration": true, "rated": false, "zen_mode": true})
@@ -79,6 +88,14 @@ func progression():
 	return root.get_node("Progression")
 
 func step(game) -> void:
+	if start_level > 0 and not level_applied:
+		level_applied = true
+		var prog_node = progression()
+		prog_node.current_level = start_level
+		prog_node.total_games_played = 10  # не новичок: без помощи генератора
+		var missions = root.get_node("Missions")
+		missions.date = ""
+		missions.ensure_today()
 	if current.is_empty():
 		var prog = progression()
 		current = {"level_start": prog.current_level, "moves": 0, "powerups": 0, "continues": 0, "first_lines_at": -1}
@@ -225,7 +242,10 @@ func handle_modal(game) -> void:
 		current["items"] = game.summary["item_refs"].size()
 		current["achievements"] = game.summary["achievements"].size()
 		current["missions"] = game.summary["missions"].size()
+		current["missions_done_total"] = root.get_node("Missions").count_done()
 		current["near_miss"] = (not game.record_bonus_given) and game.score >= prog.best_score * 0.75 and game.score < prog.best_score
+		current["bought"] = shop_after_game(prog)
+		current["coins_after"] = prog.total_coins
 		games.append(current)
 		current = {}
 		press(list, "НОВАЯ ПАРТИЯ")
@@ -249,6 +269,21 @@ func handle_modal(game) -> void:
 		game.handle_back()
 		wait_frames = 2
 
+# Покупки в профиле: игрок, которому некуда тратить монеты, берёт закрытый предмет раньше уровня
+func shop_after_game(prog) -> int:
+	if shop_reserve < 0:
+		return 0
+	var count = 0
+	while true:
+		var best = prog.best_affordable_item()
+		if best.is_empty() or prog.total_coins - int(best["price"]) < shop_reserve:
+			break
+		if not prog.buy_item(best["type"], best["id"]):
+			break
+		bought.append("%s:%s" % [best["type"], best["id"]])
+		count += 1
+	return count
+
 func finish() -> bool:
 	var prog = progression()
 	var ach = root.get_node("Achievements")
@@ -269,6 +304,7 @@ func finish() -> bool:
 		"place_median": place_ms[place_ms.size() / 2] if not place_ms.is_empty() else 0.0,
 		"place_max": place_ms[-1] if not place_ms.is_empty() else 0.0,
 		"problems": problems, "seconds": (Time.get_ticks_msec() - start_time) / 1000.0,
+		"bought": bought, "coins_spent": prog.coins_spent, "best_zen": prog.best_zen_score,
 	}
 	print("PERSONA_RESULT " + JSON.stringify(result))
 	return true
