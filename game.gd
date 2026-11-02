@@ -331,6 +331,7 @@ func build_hud():
 	coins_label = styled_label("%d" % progression.total_coins, 28, GOLD, &"DisplayLabel")
 	coin_row.add_child(coins_label)
 	coin_pill.add_child(coin_row)
+	coin_pill.resized.connect(arrange_top_row, CONNECT_DEFERRED)
 
 	# Множитель и серия — по бокам от счёта, со словами: «×3» с огоньком без подписи
 	# игроки не понимали. Плашки прижаты к панели счёта и растут наружу.
@@ -370,6 +371,7 @@ func build_hud():
 	level_badge.custom_minimum_size = Vector2(68, 68)
 	level_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(level_badge)
+	tighten_badge(level_badge)
 	level_label = styled_label("1", 30, GOLD, &"DisplayLabel")
 	level_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -429,8 +431,8 @@ func arrange_hud():
 	# Верхняя строка: аватарка — монеты — настройки
 	place($ProfileButton, Vector2(30, top + 10), Vector2(104, 104))
 	place($SettingsButton, Vector2(790, top + 18), Vector2(86, 86))
-	coin_pill.position = Vector2(602, top + 33)
-	update_hud_name()
+	coin_pill.position.y = top + 33
+	arrange_top_row()
 	var zone_top = top + 132.0
 
 	# Нижняя строка и бонусы над ней
@@ -624,7 +626,8 @@ func update_next_reward_display():
 		return
 	var next = progression.get_next_special_reward()
 	if next.is_empty():
-		label.text = ""
+		label.text = "Все награды за уровни собраны"  # пустая строка с подарком выглядела поломкой
+		fit_font_size(label, 22, 20)
 		return
 	var text = "Ур. %d: %s" % [next["level"], next["lines"][0]]
 	if next["lines"].size() > 1:
@@ -643,7 +646,7 @@ func fit_font_size(label: Label, max_size: int, min_size: int) -> void:
 func update_xp_display():
 	update_next_reward_display()
 	if level_label:
-		level_label.text = str(progression.current_level)
+		set_level_badge_text(level_label, progression.current_level)
 	var pending = effective_run_xp(run_xp) if run_xp > 0 and not run_finished else 0
 	var need = progression.get_xp_for_next_level()
 	if xp_bar:
@@ -1269,6 +1272,7 @@ func _on_reward_unlocked(reward_type: String, reward_data):
 
 func _on_coins_changed(new_amount: int):
 	coins_label.text = "%d" % new_amount
+	arrange_top_row.call_deferred()  # плашка могла стать уже или шире
 	update_powerup_buttons()
 
 # === DAILY REWARDS ===
@@ -1541,7 +1545,9 @@ func _on_give_up(box):
 	show_final_game_over()
 
 func show_final_game_over():
+	var coins_at_start = progression.total_coins
 	finish_run()
+	var coins_earned = maxi(progression.total_coins - coins_at_start, run_coins)
 	continue_cost = CONTINUE_BASE_COST
 	continue_used_count = 0
 
@@ -1565,11 +1571,14 @@ func show_final_game_over():
 			modal_text(box, "До рекорда не хватило %d очков!" % gap, 26, Color(1, 0.62, 0.3))
 
 	add_level_progress(box)
-	box.add_child(HSeparator.new())
-	modal_text(box, "Итоги партии", 30, Color.WHITE)
+	# Итоги — не столбик строк, а плитки: монеты, опыт, достижения; ниже — значки достижений,
+	# события партии, карточки новых предметов и подсказки на отдельной подложке
+	add_reward_tiles(box, coins_earned)
+	add_achievement_chips(box, summary["achievements"])
 	for line in get_summary_lines():
-		modal_text(box, line[0], 24, line[1])
+		modal_text(box, line[0], 22, line[1])
 	add_reward_cards(box)
+	add_summary_hints(box)
 
 	if should_ask_for_rating():
 		modal_text(box, "Нравится игра? Оценка в магазине очень поможет.", 22)
@@ -1586,9 +1595,11 @@ func add_level_progress(box: Control):
 	badge.theme_type_variation = &"Pill"
 	badge.custom_minimum_size = Vector2(72, 72)
 	row.add_child(badge)
-	var badge_label = styled_label(str(level_before), 30, GOLD, &"DisplayLabel")
+	tighten_badge(badge)
+	var badge_label = styled_label("", 30, GOLD, &"DisplayLabel")
 	badge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	badge_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	set_level_badge_text(badge_label, level_before)
 	badge.add_child(badge_label)
 	var column = VBoxContainer.new()
 	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1630,7 +1641,7 @@ func _set_progress(bar: ProgressBar, max_value: float, value: float):
 	bar.value = value
 
 func _on_summary_level_up(badge: Control, badge_label: Label, caption: Label, new_level: int, first: bool):
-	badge_label.text = str(new_level)
+	set_level_badge_text(badge_label, new_level)
 	caption.text = "Уровень %d!" % new_level
 	caption.add_theme_color_override("font_color", GOLD)
 	badge.pivot_offset = badge.size / 2.0
@@ -1759,19 +1770,94 @@ func equip_item(item: Dictionary, button: Button):
 	button.text = "ГОТОВО"
 	button.disabled = true
 
-# Строки итогов: [текст, цвет]
+# Плитки итогов: «+426 монет», «+170 опыта», «4 достижения» (или задания дня, если достижений нет)
+func add_reward_tiles(box: Control, coins: int):
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	box.add_child(row)
+	var coins_caption = Missions.plural(coins, ["монета", "монеты", "монет"])
+	if zen:
+		coins_caption += " · ×0,5"
+	add_reward_tile(row, "coin", Color.WHITE, "+%d" % coins, coins_caption, GOLD)
+	add_reward_tile(row, "star", Color(0.6, 0.85, 1), "+%d" % run_xp, "опыта", Color(0.6, 0.85, 1))
+	var achieved = achievement_best_tiers().size()
+	if achieved > 0:
+		add_reward_tile(row, "trophy", Color(1, 0.7, 0.3), str(achieved),
+			Missions.plural(achieved, ["достижение", "достижения", "достижений"]), Color(1, 0.7, 0.3))
+	else:
+		add_reward_tile(row, "tasks", Color(0.55, 0.9, 1), "%d/3" % Missions.count_done(), "задания дня", Color(0.55, 0.9, 1))
+
+func add_reward_tile(row: HBoxContainer, icon_name: String, tint: Color, value: String, caption: String, color: Color):
+	var tile = PanelContainer.new()
+	tile.theme_type_variation = &"HudPanel"
+	tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tile.size_flags_stretch_ratio = 1.0
+	tile.custom_minimum_size = Vector2(0, 104)
+	row.add_child(tile)
+	var column = VBoxContainer.new()
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 2)
+	tile.add_child(column)
+	var line = HBoxContainer.new()
+	line.alignment = BoxContainer.ALIGNMENT_CENTER
+	line.add_theme_constant_override("separation", 8)
+	column.add_child(line)
+	var picture = TextureRect.new()
+	picture.texture = load("res://assets/ui/icons/%s.svg" % icon_name)
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.custom_minimum_size = Vector2(30, 30)
+	picture.modulate = tint
+	line.add_child(picture)
+	line.add_child(styled_label(value, 32, color, &"DisplayLabel"))
+	var caption_label = styled_label(caption, 20, Color(0.78, 0.81, 0.96))
+	caption_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	column.add_child(caption_label)
+
+# Высшая полученная ступень по каждому достижению партии
+func achievement_best_tiers() -> Dictionary:
+	var best_tiers = {}
+	for item in summary["achievements"]:
+		best_tiers[item["id"]] = maxi(int(best_tiers.get(item["id"], 0)), int(item["tier"]))
+	return best_tiers
+
+# Значки достижений: «Завсегдатай · Бронза» плашками в цвет ступени, переносятся по строкам.
+# Не больше четырёх — за первую партию их бывает два десятка; остальные — «и ещё N»
+func add_achievement_chips(box: Control, achievements: Array):
+	if achievements.is_empty():
+		return
+	var flow = HFlowContainer.new()
+	flow.alignment = FlowContainer.ALIGNMENT_CENTER
+	flow.add_theme_constant_override("h_separation", 10)
+	flow.add_theme_constant_override("v_separation", 10)
+	box.add_child(flow)
+	var best_tiers = achievement_best_tiers()
+	var shown = 0
+	for achievement_id in best_tiers.keys():
+		if shown == 4:
+			break
+		var def = Achievements.get_definition(achievement_id)
+		var tier: int = best_tiers[achievement_id]
+		var chip = PanelContainer.new()
+		chip.theme_type_variation = &"Pill"
+		flow.add_child(chip)
+		chip.add_child(styled_label("%s · %s" % [def.get("title", achievement_id), Achievements.get_tier_label(def, tier)], 21,
+			Achievements.get_tier_color(tier)))
+		shown += 1
+	if best_tiers.size() > shown:
+		var more = PanelContainer.new()
+		more.theme_type_variation = &"Pill"
+		flow.add_child(more)
+		more.add_child(styled_label("и ещё %d — в профиле" % (best_tiers.size() - shown), 21, Color(0.78, 0.81, 0.96)))
+
+# События партии строками: новый уровень, звание, титулы, слоты, задания. Монеты и опыт — в плитках
 func get_summary_lines() -> Array:
 	var gold = Color(1, 0.84, 0)
 	var lines = []
-	var coins_text = "За очки: +%d монет" % run_coins
-	if zen:
-		coins_text += " (спокойный режим: ×0.5)"
-	lines.append([coins_text, gold])
-	lines.append(["Опыт: +%d XP" % run_xp, Color(0.6, 0.85, 1)])
 	var levels: Array = summary["levels"]
 	if not levels.is_empty():
-		var level_text = "Уровень %d!" % levels[-1] if levels.size() == 1 else "Уровни %d–%d!" % [levels[0], levels[-1]]
-		lines.append(["%s  +%d монет" % [level_text, summary["level_coins"]], gold])
+		var level_text = "Новый уровень: %d!" % levels[-1] if levels.size() == 1 else "Новые уровни: %d–%d!" % [levels[0], levels[-1]]
+		lines.append([level_text, gold])
 	for rank in summary["ranks"]:
 		lines.append(["Новое звание: «%s»" % rank, Color(1, 0.7, 0.3)])
 	for title_id in summary.get("titles", []):
@@ -1781,36 +1867,32 @@ func get_summary_lines() -> Array:
 	# Новые предметы показываются карточками ниже (add_reward_cards)
 	for mission_text in summary["missions"]:
 		lines.append([mission_text, Color(0.55, 0.9, 1)])
-	# Достижения: по одной строке на достижение (высшая полученная ступень), не больше четырёх —
-	# за первую партию их бывает два десятка, и итоги превращались в длинный список
-	var best_tiers = {}
-	var achievement_coins = 0
-	for item in summary["achievements"]:
-		achievement_coins += int(item["coins"])
-		best_tiers[item["id"]] = maxi(int(best_tiers.get(item["id"], 0)), int(item["tier"]))
-	var shown = 0
-	for achievement_id in best_tiers.keys():
-		if shown == 4:
-			break
-		var def = Achievements.get_definition(achievement_id)
-		var tier: int = best_tiers[achievement_id]
-		lines.append(["Достижение «%s» — %s" % [def.get("title", achievement_id), Achievements.get_tier_label(def, tier)],
-			Achievements.get_tier_color(tier)])
-		shown += 1
-	if best_tiers.size() > shown:
-		lines.append(["И ещё %d — в профиле, вкладка «Достижения»" % (best_tiers.size() - shown), Color(0.75, 0.78, 0.92)])
-	if achievement_coins > 0:
-		lines.append(["За достижения: +%d монет" % achievement_coins, gold])
-	lines.append(["Задания на сегодня: %d из 3" % Missions.count_done(), Color(0.75, 0.78, 0.92)])
-	# Монеты — это цель: подсказываем, что на них уже можно купить
+	return lines
+
+# Подсказки внизу итогов — мелко и на своей подложке, чтобы не смешивались с наградами:
+# на что уже хватает монет и что откроется дальше
+func add_summary_hints(box: Control):
+	var hints = []
 	var deal = progression.best_affordable_item()
 	if not deal.is_empty():
-		lines.append(["Хватает на: %s — %d монет (профиль)" % [progression.get_offer_label(deal), deal["price"]], GOLD])
+		hints.append(["Хватает на: %s — %d монет" % [progression.get_offer_label(deal), deal["price"]], GOLD])
 	if not progression.is_max_level():
 		var next = progression.get_next_special_reward()
 		if not next.is_empty():
-			lines.append(["Дальше: уровень %d — %s" % [next["level"], ", ".join(next["lines"])], Color(0.75, 0.78, 0.92)])
-	return lines
+			hints.append(["Уровень %d: %s" % [next["level"], ", ".join(next["lines"])], Color(0.8, 0.83, 0.97)])
+	if hints.is_empty():
+		return
+	var panel = PanelContainer.new()
+	panel.theme_type_variation = &"HudPanel"
+	box.add_child(panel)
+	var column = VBoxContainer.new()
+	column.add_theme_constant_override("separation", 6)
+	panel.add_child(column)
+	for hint in hints:
+		var label = styled_label(hint[0], 21, hint[1])
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		column.add_child(label)
 
 # Просим оценку после 5-й и 20-й партии, если игрок ещё не оценивал
 func should_ask_for_rating() -> bool:
@@ -2082,11 +2164,8 @@ func show_challenge_result(success: bool, progress: int, result: Dictionary):
 		modal_text(box, ChallengePuzzle.goal_text(challenge), 22)
 	for title_id in summary.get("titles", []):
 		modal_text(box, "Новый титул: «%s» — выберите в профиле" % progression.get_title_name(title_id), 26, GOLD)
-	for entry in summary["achievements"]:
-		var def = Achievements.get_definition(entry["id"])
-		modal_text(box, "Достижение «%s» — %s, +%d монет" % [def.get("title", ""), Achievements.get_tier_label(def, entry["tier"]),
-			entry["coins"]], 24, Achievements.get_tier_color(entry["tier"]))
 	add_level_progress(box)
+	add_achievement_chips(box, summary["achievements"])
 	add_reward_cards(box)
 
 	var buttons = []
@@ -2340,18 +2419,48 @@ func update_hud_name():
 	if hud_name_label == null:
 		return
 	var top = 24.0
+	var width = hud_name_width()
 	hud_name_label.text = progression.player_name
 	NameStyle.apply(hud_name_label)
-	fit_font_size_to(hud_name_label, 28, 22, 420.0)
+	fit_font_size_to(hud_name_label, 28, 22, width)
 	var title = NameStyle.title_text()
 	hud_title_label.text = title
 	hud_title_label.visible = title != ""
 	if title == "":
-		place(hud_name_label, Vector2(152, top + 42), Vector2(420, 40))
+		place(hud_name_label, Vector2(152, top + 42), Vector2(width, 40))
 	else:
-		place(hud_name_label, Vector2(152, top + 22), Vector2(420, 40))
-		place(hud_title_label, Vector2(152, top + 64), Vector2(420, 32))
-		fit_font_size_to(hud_title_label, 22, 20, 420.0)
+		place(hud_name_label, Vector2(152, top + 22), Vector2(width, 40))
+		place(hud_title_label, Vector2(152, top + 64), Vector2(width, 32))
+		fit_font_size_to(hud_title_label, 22, 20, width)
+
+# Значок уровня — круг фиксированного размера: поля плашки ужаты, а трёхзначный уровень
+# пишется мельче. Раньше «500» раздувал значок, и он наезжал на звание рядом.
+func tighten_badge(badge: PanelContainer) -> void:
+	var style = badge.get_theme_stylebox("panel")
+	if style == null:
+		return
+	style = style.duplicate()
+	style.content_margin_left = 2
+	style.content_margin_right = 2
+	badge.add_theme_stylebox_override("panel", style)
+
+func set_level_badge_text(label: Label, level: int) -> void:
+	label.text = str(level)
+	label.add_theme_font_size_override("font_size", 30 if level < 100 else 24)
+
+# Монеты прижаты к настройкам и растут влево, имя занимает место до них. Раньше плашка стояла
+# на месте и росла вправо: на больших суммах наезжала на кнопку настроек
+func arrange_top_row():
+	if coin_pill == null or not is_instance_valid(coin_pill):
+		return
+	coin_pill.size = coin_pill.get_combined_minimum_size()
+	coin_pill.position.x = $SettingsButton.position.x - 14.0 - coin_pill.size.x
+	update_hud_name()
+
+func hud_name_width() -> float:
+	if coin_pill == null:
+		return 420.0
+	return clampf(coin_pill.position.x - 152.0 - 16.0, 180.0, 420.0)
 
 func fit_font_size_to(label: Label, max_size: int, min_size: int, width: float) -> void:
 	var font = label.get_theme_font("font")

@@ -78,52 +78,110 @@ func ensure_tab_built(tab: int):
 
 # === ШАПКА ===
 
-# Фон, кнопка «Назад», значок правки на аватарке, плашки «рекорд» и «монеты»
+# Шапка — карточка игрока: слева аватарка в рамке, справа имя с карандашом, титул, уровень
+# с полосой опыта и плашки «рекорд» и «достижения»; монеты — справа вверху, как на экране игры.
+# Раньше всё стояло столбиком по центру впритык: имя, титул и плашки налезали друг на друга.
+const CARD_RECT = Rect2(24, 108, 852, 300)
+const INFO_X = 292.0   # левый край правой колонки карточки
+const INFO_W = 560.0
+const NAME_MAX_WIDTH = 480.0
+
+var header_level_label: Label
+var header_xp_label: Label
+var header_xp_bar: ProgressBar
+var achievements_value_label: Label
+
 func style_header():
 	ScreenStyle.apply_background(get_node_or_null("Background"))
 	ScreenStyle.style_back_button($BackButton)
+	$BackButton.position = Vector2(24, 30)
+
+	var card = PanelContainer.new()
+	card.name = "PlayerCard"
+	card.theme_type_variation = &"HudPanel"
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.position = CARD_RECT.position
+	card.size = CARD_RECT.size
+	add_child(card)
+	var background = get_node_or_null("Background")
+	move_child(card, background.get_index() + 1 if background else 0)
+
+	var avatar = get_node_or_null("AvatarDisplay")
+	if avatar:
+		avatar.position = Vector2(56, 163)
+		avatar.size = Vector2(190, 190)
+	var frame = get_node_or_null("FrameDisplay")
+	if frame:
+		frame.position = Vector2(41, 148)
+		frame.size = Vector2(220, 220)
+
+	var name_label = get_node_or_null("PlayerNameLabel")
+	if name_label:
+		name_label.theme_type_variation = &"DisplayLabel"
+		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		name_label.position = Vector2(INFO_X, 126)
+		name_label.size = Vector2(NAME_MAX_WIDTH + 10, 60)
 
 	var edit_name_btn = get_node_or_null("EditNameButton")
 	if edit_name_btn:
 		edit_name_btn.theme_type_variation = &"IconButton"
 		edit_name_btn.icon = load("res://assets/ui/icons/edit.svg")
 		edit_name_btn.expand_icon = true
-		edit_name_btn.add_theme_constant_override("icon_max_width", 28)
+		edit_name_btn.add_theme_constant_override("icon_max_width", 26)
+		edit_name_btn.size = Vector2(52, 52)
+		edit_name_btn.position = Vector2(INFO_X + NAME_MAX_WIDTH, 130)
 
-	var name_label = get_node_or_null("PlayerNameLabel")
-	if name_label:
-		name_label.theme_type_variation = &"DisplayLabel"
-		name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-
-	# Аватарка и имя поднимаются на 14 px, чтобы под именем поместилась строка титула
-	for node_name in ["AvatarDisplay", "FrameDisplay", "EditNameButton", "PlayerNameLabel"]:
-		var node = get_node_or_null(node_name)
-		if node:
-			node.position.y -= 14 if node_name != "PlayerNameLabel" else 18
 	title_button = Button.new()
 	title_button.theme_type_variation = &"IconButton"
 	title_button.icon = icon_texture("star")
 	title_button.add_theme_constant_override("icon_max_width", 24)
 	title_button.add_theme_font_size_override("font_size", 22)
-	title_button.position = Vector2(150, 314)
-	title_button.size = Vector2(600, 40)
+	title_button.position = Vector2(INFO_X, 192)
 	title_button.pressed.connect(show_title_popup)
 	add_child(title_button)
 
+	# Уровень и опыт: «Уровень 47 · Инженер» слева, «230 / 580 опыта» справа, под ними полоса
+	header_level_label = make_label("", 24, GOLD, HORIZONTAL_ALIGNMENT_LEFT, false)
+	header_level_label.theme_type_variation = &"DisplayLabel"
+	header_level_label.position = Vector2(INFO_X, 246)
+	header_level_label.size = Vector2(INFO_W * 0.6, 36)
+	add_child(header_level_label)
+	header_xp_label = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_RIGHT, false)
+	header_xp_label.position = Vector2(INFO_X + INFO_W * 0.6, 248)
+	header_xp_label.size = Vector2(INFO_W * 0.4, 34)
+	add_child(header_xp_label)
+	header_xp_bar = ProgressBar.new()
+	header_xp_bar.show_percentage = false
+	header_xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	header_xp_bar.position = Vector2(INFO_X, 286)
+	header_xp_bar.size = Vector2(INFO_W, 14)
+	add_child(header_xp_bar)
+
 	var row = HBoxContainer.new()
-	row.position = Vector2(150, 356)
-	row.size = Vector2(600, 60)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 16)
+	row.position = Vector2(INFO_X, 318)
+	row.size = Vector2(INFO_W, 62)
+	row.add_theme_constant_override("separation", 14)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(row)
-	best_value_label = add_stat_pill(row, "trophy", GOLD)
-	coins_value_label = add_stat_pill(row, "coin", Color.WHITE)
+	best_value_label = add_stat_pill(row, "trophy", GOLD, "рекорд")
+	achievements_value_label = add_stat_pill(row, "check", Color(0.55, 0.9, 0.6), "ступеней")
 
-func add_stat_pill(parent: Control, icon_name: String, tint: Color) -> Label:
+	# Монеты — справа вверху, на одной строке с «Назад»
+	var top_row = HBoxContainer.new()
+	top_row.position = Vector2(476, 30)
+	top_row.size = Vector2(400, 64)
+	top_row.alignment = BoxContainer.ALIGNMENT_END
+	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(top_row)
+	coins_value_label = add_stat_pill(top_row, "coin", Color.WHITE)
+
+# Плашка «значок + число [+ подпись]». Возвращает надпись с числом
+func add_stat_pill(parent: Control, icon_name: String, tint: Color, caption: String = "") -> Label:
 	var pill = PanelContainer.new()
 	pill.theme_type_variation = &"Pill"
 	pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pill.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var line = HBoxContainer.new()
 	line.add_theme_constant_override("separation", 8)
 	var picture = TextureRect.new()
@@ -138,6 +196,12 @@ func add_stat_pill(parent: Control, icon_name: String, tint: Color) -> Label:
 	label.add_theme_font_size_override("font_size", 26)
 	label.add_theme_color_override("font_color", GOLD)
 	line.add_child(label)
+	if caption != "":
+		var caption_label = Label.new()
+		caption_label.text = caption
+		caption_label.add_theme_font_size_override("font_size", 20)
+		caption_label.add_theme_color_override("font_color", Color(0.75, 0.78, 0.95))
+		line.add_child(caption_label)
 	pill.add_child(line)
 	parent.add_child(pill)
 	return label
@@ -146,16 +210,35 @@ func update_profile():
 	var name_label = get_node_or_null("PlayerNameLabel")
 	if name_label:
 		name_label.text = progression.player_name
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		adjust_text_size(name_label, 520)
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var font_size = adjust_text_size(name_label, NAME_MAX_WIDTH)
 		NameStyle.apply(name_label)
+		# Карандаш — сразу за именем
+		var edit_name_btn = get_node_or_null("EditNameButton")
+		if edit_name_btn:
+			var font = name_label.get_theme_font("font")
+			var width = minf(font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x, NAME_MAX_WIDTH)
+			edit_name_btn.position.x = name_label.position.x + width + 12
 
 	if title_button:
 		var title = NameStyle.title_text()
 		title_button.text = title if title != "" else "Выбрать титул"
 		title_button.add_theme_color_override("font_color", Color(1, 0.78, 0.4) if title != "" else Color(0.75, 0.78, 0.95))
 		title_button.size = Vector2.ZERO
-		title_button.position.x = (size.x - title_button.size.x) / 2.0 if size.x > 0 else 450 - title_button.size.x / 2.0
+
+	if header_level_label:
+		header_level_label.text = "Уровень %d · %s" % [progression.current_level, progression.get_rank()]
+		if progression.is_max_level():
+			header_xp_bar.max_value = 1
+			header_xp_bar.value = 1
+			header_xp_label.text = "максимум"
+		else:
+			header_xp_bar.max_value = progression.get_xp_for_next_level()
+			header_xp_bar.value = progression.current_xp
+			header_xp_label.text = "%d / %d опыта" % [progression.current_xp, progression.get_xp_for_next_level()]
+	if achievements_value_label:
+		var total = Achievements.get_total_progress()
+		achievements_value_label.text = "%d/%d" % [total["unlocked"], total["total"]]
 
 	var avatar_display = get_node_or_null("AvatarDisplay")
 	if avatar_display:
@@ -179,7 +262,7 @@ func update_profile():
 	update_stats_labels()
 
 # Шрифт имени уменьшается, пока имя не влезет в табличку
-func adjust_text_size(label: Label, max_width: float):
+func adjust_text_size(label: Label, max_width: float) -> int:
 	var font = label.get_theme_font("font")
 	if font == null:
 		font = ThemeDB.fallback_font
@@ -189,6 +272,7 @@ func adjust_text_size(label: Label, max_width: float):
 			break
 		font_size -= 2
 	label.add_theme_font_size_override("font_size", font_size)
+	return font_size
 
 func update_game_profile_button():
 	var game = get_node_or_null("/root/Game")
@@ -373,20 +457,10 @@ func create_stats_list():
 	var box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 8)
 	card.add_child(box)
-	level_card["rank"] = make_label("", 30, GOLD, HORIZONTAL_ALIGNMENT_LEFT, false)
-	level_card["rank"].theme_type_variation = &"DisplayLabel"
-	box.add_child(level_card["rank"])
-	var bar = ProgressBar.new()
-	bar.custom_minimum_size = Vector2(0, 16)
-	bar.show_percentage = false
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.add_child(bar)
-	level_card["bar"] = bar
-	level_card["xp"] = make_label("", 22, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
-	box.add_child(level_card["xp"])
-	level_card["next"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT)
+	# Уровень и опыт — в шапке профиля; здесь то, чего там нет: следующая награда и коллекция
+	level_card["next"] = make_label("", 22, GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	box.add_child(level_card["next"])
-	level_card["collection"] = make_label("", 20, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT, false)
+	level_card["collection"] = make_label("", 22, Color(0.8, 0.84, 0.98), HORIZONTAL_ALIGNMENT_LEFT, false)
 	box.add_child(level_card["collection"])
 
 	var grid = GridContainer.new()
@@ -432,19 +506,11 @@ func update_stats_labels():
 	for key in values.keys():
 		stat_values[key].text = values[key]
 
-	level_card["rank"].text = "Уровень %d · %s" % [progression.current_level, progression.get_rank()]
-	var bar: ProgressBar = level_card["bar"]
 	if progression.is_max_level():
-		bar.max_value = 1
-		bar.value = 1
-		level_card["xp"].text = "Максимальный уровень — вы прошли всю игру!"
-		level_card["next"].text = ""
+		level_card["next"].text = "Максимальный уровень — вы прошли всю игру!"
 	else:
-		bar.max_value = progression.get_xp_for_next_level()
-		bar.value = progression.current_xp
-		level_card["xp"].text = "Опыт: %d / %d" % [progression.current_xp, progression.get_xp_for_next_level()]
 		var next = progression.get_next_special_reward()
-		level_card["next"].text = "" if next.is_empty() else \
+		level_card["next"].text = "Наград по уровню больше нет — копите на коллекцию" if next.is_empty() else \
 			"На уровне %d: %s" % [next["level"], ", ".join(next["lines"])]
 	var collection = progression.get_collection_progress()
 	level_card["collection"].text = "Коллекция: %d из %d предметов" % [collection["have"], collection["total"]]

@@ -2,16 +2,18 @@ extends SceneTree
 
 ## Аудит читаемости интерфейса: проходит игровой экран, все разделы профиля, настройки,
 ## «Как играть», «Конфиденциальность», задания и итоги; на каждом экране считает видимые надписи
-## мельче 20 px (с учётом масштаба) и обрезанные многоточием, сохраняет скриншоты и проверяет
+## мельче 20 px (с учётом масштаба), обрезанные многоточием и налезающие друг на друга (надписи,
+## кнопки и плашки одного слоя — окно поверх экрана считается отдельным слоем), сохраняет скриншоты и проверяет
 ## кнопку «Назад» и подсказку на бонусе без монет. Нужно окно (скриншоты), без --headless:
 ##   godot --path . --fixed-fps 60 -s tests/ui_audit.gd -- --out=/путь/к/папке [--zen] [--theme=space]
-## В выводе — строки «AUDIT экран: надписей N, мельче 20: 0, обрезано: 0» и «CHECK …».
+## В выводе — строки «AUDIT экран: надписей N, мельче 20: 0, обрезано: 0, вне экрана: 0, наложений: 0» и «CHECK …».
 ## Сохранения игрока не пострадают: убираются в user://bot_backup/ и возвращаются в конце
 ## (как в tests/bot_play.gd).
 
 var out := ""
 var zen := false
 var theme_id := ""
+var edge := false  # --edge: крайние значения — длинное имя и титул, 500-й уровень, огромные числа
 var steps: Array = []
 var step_i := 0
 var wait := 0
@@ -26,6 +28,7 @@ func _initialize() -> void:
 			"out": out = parts[1]
 			"zen": zen = true
 			"theme": theme_id = parts[1]
+			"edge": edge = true
 	DirAccess.make_dir_recursive_absolute(out)
 	protect_player_saves()
 	SafeFile.save_var("user://settings.save", {"sound": false, "music": false, "vibration": false, "rated": false, "zen_mode": zen})
@@ -60,6 +63,20 @@ func _process(_delta: float) -> bool:
 		prog.name_glow = true
 		prog.item_tiers["avatar:%d" % prog.player_avatar] = 2
 		prog.item_tiers["frame:%d" % prog.player_frame] = 1
+		if edge:
+			prog.player_name = "ЖЖЖЖЖЖЖЖЖЖ"
+			prog.current_level = 500
+			prog.current_xp = 0
+			prog.total_coins = 2000000000
+			prog.best_score = 9999999
+			prog.total_games_played = 99999
+			var longest = ""
+			for def in prog.TITLES:
+				if def["name"].length() > longest.length():
+					longest = def["name"]
+					prog.player_title = def["id"]
+			if not prog.owned_titles.has(prog.player_title):
+				prog.owned_titles.append(prog.player_title)
 		prog.save_progress()
 		game.clear_saved_run()
 		reload_current_scene()
@@ -276,13 +293,103 @@ func audit(screen: String) -> void:
 			var font = node.get_theme_font("font")
 			if font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > node.size.x + 1:
 				cut.append(text.left(40))
-	print("AUDIT %s: надписей %d, мельче 20: %d, обрезано: %d, вне экрана: %d" % [screen, total, small.size(), cut.size(), offscreen.size()])
+	var overlaps = find_overlaps()
+	print("AUDIT %s: надписей %d, мельче 20: %d, обрезано: %d, вне экрана: %d, наложений: %d" % [screen, total, small.size(),
+		cut.size(), offscreen.size(), overlaps.size()])
+	if not overlaps.is_empty():
+		print("  наложения: ", " | ".join(overlaps.slice(0, 8)))
 	if not offscreen.is_empty():
 		print("  вне экрана: ", " | ".join(offscreen))
 	if not small.is_empty():
 		print("  мелкие: ", ", ".join(small.slice(0, 14)))
 	if not cut.is_empty():
 		print("  обрезаны: ", " | ".join(cut))
+
+# Надписи, кнопки и плашки, которые залезают друг на друга. Сравниваются элементы одного слоя
+# (экран, окно поверх него, всплывающая подсказка); родитель и потомок не сравниваются.
+# У однострочной надписи берётся сам текст, а не весь её прямоугольник: широкая надпись
+# с текстом по центру не «налезает» на соседей пустыми краями.
+func find_overlaps() -> Array:
+	var items = []
+	for node in all_nodes(root):
+		var is_pill = node is PanelContainer and node.theme_type_variation == &"Pill"
+		if not (node is Label or node is Button or is_pill):
+			continue
+		if not node.is_visible_in_tree() or node.modulate.a < 0.05:
+			continue
+		if node is Label and node.text.strip_edges() == "":
+			continue
+		if node is Button and node.text.strip_edges() == "" and node.icon == null:
+			continue
+		var rect = visible_rect(node, content_rect(node))
+		if rect.size.x < 2.0 or rect.size.y < 2.0:
+			continue
+		items.append([node, rect, layer_of(node)])
+	var result = []
+	for i in range(items.size()):
+		for j in range(i + 1, items.size()):
+			var a = items[i]
+			var b = items[j]
+			if a[2] != b[2] or a[0].is_ancestor_of(b[0]) or b[0].is_ancestor_of(a[0]):
+				continue
+			var inter: Rect2 = a[1].intersection(b[1])
+			if inter.size.x > 3.0 and inter.size.y > 3.0:
+				result.append("%s ↔ %s" % [describe(a[0]), describe(b[0])])
+	return result
+
+func content_rect(node: Control) -> Rect2:
+	var rect = node.get_global_rect()
+	if node is Label and not node.autowrap_mode and not node.text.contains("\n"):
+		var font = node.get_theme_font("font")
+		var font_size = node.get_theme_font_size("font_size")
+		var scale = node.get_global_transform().get_scale().x
+		var width = minf(font.get_string_size(node.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x * scale, rect.size.x)
+		match node.horizontal_alignment:
+			HORIZONTAL_ALIGNMENT_CENTER:
+				rect.position.x += (rect.size.x - width) / 2.0
+			HORIZONTAL_ALIGNMENT_RIGHT:
+				rect.position.x += rect.size.x - width
+		rect.size.x = width
+		# По высоте — строка текста без межстрочных полей (у крупного счёта они в треть высоты)
+		var line_height = minf(font.get_height(font_size) * scale, rect.size.y)
+		match node.vertical_alignment:
+			VERTICAL_ALIGNMENT_CENTER:
+				rect.position.y += (rect.size.y - line_height) / 2.0
+			VERTICAL_ALIGNMENT_BOTTOM:
+				rect.position.y += rect.size.y - line_height
+		rect.position.y += line_height * 0.14
+		rect.size.y = line_height * 0.72
+	return rect
+
+# Часть прямоугольника, видимая сквозь прокрутку
+func visible_rect(node: Node, rect: Rect2) -> Rect2:
+	var parent = node.get_parent()
+	while parent:
+		if parent is ScrollContainer:
+			rect = rect.intersection(parent.get_global_rect())
+		parent = parent.get_parent()
+	return rect
+
+# Слой: ближайший предок во весь экран (затемнение окна, экран профиля или настроек) или подсказка
+func layer_of(node: Node) -> int:
+	var view = root.get_visible_rect().size
+	var parent = node.get_parent()
+	while parent:
+		if parent is PanelContainer and parent.theme_type_variation == &"ToastPanel":
+			return parent.get_instance_id()
+		if parent is Control and parent.get_global_rect().size.x >= view.x * 0.9 and parent.get_global_rect().size.y >= view.y * 0.9 \
+				and (parent is ColorRect or parent.has_node("Background")):
+			return parent.get_instance_id()
+		parent = parent.get_parent()
+	return 0
+
+func describe(node: Node) -> String:
+	if node is Label or node is Button:
+		var text: String = node.text.replace("\n", " ").left(24)
+		return "«%s»" % text if text != "" else node.name
+	for child in node.find_children("*", "Label", true, false):
+		return "плашка «%s»" % child.text.left(20)
+	return str(node.name)
 
 func in_scroll(node: Node) -> bool:
 	var parent = node.get_parent()
