@@ -637,6 +637,42 @@ AVATARS[36] = svg(
 )
 
 
+# 37. Чемпион — кубок с лицом (только за воскресные испытания)
+d, b = background("#ffb02e", "#7a3a00")
+d += ('<linearGradient id="cup" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6c4"/>'
+      '<stop offset="0.45" stop-color="#f6c03a"/><stop offset="1" stop-color="#b67a0c"/></linearGradient>')
+AVATARS[37] = svg(
+    b + '<circle cx="128" cy="112" r="92" fill="#fff3c9" opacity="0.18"/>'
+    + sparkle(42, 48, 10) + sparkle(216, 60, 8) + sparkle(206, 170, 7, "#fff3c9")
+    + '<path d="M66 64 q-34 4 -26 40 q8 30 44 34" fill="none" stroke="url(#cup)" stroke-width="12" stroke-linecap="round"/>'
+    + '<path d="M190 64 q34 4 26 40 q-8 30 -44 34" fill="none" stroke="url(#cup)" stroke-width="12" stroke-linecap="round"/>'
+    + '<path d="M62 46 H194 V96 Q194 166 128 172 Q62 166 62 96 Z" fill="url(#cup)" stroke="#fff3c9" stroke-width="4"/>'
+    + '<path d="M78 58 V96 Q80 128 104 146" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.55"/>'
+    + '<rect x="114" y="170" width="28" height="24" fill="#b67a0c"/>'
+    + '<rect x="84" y="192" width="88" height="30" rx="8" fill="#5c3604" stroke="#f6c03a" stroke-width="4"/>'
+    + '<path d="M118 200 h20" stroke="#ffd23f" stroke-width="5" stroke-linecap="round"/>'
+    + eyes(108, 148, 100, 11)
+    + '<path d="M110 126 q18 16 36 0" fill="none" stroke="#5c3604" stroke-width="6" stroke-linecap="round"/>'
+    + '<circle cx="90" cy="120" r="8" fill="#ff8a6b" opacity="0.6"/><circle cx="166" cy="120" r="8" fill="#ff8a6b" opacity="0.6"/>',
+    d,
+)
+
+# 38. Календарик — листок календаря с лицом (за неделю испытаний подряд)
+d, b = background("#7a5cff", "#24135c")
+AVATARS[38] = svg(
+    b + stars(0.6)
+    + '<rect x="50" y="58" width="156" height="150" rx="22" fill="#ffffff"/>'
+    + '<path d="M50 80 Q50 58 72 58 H184 Q206 58 206 80 V100 H50 Z" fill="#ff4d5e"/>'
+    + '<rect x="82" y="40" width="14" height="36" rx="7" fill="#c9ccd8" stroke="#6b7392" stroke-width="3"/>'
+    + '<rect x="160" y="40" width="14" height="36" rx="7" fill="#c9ccd8" stroke="#6b7392" stroke-width="3"/>'
+    + "".join(f'<circle cx="{74 + 18 * k}" cy="186" r="5" fill="{"#3fd36a" if k < 6 else "#ffd23f"}"/>' for k in range(7))
+    + eyes(106, 150, 132, 11)
+    + '<path d="M112 158 q16 12 32 0" fill="none" stroke="#1b1f3a" stroke-width="5" stroke-linecap="round"/>'
+    + '<circle cx="88" cy="150" r="7" fill="#ffb3c6" opacity="0.8"/><circle cx="168" cy="150" r="7" fill="#ffb3c6" opacity="0.8"/>'
+    + sparkle(214, 44, 9, "#ffd23f"),
+    d,
+)
+
 def main():
     os.makedirs(AVATAR_DIR, exist_ok=True)
     for avatar_id, content in AVATARS.items():

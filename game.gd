@@ -2006,6 +2006,7 @@ func finish_challenge(success: bool):
 	if run_xp > 0:
 		progression.gain_xp(run_xp)
 	progression.check_titles()
+	Achievements.check_all()
 	collecting_summary = false
 	clear_saved_run()
 	progression.save_progress()
@@ -2035,6 +2036,10 @@ func show_challenge_result(success: bool, progress: int, result: Dictionary):
 		modal_text(box, ChallengePuzzle.goal_text(challenge), 22)
 	for title_id in summary.get("titles", []):
 		modal_text(box, "Новый титул: «%s» — выберите в профиле" % progression.get_title_name(title_id), 26, GOLD)
+	for entry in summary["achievements"]:
+		var def = Achievements.get_definition(entry["id"])
+		modal_text(box, "Достижение «%s» — %s, +%d монет" % [def.get("title", ""), Achievements.get_tier_label(def, entry["tier"]),
+			entry["coins"]], 24, Achievements.get_tier_color(entry["tier"]))
 	add_level_progress(box)
 	add_reward_cards(box)
 

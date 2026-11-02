@@ -27,6 +27,7 @@ var best_streak := 0
 var last_done_date := ""
 var active := false        # Game запускает испытание вместо обычной партии
 var coins_spent := 0       # всего монет на повторы
+var sundays_done := 0      # пройдено воскресных (самых трудных) испытаний
 var puzzle: Dictionary = {}
 
 var _builder = null  # ChallengePuzzle.Builder, пока задача строится
@@ -111,6 +112,8 @@ func finish(success: bool, progress: int) -> Dictionary:
 			streak = 1
 		best_streak = maxi(best_streak, streak)
 		last_done_date = date
+		if int(puzzle.get("day", 0)) == 6:
+			sundays_done += 1
 		result["xp"] = XP_REWARD[clampi(int(puzzle.get("day", 0)), 0, XP_REWARD.size() - 1)]
 		if total_done in MILESTONES:
 			result["milestone"] = total_done
@@ -137,6 +140,7 @@ func save_state() -> void:
 		"date": date, "attempts": attempts, "done_today": done_today, "best_today": best_today,
 		"total_done": total_done, "streak": streak, "best_streak": best_streak,
 		"last_done_date": last_done_date, "active": active, "coins_spent": coins_spent,
+		"sundays_done": sundays_done,
 		"puzzle": puzzle,
 	})
 
@@ -152,5 +156,6 @@ func load_state() -> void:
 	last_done_date = data.get("last_done_date", "")
 	active = data.get("active", false)
 	coins_spent = data.get("coins_spent", 0)
+	sundays_done = data.get("sundays_done", 0)
 	var saved = data.get("puzzle", {})
 	puzzle = saved if saved is Dictionary else {}

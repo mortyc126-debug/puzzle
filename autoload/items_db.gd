@@ -234,6 +234,21 @@ var frames_data = {
 		"texture": "res://assets/frames/frame_24.svg",
 		"unlock": {"type": "level", "level": 200},
 	},
+	# Только за достижения — не продаются: цель для тех, кто уже собрал всё остальное
+	25: {
+		"name": "Лавровая",
+		"rarity": "LEGENDARY",
+		"description": "Золото и лавры за тридцать пройденных испытаний дня. Купить нельзя — только заслужить.",
+		"texture": "res://assets/frames/frame_25.svg",
+		"unlock": {"type": "achievement", "id": "challenge_days", "tier": 3},
+	},
+	26: {
+		"name": "Сокровищница",
+		"rarity": "EPIC",
+		"description": "Корона и россыпь камней для того, кто довёл до золота пять аватарок или рамок.",
+		"texture": "res://assets/frames/frame_26.svg",
+		"unlock": {"type": "achievement", "id": "golden", "tier": 2},
+	},
 }
 
 # === АВАТАРКИ ===
@@ -456,6 +471,18 @@ var avatars_data = {
 		"rarity": "LEGENDARY",
 		"description": "Покоритель космоса: приходит вместе с самой красивой темой на сотом уровне.",
 		"unlock": {"type": "level", "level": 100},
+	},
+	37: {
+		"name": "Чемпион",
+		"rarity": "EPIC",
+		"description": "Кубок для победителя пяти воскресных испытаний — самых трудных за неделю.",
+		"unlock": {"type": "achievement", "id": "sunday", "tier": 2},
+	},
+	38: {
+		"name": "Календарик",
+		"rarity": "RARE",
+		"description": "Семь зелёных точек подряд: неделя испытаний дня без единого пропуска.",
+		"unlock": {"type": "achievement", "id": "challenge_streak", "tier": 2},
 	},
 }
 

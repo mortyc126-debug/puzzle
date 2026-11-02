@@ -75,6 +75,18 @@ const LIST = [
 	{"id": "zen", "icon": "🍃", "title": "Дзен", "desc": "Сыграйте %s партий в спокойном режиме",
 		"stat": "zen_games", "tiers": [5, 25, 100]},
 
+	# Испытание дня и оформление: цели для тех, кто уже собрал предметы за уровни
+	{"id": "challenge_days", "icon": "🏅", "title": "Испытатель", "desc": "Пройдите испытание дня %s раз",
+		"stat": "challenge_days", "tiers": [3, 10, 30, 100, 250]},
+	{"id": "challenge_streak", "icon": "📅", "title": "Без пропусков", "desc": "Пройдите испытание дня %s дней подряд",
+		"stat": "challenge_best_streak", "tiers": [3, 7, 14, 30]},
+	{"id": "sunday", "icon": "🏆", "title": "Воскресный мастер", "desc": "Пройдите воскресное испытание — самое трудное за неделю — %s раз",
+		"stat": "challenge_sundays", "tiers": [1, 5, 20]},
+	{"id": "golden", "icon": "👑", "title": "Золотая коллекция", "desc": "Улучшите до золотой версии %s аватарок или рамок",
+		"stat": "gold_items", "tiers": [1, 5, 15, 30]},
+	{"id": "titled", "icon": "🎖️", "title": "Именитый", "desc": "Соберите %s титулов",
+		"stat": "titles_owned", "tiers": [3, 8, 15]},
+
 	# Разовые испытания
 	{"id": "double", "icon": "✌️", "title": "Дубль", "desc": "Очистите 2 линии одним ходом",
 		"stat": "max_combo", "tiers": [2]},
@@ -99,6 +111,9 @@ func _ready() -> void:
 	# Достижения засчитываются в конце партии, а не посреди неё
 	Events.game_finished.connect(func(_score, _used): check_all())
 	Progression.daily_reward_claimed.connect(func(_day, _reward): check_all())
+	# Покупки в профиле (золото, титулы) — сразу, но после того, как покупка закончилась
+	Progression.item_upgraded.connect(func(_type, _id, _tier): check_all.call_deferred())
+	Progression.name_style_changed.connect(func(): check_all.call_deferred())
 	check_all()
 
 func get_definition(achievement_id: String) -> Dictionary:

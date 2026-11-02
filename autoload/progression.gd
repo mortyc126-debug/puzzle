@@ -969,6 +969,16 @@ func get_stat(stat_id: String) -> int:
 			return Challenge.total_done
 		"challenge_best_streak":
 			return Challenge.best_streak
+		"challenge_sundays":
+			return Challenge.sundays_done
+		"gold_items":
+			var gold = 0
+			for tier in item_tiers.values():
+				if int(tier) >= 2:
+					gold += 1
+			return gold
+		"titles_owned":
+			return owned_titles.size()
 		"pieces_placed":
 			return total_pieces_placed
 		"max_streak":

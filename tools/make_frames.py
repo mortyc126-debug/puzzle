@@ -342,6 +342,37 @@ FRAMES[24] = build([(0, "#3a4cff"), (0.35, "#1a1060"), (0.65, "#3d0f6e"), (1, "#
                                 + _planet))
 
 
+# 25 Лавровая — легендарная, только за 30 дней испытаний: золото и лавровые ветви по бокам, звезда сверху
+def laurel_branch(side):
+    """Ветвь вдоль левой (side=-1) или правой (side=1) стороны: от низа к верху, листья парами."""
+    x = 128 + side * (128 - MID)
+    out = f'<path d="M{x:.1f} 214 Q{x - side * 6:.1f} 128 {x:.1f} 42" fill="none" stroke="#2f6b34" stroke-width="3"/>'
+    for k in range(7):
+        y = 206 - k * 26
+        out += leaf(x, y, (-120 if side < 0 else -60) - side * 4, "#6cc46f")
+        out += leaf(x, y - 11, (-60 if side < 0 else -120) + side * 4, "#4fae5a")
+    return out
+
+
+FRAMES[25] = build([(0, "#fff6c4"), (0.35, "#f6c03a"), (0.65, "#b67a0c"), (1, "#ffe27e")], glow_color="#ffe27e", glow_strength=0.7,
+                   edge="#fffbe6", shadow="#5c3604", bottom=("#5c3604", "#3fd36a", "#fff3c9"),
+                   extra_front=laurel_branch(-1) + laurel_branch(1)
+                   + '<circle cx="128" cy="12.5" r="11" fill="#5c3604" stroke="#fff3c9" stroke-width="2"/>'
+                   + sparkle(128, 12.5, 9, "#ffe27e"))
+
+# 26 Сокровищница — эпическая, за золотую коллекцию: золотое кольцо, усыпанное разноцветными камнями
+_treasure_colors = ["#ff3b5c", "#3fd3e6", "#00e676", "#b388ff", "#ffd23f", "#ff8a2b"]
+_treasure = ""
+for _i in range(16):
+    _a = math.tau * _i / 16 + math.tau / 32
+    _x = 128 + (128 - MID) * math.cos(_a) / max(abs(math.cos(_a)), abs(math.sin(_a)))
+    _y = 128 + (128 - MID) * math.sin(_a) / max(abs(math.cos(_a)), abs(math.sin(_a)))
+    _treasure += (f'<circle cx="{_x:.1f}" cy="{_y:.1f}" r="5.2" fill="{_treasure_colors[_i % 6]}" stroke="#fff3c9" stroke-width="1.6"/>'
+                  f'<circle cx="{_x - 1.6:.1f}" cy="{_y - 1.6:.1f}" r="1.6" fill="#ffffff" opacity="0.85"/>')
+FRAMES[26] = build([(0, "#fff6c4"), (0.4, "#f6c03a"), (0.7, "#b67a0c"), (1, "#ffe27e")], glow_color="#ffd23f", glow_strength=0.8,
+                   edge="#fffbe6", shadow="#5c3604", corner_gem="#ff3b5c", bottom=("#5c3604", "#3fd3e6", "#fff3c9"),
+                   extra_defs=GOLD_DEFS, extra_front=_treasure + crown(128, 14, "gold"))
+
 def main():
     os.makedirs(FRAME_DIR, exist_ok=True)
     for frame_id, content in FRAMES.items():

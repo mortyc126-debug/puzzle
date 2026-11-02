@@ -79,8 +79,8 @@
 > • Три новых задания каждый день и испытание дня — одна задача на всех: готовое поле, известные фигуры и цель за 36 ходов. В понедельник полегче, в воскресенье — проверка мастерства.
 > • Честные фигуры: в каждом наборе есть фигура, которую можно поставить.
 > • 500 уровней, звания от «Новичка» до «Легенды».
-> • 27 достижений, 100 ступеней.
-> • 36 аватарок, 24 рамки, 11 эффектов очистки и 25 цветов блоков.
+> • 32 достижения, 119 ступеней.
+> • 38 аватарок, 26 рамок, 11 эффектов очистки и 25 цветов блоков. Некоторые нельзя купить — только заслужить.
 > • Новая награда на каждом уровне со 2-го по 40-й.
 > • 11 тем — от Классики до Космоса: Сакура, Лава, Кристаллы, Северное сияние, Золото… У каждой свои блоки и живой фон.
 > • Бонусы: молоток, поворот фигуры, новые фигуры, отмена хода.
@@ -93,7 +93,7 @@
 **English (если понадобится):**
 > Short: Place blocks, clear lines. No ads, works offline, fair pieces.
 >
-> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. A daily challenge with the same puzzle for everyone, shiny and golden avatar and frame upgrades, titles and name colors. 500 levels with a new reward on every level from 2 to 40, 27 achievements with 100 tiers, 36 avatars, 24 frames, 11 line-clear effects, 25 block colors, 11 themes from Classic to Space (Sakura, Lava, Crystals, Northern Lights, Gold and more).
+> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. A daily challenge with the same puzzle for everyone, shiny and golden avatar and frame upgrades, titles and name colors. 500 levels with a new reward on every level from 2 to 40, 32 achievements with 119 tiers, 38 avatars, 26 frames, 11 line-clear effects, 25 block colors, 11 themes from Classic to Space (Sakura, Lava, Crystals, Northern Lights, Gold and more).
 
 ## Чек-лист перед загрузкой
 
