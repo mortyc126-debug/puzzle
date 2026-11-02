@@ -16,6 +16,7 @@ const SAVE_VERSION = 3
 const AUTOSAVE_DELAY_MS = 3000
 const MAX_COLOR_SLOTS = 8
 const MAX_LEVEL = 500
+const STARTER_COINS = 50
 const SLOT_LEVELS = [10, 20, 30, 40]  # +1 слот цветов (4 → 8)
 
 # Звания: уровень, с которого действует, и название
@@ -125,8 +126,13 @@ func _notification(what: int) -> void:
 # Награда за уровень: монеты (больше на каждом 5-м и 25-м), слоты цветов, звания и предметы.
 # Предметы за уровень описаны у самих предметов (ItemsDB, темы) через unlock {"type": "level"}.
 
-# Опыт, нужный для перехода с уровня level на следующий
+# Опыт, нужный для перехода с уровня level на следующий. Первые уровни короче:
+# даже слабая первая партия должна принести уровень и награду (симуляция новичков).
+const FIRST_LEVELS_XP = [60, 80, 100, 110]
+
 func get_xp_for_level(level: int) -> int:
+	if level >= 1 and level <= FIRST_LEVELS_XP.size():
+		return FIRST_LEVELS_XP[level - 1]
 	return 120 + 10 * (level - 1)
 
 func get_xp_for_next_level() -> int:
@@ -480,6 +486,8 @@ func load_progress():
 	var save_data = SafeFile.load_dict(SAVE_PATH)
 	if save_data.is_empty():
 		best_score = old_best
+		# Первый запуск: подарок новичку, чтобы сразу попробовать бонусы
+		total_coins = STARTER_COINS
 		return
 
 	var version = save_data.get("save_version", 1)

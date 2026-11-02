@@ -26,6 +26,7 @@ const ZEN_COIN_RATE = 0.5    # В спокойном режиме монет з�
 const ZEN_REFRESH_SHARE = 0.4  # Какую долю занятых клеток убирает «освежение» поля
 const RUN_SAVE_PATH = "user://run.save"
 const CONTINUE_BASE_COST = 100
+const FREE_CONTINUE_GAMES = 2  # в стольких первых партиях одно продолжение бесплатно
 const PLAY_TIME_STEP = 10.0
 
 var block_scene = preload("res://block.tscn")
@@ -617,10 +618,14 @@ func spawn_blocks():
 	# Ход из прошлого набора отменить уже нельзя
 	last_move = null
 
-	# Первые партии легче: резкий рост сложности — частая причина бросить игру
-	var ramp = clampf(0.4 + 0.15 * progression.total_games_played, 0.4, 1.0)
+	# Первые партии легче: резкий рост сложности — частая причина бросить игру.
+	# В первых трёх партиях генератор ещё и помогает (см. PieceGenerator.generate_set).
+	var games_played = progression.total_games_played
+	var ramp = clampf(0.4 + 0.15 * games_played, 0.4, 1.0)
 	var difficulty = PieceGenerator.difficulty_for_score(score) * ramp
-	var shapes = generator.generate_set(grid.board, difficulty)
+	# Помощь: полная в первой партии, половина во второй, дальше — как у всех
+	var assist = [1.0, 0.5][games_played] if games_played < 2 else 0.0
+	var shapes = generator.generate_set(grid.board, difficulty, 3, assist)
 	var colors = ThemeManager.get_spawn_color_indices()
 	for i in range(shapes.size()):
 		create_block(shapes[i], colors[randi() % colors.size()], i)
@@ -1300,28 +1305,39 @@ func show_game_over():
 	sound_game_over.play()
 	GameSettings.vibrate(120)
 
-	if progression.total_coins >= continue_cost:
+	if is_free_continue() or progression.total_coins >= continue_cost:
 		show_continue_screen()
 	else:
 		show_final_game_over()
 
+# В первых партиях одно продолжение бесплатно: новичок не должен проигрывать за минуту
+func is_free_continue() -> bool:
+	return progression.total_games_played < FREE_CONTINUE_GAMES and continue_used_count == 0
+
 func show_continue_screen():
+	var free = is_free_continue()
 	# «Назад» здесь ничего не делает: случайно сдаться обиднее, чем нажать кнопку
 	var box = open_modal(540, func(): pass)
 	modal_title(box, "ПРОДОЛЖИТЬ?", Color.YELLOW, 52)
 	modal_text(box, "Очки: %d" % score, 34, Color.WHITE)
-	modal_text(box, "Три новые фигуры за %d монет" % continue_cost, 30, GOLD)
-	modal_text(box, "У вас %d монет. Монеты и опыт за партию начислятся, когда она закончится." % progression.total_coins, 22)
+	if free:
+		modal_text(box, "Три новые фигуры — бесплатно", 30, GOLD)
+		modal_text(box, "Подарок новичку: в первых партиях одно продолжение бесплатно. Потом оно стоит монет.", 22)
+	else:
+		modal_text(box, "Три новые фигуры за %d монет" % continue_cost, 30, GOLD)
+		modal_text(box, "У вас %d монет. Монеты и опыт за партию начислятся, когда она закончится." % progression.total_coins, 22)
 	modal_buttons(box, [
 		["СДАТЬСЯ", _on_give_up.bind(box)],
 		["ПРОДОЛЖИТЬ", _on_continue_game.bind(box), &"GoldButton"],
 	])
 
 func _on_continue_game(box):
-	if not progression.spend_coins(continue_cost):
+	var free = is_free_continue()
+	if not free and not progression.spend_coins(continue_cost):
 		return
 	continue_used_count += 1
-	continue_cost *= 2
+	if not free:
+		continue_cost *= 2
 	Sfx.play("coin", 0.9)
 	used_powerups = true
 	progression.record_continue()
@@ -1682,6 +1698,8 @@ func show_tutorial_if_needed():
 	tutorial_label = make_label("Перетащите фигуру на поле.\nЗаполните ряд или столбец — он исчезнет.",
 		28, Color.WHITE, Vector2(50, board_center_y - 50), Vector2(800, 100), HORIZONTAL_ALIGNMENT_CENTER, 5)
 	tutorial_label.z_index = 30
+	if progression.total_games_played == 0:
+		show_toast("Подарок новичку: %d монет на бонусы внизу экрана" % Progression.STARTER_COINS, GOLD)
 
 func hide_tutorial():
 	if tutorial_label and is_instance_valid(tutorial_label):

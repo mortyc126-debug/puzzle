@@ -3,8 +3,9 @@ extends SceneTree
 ## Игрок-персона для симуляции плейтеста (docs/PLAYTEST.md): играет в настоящую игру со своим стилем
 ## и в конце печатает PERSONA_RESULT {…} — статистику по каждой партии.
 ##   godot --headless --path . --fixed-fps 60 -s tests/persona_bot.gd -- --persona=имя --games=8 --skill=0.5
-##     --powerups=0.05 --continue=half|always|never --zen [--zen-moves=160] --interrupt=40
+##     --powerups=0.05 --continue=half|always|never|free --zen [--zen-moves=160] --interrupt=40
 ## skill 0..1 — насколько аккуратно игрок ставит фигуры; powerups — вероятность бонуса на ходу;
+## continue=free — продолжает, только когда это бесплатно (подарок новичку);
 ## interrupt — каждые N ходов «звонок»: партия сохраняется, игра перезапускается, бот сверяет поле.
 ## ВНИМАНИЕ: бот играет на обычных сохранениях игры. Запускайте его на копии проекта с другим
 ## config/name в project.godot — иначе он продолжит ваш прогресс.
@@ -230,7 +231,9 @@ func handle_modal(game) -> void:
 		press(list, "НОВАЯ ПАРТИЯ")
 		wait_frames = 4
 	elif "ПРОДОЛЖИТЬ" in texts:
-		var go_on = continue_policy == "always" or (continue_policy == "half" and games.size() % 2 == 0)
+		var free = game.has_method("is_free_continue") and game.is_free_continue()
+		var go_on = continue_policy == "always" or (continue_policy == "half" and games.size() % 2 == 0) \
+			or (continue_policy == "free" and free)
 		if go_on:
 			current["continues"] += 1
 		press(list, "ПРОДОЛЖИТЬ" if go_on else "СДАТЬСЯ")
