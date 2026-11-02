@@ -203,7 +203,7 @@ func update_game_profile_button():
 const SECTIONS = [
 	[TAB_STATS, "Статистика", "chart", ""],
 	[TAB_REWARDS, "Путь наград", "gift", ""],
-	[TAB_COLORS, "Цвета", "palette", "colors"],
+	[TAB_COLORS, "Кубики", "cube", "skins|colors"],
 	[TAB_THEMES, "Темы", "layers", "themes"],
 	[TAB_EFFECTS, "Эффекты", "sparkle", "effects"],
 	[TAB_AVATARS, "Аватарки", "user", "avatars"],
@@ -283,7 +283,10 @@ func update_tab_titles():
 				button.remove_theme_stylebox_override(style)
 		button.add_theme_color_override("font_color", GOLD if selected else Color(0.86, 0.88, 1))
 		button.add_theme_color_override("icon_normal_color", GOLD if selected else Color(0.86, 0.88, 1))
-		section_buttons[entry[0]][1].visible = entry[3] != "" and flags.get(entry[3], false)
+		var has_new = false
+		for flag in entry[3].split("|", false):
+			has_new = has_new or flags.get(flag, false)
+		section_buttons[entry[0]][1].visible = has_new
 
 # Открытая вкладка считается просмотренной
 func _on_tab_changed(tab: int):
@@ -296,6 +299,8 @@ func _on_tab_changed(tab: int):
 			category = "effects"
 		TAB_COLORS:
 			category = "colors"
+			progression.mark_items_as_seen("skins")
+			create_skins_section()  # превью кубиков — на текущей теме, а её могли сменить
 		TAB_AVATARS:
 			category = "avatars"
 		TAB_FRAMES:
@@ -319,6 +324,7 @@ func auto_open_new_items_tab():
 		["avatars", TAB_AVATARS],
 		["frames", TAB_FRAMES],
 		["effects", TAB_EFFECTS],
+		["skins", TAB_COLORS],
 		["colors", TAB_COLORS],
 	]
 	for pair in order:
@@ -440,10 +446,80 @@ func update_stats_labels():
 
 # === ЦВЕТА БЛОКОВ (тема «Классика») ===
 
+# === КУБИКИ ===
+# Вид блоков поверх любой темы: сверху раздела «Кубики», под ним — цвета (для «Классики»)
+func create_skins_section():
+	var content = get_node_or_null(PATH_COLORS)
+	if content == null:
+		return
+	var section = content.get_node_or_null("SkinsSection")
+	if section == null:
+		section = VBoxContainer.new()
+		section.name = "SkinsSection"
+		section.add_theme_constant_override("separation", 12)
+		content.add_child(section)
+		content.move_child(section, 0)
+		var colors_header = make_label("ЦВЕТА БЛОКОВ", 22, Color(0.64, 0.67, 0.85), HORIZONTAL_ALIGNMENT_LEFT, false)
+		colors_header.name = "ColorsHeader"
+		content.add_child(colors_header)
+		content.move_child(colors_header, 1)
+	for child in section.get_children():
+		child.queue_free()
+	section.add_child(make_label("ВИД КУБИКОВ — поверх любой темы", 22, Color(0.64, 0.67, 0.85), HORIZONTAL_ALIGNMENT_LEFT, false))
+	var grid = GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	section.add_child(grid)
+	for skin_id in [0] + ItemsDB.get_skin_ids():
+		grid.add_child(make_skin_card(skin_id))
+	section.add_child(HSeparator.new())
+
+func make_skin_card(skin_id: int) -> Control:
+	var data = ItemsDB.get_skin_data(skin_id)
+	var unlocked = skin_id == 0 or progression.is_unlocked("skin", skin_id)
+	var selected = skin_id == progression.player_skin
+	var card = Button.new()
+	card.custom_minimum_size = Vector2(262, 262)
+	if selected:
+		card.add_theme_stylebox_override("normal", make_highlight_box(GOLD))
+	card.pressed.connect(_on_skin_clicked.bind(skin_id))
+	var preview = ThemePreview.new()
+	preview.position = Vector2(16, 12)
+	preview.size = Vector2(230, 160)
+	preview.set_theme_resource(ThemeManager.with_skin(ThemeManager.current, skin_id), not unlocked)
+	card.add_child(preview)
+	var name_text = data.get("name", "Как в теме") if skin_id > 0 else "Как в теме"
+	var rarity = data.get("rarity", "COMMON")
+	var title = make_label(name_text, 24, ItemsDB.get_rarity_color(rarity) if skin_id > 0 else Color.WHITE)
+	title.position = Vector2(8, 176)
+	title.size = Vector2(246, 34)
+	card.add_child(title)
+	var status = "Выбрано" if selected else ("Нажмите, чтобы выбрать" if unlocked else "")
+	if not unlocked:
+		var price = progression.get_price("skin", skin_id)
+		status = "%d монет или ур. %d" % [price, int(data.get("unlock", {}).get("level", 0))] if price > 0 \
+			else ItemsDB.get_unlock_text(data.get("unlock", {}))
+	var status_label = make_label(status, 20, GOLD if selected or (not unlocked and progression.get_price("skin", skin_id) > 0)
+		else Color(0.8, 0.82, 0.95))
+	status_label.position = Vector2(8, 210)
+	status_label.size = Vector2(246, 48)
+	card.add_child(status_label)
+	return card
+
+func _on_skin_clicked(skin_id: int):
+	if skin_id != 0 and not progression.is_unlocked("skin", skin_id):
+		show_locked_card("skin", skin_id)
+		return
+	progression.select_skin(skin_id)
+	create_skins_section()
+
 func create_colors_list():
 	var content = get_node_or_null(PATH_COLORS)
 	if content == null:
 		return
+	if content.get_node_or_null("SkinsSection") == null:
+		create_skins_section()
 	var slots_label = content.get_node_or_null("SlotsLabel")
 	var active_container = content.get_node_or_null("ActiveSlots")
 	var all_colors_container = content.get_node_or_null("AllColors")
@@ -1160,6 +1236,14 @@ func show_locked_card(item_type: String, item_id):
 			effect_preview.setup(data.get("kind", "sparks"), ThemeManager.get_block_color(int(item_id)))
 			preview = effect_preview
 			preview.custom_minimum_size = Vector2(380, 220)
+		"skin":
+			var skin = ItemsDB.get_skin_data(int(item_id))
+			title = "Кубики «%s»" % skin.get("name", "?")
+			description = skin.get("description", "") + " Фон и поле остаются от темы."
+			var skin_preview = ThemePreview.new()
+			skin_preview.set_theme_resource(ThemeManager.with_skin(ThemeManager.current, int(item_id)), false)
+			preview = skin_preview
+			preview.custom_minimum_size = Vector2(380, 230)
 		"color":
 			title = "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
 			description = "Цвет блоков для темы «Классика». Включается во вкладке «Цвета»."
@@ -1217,11 +1301,12 @@ func _on_buy(item_type: String, item_id, box):
 	if not progression.buy_item(item_type, item_id):
 		return
 	close_popup(box)
-	var category = {"avatar": "avatars", "frame": "frames", "theme": "themes", "effect": "effects", "color": "colors"}.get(item_type, "")
+	var category = {"avatar": "avatars", "frame": "frames", "theme": "themes", "effect": "effects", "color": "colors",
+		"skin": "skins"}.get(item_type, "")
 	progression.mark_items_as_seen(category)
 	var rebuild = {"avatar": [TAB_AVATARS, create_avatars_list], "frame": [TAB_FRAMES, create_frames_list],
 		"theme": [TAB_THEMES, create_themes_list], "effect": [TAB_EFFECTS, create_effects_list],
-		"color": [TAB_COLORS, create_colors_list]}.get(item_type, [])
+		"color": [TAB_COLORS, create_colors_list], "skin": [TAB_COLORS, create_skins_section]}.get(item_type, [])
 	if not rebuild.is_empty() and built_tabs.has(rebuild[0]):
 		rebuild[1].call()
 	if built_tabs.has(TAB_REWARDS):

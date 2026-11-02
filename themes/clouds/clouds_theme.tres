@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://themes/clouds/clouds_background.tscn" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "clouds"
+display_name = "Облака"
+description = "Небо как в аниме: пушистые облака, лучи солнца, птицы. Блоки с чётким контуром и бликом."
+rarity = "RARE"
+unlock = {
+"level": 47,
+"type": "level"
+}
+background_color = Color(0.24, 0.55, 1.0, 1)
+background_scene = ExtResource("2_bg")
+board_color = Color(1, 1, 1, 0.32)
+cell_color = Color(1, 1, 1, 0.4)
+board_corner_radius = 20.0
+board_padding = 8.0
+line_highlight_color = Color(1, 1, 1, 0.3)
+block_style = 14
+use_player_colors = false
+palette = PackedColorArray(1, 0.45, 0.55, 1, 0.35, 0.62, 1, 1, 1, 0.82, 0.3, 1, 0.4, 0.85, 0.55, 1, 0.75, 0.5, 1, 1, 1, 0.6, 0.3, 1)
+block_corner_radius = 9.0
+glow_strength = 0.5
+ghost_invalid_color = Color(1, 0.3, 0.4, 0.35)
+flash_color = Color(1, 1, 1, 1)
+particle_color = Color(1, 1, 0.85, 1)
+accent_color = Color(1, 0.85, 0.35, 1)

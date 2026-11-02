@@ -81,6 +81,7 @@ var has_new_items = {
 	"themes": false,
 	"effects": false,
 	"colors": false,
+	"skins": false,
 	"music": false,
 	"daily": false
 }
@@ -97,9 +98,11 @@ var unlocked_themes = []
 var unlocked_music = []
 var unlocked_effects = []
 var unlocked_colors = []
+var unlocked_skins = []
 var player_avatar = 1
 var player_frame = 1
 var player_effect = 1  # Эффект очистки линий (ItemsDB.effects_data)
+var player_skin = 0    # Кубики (ItemsDB.skins_data), 0 — как в теме
 var player_name = "Игрок"
 var active_theme = "classic"
 
@@ -123,6 +126,7 @@ func _ready() -> void:
 		ThemeManager.apply_theme(active_theme)
 	else:
 		active_theme = "classic"
+	ThemeManager.apply_skin(player_skin)
 
 	check_daily_reward()
 
@@ -300,6 +304,8 @@ func get_item_unlock(item_type: String, item_id) -> Dictionary:
 			return ItemsDB.get_frame_data(int(item_id)).get("unlock", {})
 		"effect":
 			return ItemsDB.get_effect_data(int(item_id)).get("unlock", {})
+		"skin":
+			return ItemsDB.get_skin_data(int(item_id)).get("unlock", {})
 		"theme":
 			var theme = ThemeManager.get_theme_by_id(str(item_id))
 			return theme.unlock if theme else {}
@@ -315,6 +321,8 @@ func get_item_rarity(item_type: String, item_id) -> String:
 			return ItemsDB.get_frame_data(int(item_id)).get("rarity", "COMMON")
 		"effect":
 			return ItemsDB.get_effect_data(int(item_id)).get("rarity", "COMMON")
+		"skin":
+			return ItemsDB.get_skin_data(int(item_id)).get("rarity", "COMMON")
 		"theme":
 			var theme = ThemeManager.get_theme_by_id(str(item_id))
 			return theme.rarity if theme else "COMMON"
@@ -547,6 +555,8 @@ func is_unlocked(item_type: String, item_id) -> bool:
 			return unlocked_themes.has(str(item_id))
 		"effect":
 			return unlocked_effects.has(int(item_id))
+		"skin":
+			return unlocked_skins.has(int(item_id))
 		"color":
 			return unlocked_colors.has(int(item_id))
 	return false
@@ -570,6 +580,9 @@ func unlock_item(item_type: String, item_id, notify: bool = true) -> bool:
 		"effect":
 			unlocked_effects.append(int(item_id))
 			category = "effects"
+		"skin":
+			unlocked_skins.append(int(item_id))
+			category = "skins"
 		"color":
 			unlocked_colors.append(int(item_id))
 			category = "colors"
@@ -604,14 +617,16 @@ func get_all_items() -> Array:
 		items.append({"type": "effect", "id": effect_id, "unlock": ItemsDB.get_effect_data(effect_id).get("unlock", {})})
 	for color_index in ItemsDB.get_color_ids():
 		items.append({"type": "color", "id": color_index, "unlock": ItemsDB.get_color_unlock(color_index)})
+	for skin_id in ItemsDB.get_skin_ids():
+		items.append({"type": "skin", "id": skin_id, "unlock": ItemsDB.get_skin_data(skin_id).get("unlock", {})})
 	return items
 
 # Сколько предметов собрано из всех: аватарки, рамки, темы, эффекты, цвета
 func get_collection_progress() -> Dictionary:
 	var total = ItemsDB.get_avatar_ids().size() + ItemsDB.get_frame_ids().size() + ThemeManager.themes.size() \
-		+ ItemsDB.get_effect_ids().size() + ItemsDB.get_color_ids().size()
+		+ ItemsDB.get_effect_ids().size() + ItemsDB.get_color_ids().size() + ItemsDB.get_skin_ids().size()
 	var have = unlocked_avatars.size() + unlocked_frames.size() + unlocked_themes.size() \
-		+ unlocked_effects.size() + unlocked_colors.size()
+		+ unlocked_effects.size() + unlocked_colors.size() + unlocked_skins.size()
 	return {"have": mini(have, total), "total": total}
 
 func _unlock_matches(unlock: Dictionary, unlock_type: String, key) -> bool:
@@ -652,6 +667,8 @@ func sync_unlocks() -> void:
 		player_frame = 1
 	if not is_unlocked("effect", player_effect):
 		player_effect = 1
+	if player_skin != 0 and not is_unlocked("skin", player_skin):
+		player_skin = 0
 	# В слотах могут стоять только открытые цвета
 	var allowed_colors = []
 	for color_index in active_colors:
@@ -673,9 +690,19 @@ func get_item_label(item_type: String, item_id) -> String:
 			return "Тема «%s»" % (theme.display_name if theme else str(item_id))
 		"effect":
 			return "Эффект «%s»" % ItemsDB.get_effect_data(int(item_id)).get("name", "?")
+		"skin":
+			return "Кубики «%s»" % ItemsDB.get_skin_data(int(item_id)).get("name", "?")
 		"color":
 			return "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
 	return "Награда"
+
+func select_skin(skin_id: int) -> bool:
+	if skin_id != 0 and not is_unlocked("skin", skin_id):
+		return false
+	player_skin = skin_id
+	ThemeManager.apply_skin(skin_id)
+	request_save()
+	return true
 
 func select_theme(theme_id: String) -> bool:
 	if not is_unlocked("theme", theme_id):
@@ -709,6 +736,8 @@ func save_progress():
 		"unlocked_themes": unlocked_themes,
 		"unlocked_music": unlocked_music,
 		"unlocked_effects": unlocked_effects,
+		"unlocked_skins": unlocked_skins,
+		"player_skin": player_skin,
 		"unlocked_colors": unlocked_colors,
 		"player_effect": player_effect,
 		"max_color_slots": max_color_slots,
@@ -785,6 +814,8 @@ func load_progress():
 	unlocked_themes = SafeFile.get_array(save_data, "unlocked_themes", [])
 	unlocked_music = SafeFile.get_array(save_data, "unlocked_music", [])
 	unlocked_effects = SafeFile.get_array(save_data, "unlocked_effects", [])
+	unlocked_skins = SafeFile.get_array(save_data, "unlocked_skins", [])
+	player_skin = SafeFile.get_int(save_data, "player_skin", 0, 0)
 	unlocked_colors = SafeFile.get_array(save_data, "unlocked_colors", [])
 	player_effect = SafeFile.get_int(save_data, "player_effect", 1, 0)
 	max_color_slots = SafeFile.get_int(save_data, "max_color_slots", 4, 0)
@@ -1018,6 +1049,8 @@ func get_stat(stat_id: String) -> int:
 			return unlocked_themes.size()
 		"frames_unlocked":
 			return unlocked_frames.size()
+		"skins_unlocked":
+			return unlocked_skins.size()
 		"missions_done":
 			return missions_done
 		"full_days":

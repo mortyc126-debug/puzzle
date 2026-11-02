@@ -29,6 +29,7 @@ var fx_layer: Node2D
 
 func _ready() -> void:
 	ThemeManager.theme_changed.connect(_on_theme_changed)
+	ThemeManager.blocks_changed.connect(queue_redraw)
 	fx_layer = Node2D.new()
 	fx_layer.z_index = 5
 	add_child(fx_layer)
@@ -54,6 +55,7 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	var theme: BlockTheme = ThemeManager.current
+	var blocks: BlockTheme = ThemeManager.blocks  # вид блоков: тема или выбранные кубики
 	BlockRenderer.draw_board(self, Rect2(Vector2.ZERO, get_pixel_size()), theme)
 
 	for y in range(GRID_SIZE):
@@ -62,7 +64,7 @@ func _draw() -> void:
 			if value == Board.EMPTY:
 				BlockRenderer.draw_empty_cell(self, cell_rect(x, y), theme)
 			else:
-				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(value), theme)
+				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(value), blocks)
 
 	if ghost_active:
 		# Линии, которые очистятся после постановки
@@ -77,12 +79,12 @@ func _draw() -> void:
 			if not board.in_bounds(x, y):
 				continue
 			if ghost_valid:
-				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(ghost_color_index), theme, 0.4)
+				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(ghost_color_index), blocks, 0.4)
 			else:
 				draw_rect(cell_rect(x, y).grow(-4), theme.ghost_invalid_color)
 
 func _draw_fx() -> void:
-	var theme: BlockTheme = ThemeManager.current
+	var theme: BlockTheme = ThemeManager.blocks
 	for flash in flashes:
 		var t = flash["time"] / FLASH_TIME
 		var pos: Vector2i = flash["pos"]

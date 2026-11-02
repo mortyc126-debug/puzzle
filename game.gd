@@ -1675,6 +1675,11 @@ func make_reward_card(item: Dictionary) -> Control:
 			preview.custom_minimum_size = Vector2(170, 124)
 			preview.set_theme_resource(ThemeManager.get_theme_by_id(str(item_id)), false)
 			holder.add_child(preview)
+		"skin":
+			var skin_preview = ThemePreview.new()
+			skin_preview.custom_minimum_size = Vector2(170, 124)
+			skin_preview.set_theme_resource(ThemeManager.with_skin(ThemeManager.current, int(item_id)), false)
+			holder.add_child(skin_preview)
 		"effect":
 			var effect = EffectPreview.new()
 			effect.custom_minimum_size = Vector2(170, 124)
@@ -1711,6 +1716,8 @@ func equip_item(item: Dictionary, button: Button):
 			progression.player_frame = int(item_id)
 		"theme":
 			progression.select_theme(str(item_id))
+		"skin":
+			progression.select_skin(int(item_id))
 		"effect":
 			progression.player_effect = int(item_id)
 		"color":

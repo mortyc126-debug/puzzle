@@ -6,6 +6,7 @@ extends Node
 ## в профиле должен быть предсказуемым.
 
 signal theme_changed(theme: BlockTheme)
+signal blocks_changed  # сменились кубики: перерисовать блоки (фон темы при этом не трогаем)
 
 # Порядок — лестница открытия: от простых тем к самым красивым, «Космос» — венец (уровень 100)
 const THEME_PATHS = [
@@ -14,16 +15,24 @@ const THEME_PATHS = [
 	"res://themes/wood/wood_theme.tres",
 	"res://themes/sakura/sakura_theme.tres",
 	"res://themes/ocean/ocean_theme.tres",
+	"res://themes/desert/desert_theme.tres",
 	"res://themes/retro/retro_theme.tres",
 	"res://themes/lava/lava_theme.tres",
+	"res://themes/clouds/clouds_theme.tres",
 	"res://themes/crystal/crystal_theme.tres",
+	"res://themes/forest/forest_theme.tres",
 	"res://themes/aurora/aurora_theme.tres",
 	"res://themes/gold/gold_theme.tres",
+	"res://themes/neon_city/neon_city_theme.tres",
 	"res://themes/space/space_theme.tres",
 ]
 
 var themes: Array = []
 var current: BlockTheme
+# Чем рисовать блоки: текущая тема, у которой вид блоков заменён выбранными кубиками
+# (Progression.player_skin). Фон, поле и цвета — от темы. Без кубиков — сама тема.
+var blocks: BlockTheme
+var skin_id := 0
 
 func _ready() -> void:
 	for path in THEME_PATHS:
@@ -45,6 +54,7 @@ func _ready() -> void:
 		themes.append(fallback)
 
 	current = themes[0]
+	blocks = current
 
 func get_theme_by_id(theme_id: String) -> BlockTheme:
 	for theme in themes:
@@ -63,8 +73,38 @@ func apply_theme(theme_id: String) -> void:
 	if theme == null or theme == current:
 		return
 	current = theme
+	_rebuild_blocks()
 	theme_changed.emit(current)
 	Events.theme_changed.emit(theme_id)
+
+# Кубики поверх темы: 0 — как в теме
+func apply_skin(new_skin_id: int) -> void:
+	if new_skin_id == skin_id and blocks != null:
+		return
+	skin_id = new_skin_id
+	_rebuild_blocks()
+	blocks_changed.emit()
+
+func _rebuild_blocks() -> void:
+	var data = ItemsDB.get_skin_data(skin_id) if skin_id > 0 else {}
+	if data.is_empty():
+		blocks = current
+		return
+	blocks = current.duplicate()
+	blocks.block_style = data["style"]
+	blocks.block_corner_radius = data.get("radius", current.block_corner_radius)
+	blocks.glow_strength = data.get("glow", current.glow_strength)
+
+# Тема с выбранными кубиками для превью: как будет выглядеть skin на теме theme
+func with_skin(theme: BlockTheme, preview_skin: int) -> BlockTheme:
+	var data = ItemsDB.get_skin_data(preview_skin) if preview_skin > 0 else {}
+	if data.is_empty():
+		return theme
+	var copy = theme.duplicate()
+	copy.block_style = data["style"]
+	copy.block_corner_radius = data.get("radius", theme.block_corner_radius)
+	copy.glow_strength = data.get("glow", theme.glow_strength)
+	return copy
 
 # Цвет блока по индексу, сохранённому на поле
 func get_block_color(color_index: int, theme: BlockTheme = null) -> Color:

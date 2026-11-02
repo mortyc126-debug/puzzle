@@ -222,6 +222,159 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 				maxi(1, int(2 * scale))), inner)
 			canvas.draw_circle(p + Vector2(s * 0.24, s * 0.2), s * 0.05, Color(1, 1, 1, 0.9 * alpha))
 
+		_:
+			_draw_skin(canvas, inner, base, theme, radius, scale, alpha)
+
+# === КУБИКИ (ItemsDB.skins_data) ===
+# Детали рисуются от размера клетки: одинаково на поле, в лотке и в превью профиля.
+# Ничего случайного — иначе при перетаскивании узор «прыгал» бы.
+static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: BlockTheme, radius: float,
+		scale: float, alpha: float) -> void:
+	var p = inner.position
+	var s = inner.size.x
+	var x0 = p.x
+	var y0 = p.y
+	var x1 = p.x + s
+	var y1 = p.y + s
+	match theme.block_style:
+		BlockTheme.BlockStyle.NEON:
+			# Яркая трубка: насыщенный цвет, широкое свечение, белая сердцевина и лёгкая подсветка внутри
+			var neon = Color.from_hsv(base.h, minf(base.s * 1.1, 1.0), 1.0, base.a)
+			var glow = Color(neon, 0.6 * theme.glow_strength * alpha)
+			canvas.draw_style_box(_box(Color(neon.darkened(0.8), 0.55 * alpha), radius, Color(0, 0, 0, 0), 0, glow,
+				int(20 * scale)), inner)
+			canvas.draw_style_box(_box(Color(neon, 0.16 * alpha), radius * 0.8), inner.grow(-s * 0.14))
+			var tube = inner.grow(-s * 0.07)
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius * 0.85, Color(neon, alpha), maxi(3, int(6 * scale))), tube)
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius * 0.75, Color(neon.lightened(0.8), alpha),
+				maxi(1, int(2.2 * scale))), tube.grow(-2.0 * scale))
+
+		BlockTheme.BlockStyle.CYBER:
+			var c = s * 0.18
+			var poly = PackedVector2Array([Vector2(x0 + c, y0), Vector2(x1, y0), Vector2(x1, y1 - c), Vector2(x1 - c, y1),
+				Vector2(x0, y1), Vector2(x0, y0 + c)])
+			canvas.draw_colored_polygon(poly, Color(base.darkened(0.72), 0.95 * alpha))
+			var m = s * 0.12
+			var panel = PackedVector2Array([Vector2(x0 + c, y0 + m), Vector2(x1 - m, y0 + m), Vector2(x1 - m, y1 - c),
+				Vector2(x1 - c, y1 - m), Vector2(x0 + m, y1 - m), Vector2(x0 + m, y0 + c)])
+			canvas.draw_colored_polygon(panel, Color(base.darkened(0.45), 0.95 * alpha))
+			var edge = poly.duplicate()
+			edge.append(poly[0])
+			canvas.draw_polyline(edge, Color(base.lightened(0.2), alpha), maxf(1.5, 2.5 * scale), true)
+			# Вторая неоновая кромка — дополнительного цвета, как вывески ночного города
+			var accent = Color.from_hsv(fposmod(base.h + 0.5, 1.0), 0.75, 1.0, alpha)
+			canvas.draw_line(Vector2(x0 + c + s * 0.06, y0 + s * 0.05), Vector2(x1 - s * 0.08, y0 + s * 0.05), accent,
+				maxf(1.0, 2.0 * scale))
+			var trace = y1 - s * 0.3
+			canvas.draw_line(Vector2(x0 + s * 0.2, trace), Vector2(x0 + s * 0.45, trace), Color(base.lightened(0.5), 0.8 * alpha),
+				maxf(1.0, 1.6 * scale))
+			canvas.draw_line(Vector2(x0 + s * 0.45, trace), Vector2(x0 + s * 0.55, trace - s * 0.1), Color(base.lightened(0.5), 0.8 * alpha),
+				maxf(1.0, 1.6 * scale))
+			canvas.draw_circle(Vector2(x0 + s * 0.55, trace - s * 0.1), s * 0.04, Color(base.lightened(0.7), alpha))
+
+		BlockTheme.BlockStyle.ANIME:
+			var line = maxi(2, int(3.5 * scale))
+			canvas.draw_style_box(_box(base, radius), inner)
+			var b = line + radius * 0.3
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0 + b, y1 - b - s * 0.26), Vector2(x1 - b, y1 - b - s * 0.5),
+				Vector2(x1 - b, y1 - b), Vector2(x0 + b, y1 - b)]), Color(base.darkened(0.2), alpha))
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.darkened(0.6), alpha), line), inner)
+			canvas.draw_style_box(_box(Color(1, 1, 1, 0.85 * alpha), s * 0.05),
+				Rect2(p + Vector2(s * 0.17, s * 0.15), Vector2(s * 0.3, s * 0.09)))
+			_spark(canvas, p + Vector2(s * 0.72, s * 0.26), s * 0.1, Color(1, 1, 1, 0.9 * alpha))
+
+		BlockTheme.BlockStyle.KAWAII:
+			var depth = Rect2(p + Vector2(0, s * 0.05), inner.size)
+			canvas.draw_style_box(_box(Color(base.darkened(0.22), base.a), radius * 1.4), depth)
+			canvas.draw_style_box(_box(base, radius * 1.4), inner)
+			canvas.draw_style_box(_box(Color(base.lightened(0.18), base.a), radius * 1.2,
+				Color(0, 0, 0, 0), 0, Color(0, 0, 0, 0), 0, true), Rect2(p, Vector2(s, s * 0.46)))
+			var ink = Color(base.darkened(0.75), alpha)
+			for eye_x in [0.33, 0.67]:
+				canvas.draw_circle(p + Vector2(s * eye_x, s * 0.46), s * 0.065, ink)
+				canvas.draw_circle(p + Vector2(s * (eye_x + 0.02), s * 0.43), s * 0.022, Color(1, 1, 1, alpha))
+			canvas.draw_arc(p + Vector2(s * 0.5, s * 0.55), s * 0.09, deg_to_rad(20), deg_to_rad(160), 10, ink,
+				maxf(1.5, 2.6 * scale), true)
+			for cheek_x in [0.2, 0.8]:
+				canvas.draw_circle(p + Vector2(s * cheek_x, s * 0.6), s * 0.06, Color(1, 0.45, 0.55, 0.45 * alpha))
+
+		BlockTheme.BlockStyle.HOLO:
+			canvas.draw_style_box(_box(Color(base, 0.3 * alpha), radius), inner)
+			canvas.draw_style_box(_box(Color(0.35, 1, 1, 0.16 * alpha), radius, Color(0, 0, 0, 0), 0,
+				Color(0, 0, 0, 0), 0, true), Rect2(p, Vector2(s, s * 0.5)))
+			canvas.draw_rect(Rect2(p + Vector2(0, s * 0.62), Vector2(s, s * 0.3)), Color(1, 0.4, 1, 0.12 * alpha))
+			for i in range(5):
+				var y = y0 + (i + 0.5) * s / 5.0
+				canvas.draw_line(Vector2(x0 + s * 0.06, y), Vector2(x1 - s * 0.06, y), Color(1, 1, 1, 0.2 * alpha), maxf(1.0, scale))
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.lightened(0.55), 0.95 * alpha),
+				maxi(1, int(2 * scale)), Color(base, 0.35 * alpha), int(8 * scale)), inner)
+			canvas.draw_circle(p + Vector2(s * 0.82, s * 0.18), s * 0.04, Color(1, 1, 1, 0.9 * alpha))
+
+		BlockTheme.BlockStyle.JELLY:
+			canvas.draw_style_box(_box(Color(base.darkened(0.3), 0.8 * alpha), radius * 1.3), Rect2(p + Vector2(0, s * 0.05), inner.size))
+			canvas.draw_style_box(_box(Color(base, 0.82 * alpha), radius * 1.3), inner)
+			canvas.draw_style_box(_box(Color(base.lightened(0.35), 0.55 * alpha), radius), inner.grow(-s * 0.16))
+			canvas.draw_style_box(_box(Color(1, 1, 1, 0.55 * alpha), s * 0.09), Rect2(p + Vector2(s * 0.14, s * 0.1), Vector2(s * 0.42, s * 0.16)))
+			canvas.draw_circle(p + Vector2(s * 0.74, s * 0.7), s * 0.055, Color(1, 1, 1, 0.5 * alpha))
+			canvas.draw_circle(p + Vector2(s * 0.62, s * 0.8), s * 0.03, Color(1, 1, 1, 0.45 * alpha))
+
+		BlockTheme.BlockStyle.CUBE3D:
+			var d = s * 0.17
+			canvas.draw_rect(inner, base)
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x1, y0), Vector2(x1 - d, y0 + d),
+				Vector2(x0 + d, y0 + d)]), Color(base.lightened(0.38), base.a))
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x0 + d, y0 + d), Vector2(x0 + d, y1 - d),
+				Vector2(x0, y1)]), Color(base.lightened(0.16), base.a))
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x1, y0), Vector2(x1, y1), Vector2(x1 - d, y1 - d),
+				Vector2(x1 - d, y0 + d)]), Color(base.darkened(0.25), base.a))
+			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0, y1), Vector2(x0 + d, y1 - d), Vector2(x1 - d, y1 - d),
+				Vector2(x1, y1)]), Color(base.darkened(0.42), base.a))
+			canvas.draw_rect(Rect2(p + Vector2(d, d), Vector2(s - d * 2, s * 0.06)), Color(1, 1, 1, 0.22 * alpha))
+
+		BlockTheme.BlockStyle.BRICK:
+			var small = radius * 0.5
+			canvas.draw_style_box(_box(Color(base.darkened(0.3), base.a), small), Rect2(p + Vector2(0, s * 0.06), inner.size))
+			canvas.draw_style_box(_box(base, small), inner)
+			canvas.draw_style_box(_box(Color(base.lightened(0.15), base.a), small, Color(0, 0, 0, 0), 0,
+				Color(0, 0, 0, 0), 0, true), Rect2(p, Vector2(s, s * 0.12)))
+			# Кнопка: тень под ней, тёмный обод, светлый верх и блик — видна на любом цвете
+			var center = p + Vector2(s * 0.5, s * 0.46)
+			canvas.draw_circle(center + Vector2(0, s * 0.07), s * 0.22, Color(base.darkened(0.45), base.a))
+			canvas.draw_circle(center, s * 0.22, Color(base.darkened(0.18), base.a))
+			canvas.draw_circle(center + Vector2(0, -s * 0.015), s * 0.185, Color(base.lightened(0.18), base.a))
+			canvas.draw_arc(center, s * 0.13, deg_to_rad(195), deg_to_rad(285), 8, Color(1, 1, 1, 0.75 * alpha), maxf(1.5, 3.2 * scale), true)
+
+		BlockTheme.BlockStyle.FROST:
+			var icy = base.lerp(Color(0.92, 0.98, 1), 0.45)
+			canvas.draw_style_box(_box(Color(icy, 0.9 * alpha), radius, Color(1, 1, 1, 0.85 * alpha), maxi(1, int(2 * scale))), inner)
+			canvas.draw_colored_polygon(PackedVector2Array([p + Vector2(s * 0.06, s * 0.06), p + Vector2(s * 0.42, s * 0.06),
+				p + Vector2(s * 0.06, s * 0.36)]), Color(1, 1, 1, 0.55 * alpha))
+			var crack = Color(1, 1, 1, 0.7 * alpha)
+			var w = maxf(1.0, 1.4 * scale)
+			var hub = p + Vector2(s * 0.62, s * 0.62)
+			canvas.draw_line(hub, p + Vector2(s * 0.86, s * 0.5), crack, w)
+			canvas.draw_line(hub, p + Vector2(s * 0.76, s * 0.88), crack, w)
+			canvas.draw_line(hub, p + Vector2(s * 0.4, s * 0.74), crack, w)
+			_spark(canvas, p + Vector2(s * 0.3, s * 0.3), s * 0.07, Color(1, 1, 1, 0.9 * alpha))
+
+		BlockTheme.BlockStyle.GALAXY:
+			canvas.draw_style_box(_box(Color(base.darkened(0.78), base.a), radius, Color(base.lightened(0.15), 0.75 * alpha),
+				maxi(1, int(2 * scale))), inner)
+			canvas.draw_circle(p + Vector2(s * 0.58, s * 0.44), s * 0.3, Color(base, 0.35 * alpha))
+			canvas.draw_circle(p + Vector2(s * 0.42, s * 0.6), s * 0.2, Color(base.lightened(0.3), 0.3 * alpha))
+			for star in [[0.22, 0.24, 0.035], [0.74, 0.22, 0.025], [0.8, 0.74, 0.03], [0.3, 0.78, 0.02], [0.52, 0.5, 0.025]]:
+				canvas.draw_circle(p + Vector2(s * star[0], s * star[1]), s * star[2], Color(1, 1, 1, 0.9 * alpha))
+
+		_:
+			canvas.draw_style_box(_box(base, radius), inner)
+
+# Четырёхлучевая искорка
+static func _spark(canvas: CanvasItem, at: Vector2, arm: float, color: Color) -> void:
+	canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -arm), at + Vector2(arm * 0.28, 0),
+		at + Vector2(0, arm), at + Vector2(-arm * 0.28, 0)]), color)
+	canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-arm, 0), at + Vector2(0, arm * 0.28),
+		at + Vector2(arm, 0), at + Vector2(0, -arm * 0.28)]), color)
+
 # Вспышка при очистке: клетка светлеет и сжимается (t от 0 до 1)
 static func draw_flash(canvas: CanvasItem, rect: Rect2, color: Color, theme: BlockTheme, t: float) -> void:
 	var shrink = rect.size.x * 0.5 * t

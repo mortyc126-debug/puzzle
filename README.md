@@ -25,7 +25,8 @@ autoload/             Глобальные системы (Проект → На
 themes/               Темы оформления
   block_theme.gd      Ресурс темы (class BlockTheme)
   block_renderer.gd   Отрисовка поля и блоков в стиле темы
-  classic/ candy/ wood/ sakura/ ocean/ retro/ lava/ crystal/ aurora/ gold/ space/   11 тем: ресурс .tres + сцена фона
+  classic/ candy/ wood/ sakura/ ocean/ desert/ retro/ lava/ clouds/ crystal/ forest/ aurora/ gold/
+  neon_city/ space/   15 тем: ресурс .tres + сцена фона; кубики — ItemsDB.skins_data
 
 ui/                   Тема интерфейса, превью тем и эффектов, частицы эффектов (EffectPainter)
 assets/icon, store/   Иконка приложения, картинки для магазина

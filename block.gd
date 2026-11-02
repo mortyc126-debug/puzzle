@@ -27,6 +27,7 @@ func _ready() -> void:
 	if shape.is_empty():
 		shape = [Vector2(0, 0)]
 	ThemeManager.theme_changed.connect(_on_theme_changed)
+	ThemeManager.blocks_changed.connect(queue_redraw)
 	return_to_tray()
 
 func _on_theme_changed(_theme: BlockTheme) -> void:
@@ -52,7 +53,7 @@ func set_placeable(value: bool) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	var theme: BlockTheme = ThemeManager.current
+	var theme: BlockTheme = ThemeManager.blocks
 	var color = ThemeManager.get_block_color(color_index)
 	var alpha = 1.0 if (placeable or dragging) else 0.35
 	for cell in shape:

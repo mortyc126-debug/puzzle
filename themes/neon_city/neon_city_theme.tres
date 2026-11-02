@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="BlockTheme" format=3]
+
+[ext_resource type="Script" path="res://themes/block_theme.gd" id="1_theme"]
+[ext_resource type="PackedScene" path="res://themes/neon_city/neon_city_background.tscn" id="2_bg"]
+
+[resource]
+script = ExtResource("1_theme")
+id = "neon_city"
+display_name = "Неоновый город"
+description = "Киберпанк: небоскрёбы, мигающие вывески, дождь и отражения на мокрой улице."
+rarity = "LEGENDARY"
+unlock = {
+"level": 92,
+"type": "level"
+}
+background_color = Color(0.06, 0.02, 0.15, 1)
+background_scene = ExtResource("2_bg")
+board_color = Color(0.06, 0.02, 0.12, 0.72)
+cell_color = Color(0.14, 0.06, 0.22, 0.65)
+board_corner_radius = 10.0
+board_padding = 8.0
+line_highlight_color = Color(1, 0.3, 0.85, 0.16)
+block_style = 13
+use_player_colors = false
+palette = PackedColorArray(1, 0.2, 0.7, 1, 0.15, 0.95, 1, 1, 0.65, 0.35, 1, 1, 0.7, 1, 0.25, 1, 1, 0.6, 0.15, 1, 0.25, 0.5, 1, 1)
+block_corner_radius = 6.0
+glow_strength = 0.7
+ghost_invalid_color = Color(1, 0.3, 0.5, 0.4)
+flash_color = Color(1, 0.85, 1, 1)
+particle_color = Color(1, 0.4, 0.9, 1)
+accent_color = Color(0.2, 0.95, 1, 1)

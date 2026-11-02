@@ -503,6 +503,41 @@ func get_frame_ids() -> Array:
 	ids.sort()
 	return ids
 
+# Кубики: вид блоков поверх любой темы (фон и поле остаются от темы). 0 — «Как в теме».
+# style — BlockTheme.BlockStyle, radius — скругление для клетки 80 px, glow — сила свечения.
+# Цвета берутся из темы (в «Классике» — из вкладки «Цвета»).
+var skins_data = {
+	1: {"name": "Желе", "rarity": "UNCOMMON", "style": BlockTheme.BlockStyle.JELLY, "radius": 12.0, "glow": 0.5,
+		"description": "Полупрозрачные и упругие на вид, с пузырьками внутри.", "unlock": {"type": "level", "level": 18}},
+	2: {"name": "Аниме", "rarity": "RARE", "style": BlockTheme.BlockStyle.ANIME, "radius": 9.0, "glow": 0.5,
+		"description": "Как в мультфильме: чёткий контур, тень ячейкой, блик и искорка.", "unlock": {"type": "level", "level": 33}},
+	3: {"name": "Неон", "rarity": "RARE", "style": BlockTheme.BlockStyle.NEON, "radius": 10.0, "glow": 0.9,
+		"description": "Светящиеся трубки, как вывески ночью. Лучше всего — на тёмных темах.", "unlock": {"type": "level", "level": 48}},
+	4: {"name": "Объём", "rarity": "UNCOMMON", "style": BlockTheme.BlockStyle.CUBE3D, "radius": 0.0, "glow": 0.5,
+		"description": "Настоящие кубики с гранями: свет сверху и слева, тень справа и снизу.", "unlock": {"type": "level", "level": 64}},
+	5: {"name": "Милашки", "rarity": "RARE", "style": BlockTheme.BlockStyle.KAWAII, "radius": 12.0, "glow": 0.5,
+		"description": "У каждого кубика глазки, улыбка и румянец. Убирать линии немного жалко.", "unlock": {"type": "level", "level": 110}},
+	6: {"name": "Киберпанк", "rarity": "EPIC", "style": BlockTheme.BlockStyle.CYBER, "radius": 6.0, "glow": 0.6,
+		"description": "Тёмные панели со срезанными углами, неоновая кромка и дорожки микросхем.", "unlock": {"type": "level", "level": 120}},
+	7: {"name": "Конструктор", "rarity": "UNCOMMON", "style": BlockTheme.BlockStyle.BRICK, "radius": 8.0, "glow": 0.5,
+		"description": "Детальки с круглой кнопкой — так и хочется собрать из них домик.", "unlock": {"type": "level", "level": 140}},
+	8: {"name": "Лёд", "rarity": "EPIC", "style": BlockTheme.BlockStyle.FROST, "radius": 8.0, "glow": 0.5,
+		"description": "Холодные прозрачные блоки с инеем в уголке и тонкими трещинками.", "unlock": {"type": "level", "level": 175}},
+	9: {"name": "Голограмма", "rarity": "LEGENDARY", "style": BlockTheme.BlockStyle.HOLO, "radius": 8.0, "glow": 0.7,
+		"description": "Блоки из света: просвечивают, мерцают строками развёртки и отливают голубым и розовым.",
+		"unlock": {"type": "level", "level": 225}},
+	10: {"name": "Звёздные", "rarity": "LEGENDARY", "style": BlockTheme.BlockStyle.GALAXY, "radius": 10.0, "glow": 0.6,
+		"description": "В каждом кубике — кусочек космоса: туманность и звёзды.", "unlock": {"type": "level", "level": 300}},
+}
+
+func get_skin_ids() -> Array:
+	var ids = skins_data.keys()
+	ids.sort()
+	return ids
+
+func get_skin_data(skin_id: int) -> Dictionary:
+	return skins_data.get(skin_id, {})
+
 func get_effect_ids() -> Array:
 	var ids = effects_data.keys()
 	ids.sort()
