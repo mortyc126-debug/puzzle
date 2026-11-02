@@ -36,6 +36,7 @@ func _ready():
 
 	$BackButton.pressed.connect(_on_back_pressed)
 	style_header()
+	build_section_nav()
 	var edit_name_btn = get_node_or_null("EditNameButton")
 	if edit_name_btn:
 		edit_name_btn.pressed.connect(show_name_edit_popup)
@@ -170,32 +171,93 @@ func update_game_profile_button():
 
 # === ВКЛАДКИ И ИНДИКАТОРЫ NEW ===
 
+# Разделы профиля — сетка 4×2 кнопок «значок + название» вместо полоски вкладок:
+# восемь подписей в одну строку не влезали, и разделы приходилось угадывать по значкам.
+# [вкладка, название, иконка, флаг «новое»]
+const SECTIONS = [
+	[TAB_STATS, "Статистика", "chart", ""],
+	[TAB_REWARDS, "Путь наград", "gift", ""],
+	[TAB_COLORS, "Цвета", "palette", "colors"],
+	[TAB_THEMES, "Темы", "layers", "themes"],
+	[TAB_EFFECTS, "Эффекты", "sparkle", "effects"],
+	[TAB_AVATARS, "Аватарки", "user", "avatars"],
+	[TAB_FRAMES, "Рамки", "frame", "frames"],
+	[TAB_ACHIEVEMENTS, "Достижения", "trophy", "achievements"],
+]
+const NAV_TOP = 424.0
+const NAV_ROW = 56.0
+const NAV_GAP = 8.0
+
+var section_buttons = {}  # вкладка -> [кнопка, точка «новое»]
+
+func build_section_nav():
+	var tabs: TabContainer = get_node_or_null(PATH_TABS)
+	if tabs == null:
+		return
+	var grid = GridContainer.new()
+	grid.name = "SectionNav"
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", int(NAV_GAP))
+	grid.add_theme_constant_override("v_separation", int(NAV_GAP))
+	grid.position = Vector2(tabs.position.x, NAV_TOP)
+	grid.size = Vector2(tabs.size.x, NAV_ROW * 2 + NAV_GAP)
+	add_child(grid)
+	for entry in SECTIONS:
+		var button = Button.new()
+		button.text = entry[1]
+		button.icon = icon_texture(entry[2])
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 24)
+		button.add_theme_constant_override("h_separation", 6)
+		button.add_theme_font_size_override("font_size", 21)
+		button.custom_minimum_size = Vector2(0, NAV_ROW)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.clip_text = true
+		button.pressed.connect(func(): tabs.current_tab = entry[0])
+		var dot = Panel.new()
+		var dot_style = StyleBoxFlat.new()
+		dot_style.bg_color = Color(1, 0.3, 0.3)
+		dot_style.set_corner_radius_all(7)
+		dot.add_theme_stylebox_override("panel", dot_style)
+		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		dot.anchor_left = 1.0
+		dot.anchor_right = 1.0
+		dot.offset_left = -22.0
+		dot.offset_right = -8.0
+		dot.offset_top = 7.0
+		dot.offset_bottom = 21.0
+		button.add_child(dot)
+		grid.add_child(button)
+		section_buttons[entry[0]] = [button, dot]
+	# Полоска вкладок больше не нужна: содержимое начинается сразу под сеткой
+	tabs.tabs_visible = false
+	var top = NAV_TOP + NAV_ROW * 2 + NAV_GAP + 12.0
+	tabs.size.y -= top - tabs.position.y
+	tabs.position.y = top
+	var panel_style = tabs.get_theme_stylebox("panel")
+	if panel_style is StyleBoxFlat:
+		panel_style = panel_style.duplicate()
+		panel_style.corner_radius_top_left = panel_style.corner_radius_top_right
+		tabs.add_theme_stylebox_override("panel", panel_style)
+
 func update_tab_titles():
 	var tabs: TabContainer = get_node_or_null(PATH_TABS)
 	if tabs == null:
 		return
-	# Восемь подписей не помещаются в ширину: подпись есть только у открытой вкладки,
-	# у остальных — иконка и точка, если внутри есть новое
 	var flags = progression.has_new_items
-	# [вкладка, название, иконка, флаг «новое»]
-	var titles = [
-		[TAB_STATS, "Статистика", "chart", ""],
-		[TAB_REWARDS, "Путь наград", "gift", ""],
-		[TAB_COLORS, "Цвета", "palette", "colors"],
-		[TAB_THEMES, "Темы", "layers", "themes"],
-		[TAB_EFFECTS, "Эффекты", "sparkle", "effects"],
-		[TAB_AVATARS, "Аватарки", "user", "avatars"],
-		[TAB_FRAMES, "Рамки", "frame", "frames"],
-		[TAB_ACHIEVEMENTS, "Достижения", "trophy", "achievements"],
-	]
-	tabs.add_theme_constant_override("icon_max_width", 26)
-	for entry in titles:
-		var has_new = entry[3] != "" and flags.get(entry[3], false)
-		var title = entry[1] if entry[0] == tabs.current_tab else ""
-		if has_new:
-			title += " •" if title != "" else "•"
-		tabs.set_tab_title(entry[0], title)
-		tabs.set_tab_icon(entry[0], icon_texture(entry[2]))
+	for entry in SECTIONS:
+		if not section_buttons.has(entry[0]):
+			continue
+		var button: Button = section_buttons[entry[0]][0]
+		var selected = entry[0] == tabs.current_tab
+		for style in ["normal", "hover", "pressed", "focus"]:
+			if selected:
+				button.add_theme_stylebox_override(style, make_highlight_box(GOLD, 0.22))
+			else:
+				button.remove_theme_stylebox_override(style)
+		button.add_theme_color_override("font_color", GOLD if selected else Color(0.86, 0.88, 1))
+		button.add_theme_color_override("icon_normal_color", GOLD if selected else Color(0.86, 0.88, 1))
+		section_buttons[entry[0]][1].visible = entry[3] != "" and flags.get(entry[3], false)
 
 # Открытая вкладка считается просмотренной
 func _on_tab_changed(tab: int):
@@ -254,6 +316,7 @@ const STAT_CARDS = [
 	["pieces", "Поставлено фигур"], ["streak", "Лучшая серия"],
 	["combo", "Линий за один ход"], ["perfect", "Чистых полей"],
 	["time", "Время в игре"], ["coins", "Заработано монет"],
+	["zen_best", "Рекорд спокойного"], ["zen_games", "Спокойных партий"],
 ]
 
 func create_stats_list():
@@ -304,7 +367,7 @@ func create_stats_list():
 		var value = make_label("0", 36, Color.WHITE, HORIZONTAL_ALIGNMENT_LEFT, false)
 		value.theme_type_variation = &"DisplayLabel"
 		stat_box.add_child(value)
-		var caption = make_label(entry[1], 18, Color(0.7, 0.74, 0.92), HORIZONTAL_ALIGNMENT_LEFT, false)
+		var caption = make_label(entry[1], 21, Color(0.7, 0.74, 0.92), HORIZONTAL_ALIGNMENT_LEFT, false)
 		stat_box.add_child(caption)
 		stat_values[entry[0]] = value
 	update_stats_labels()
@@ -323,6 +386,8 @@ func update_stats_labels():
 		"perfect": str(progression.perfect_clears),
 		"time": progression.format_play_time(),
 		"coins": str(progression.total_coins_earned),
+		"zen_best": str(progression.best_zen_score),
+		"zen_games": str(progression.zen_games),
 	}
 	for key in values.keys():
 		stat_values[key].text = values[key]
@@ -534,7 +599,7 @@ func create_effects_list():
 		var selected = effect_id == progression.player_effect
 
 		var card = Button.new()
-		card.custom_minimum_size = Vector2(262, 270)
+		card.custom_minimum_size = Vector2(262, 286)
 		card.pressed.connect(_on_effect_clicked.bind(effect_id))
 		if selected:
 			card.add_theme_stylebox_override("normal", make_highlight_box(GOLD))
@@ -553,9 +618,9 @@ func create_effects_list():
 		card.add_child(title)
 
 		var status = "Выбран" if selected else ("Нажмите, чтобы выбрать" if unlocked else ItemsDB.get_unlock_text(data.get("unlock", {})))
-		var status_label = make_label(status, 17, GOLD if selected else Color(0.8, 0.82, 0.95))
-		status_label.position = Vector2(8, 206)
-		status_label.size = Vector2(246, 56)
+		var status_label = make_label(status, 20, GOLD if selected else Color(0.8, 0.82, 0.95))
+		status_label.position = Vector2(8, 204)
+		status_label.size = Vector2(246, 76)
 		card.add_child(status_label)
 
 		container.add_child(card)
@@ -643,7 +708,7 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 		var unlocked = progression.is_unlocked(item_type, item_id)
 
 		var card = Button.new()
-		card.custom_minimum_size = Vector2(156, 190)
+		card.custom_minimum_size = Vector2(156, 200)
 		card.pressed.connect(show_item_card.bind(item_type, item_id))
 		if item_id == selected_id:
 			card.add_theme_stylebox_override("normal", make_highlight_box(GOLD))
@@ -674,11 +739,12 @@ func fill_items_grid(container: GridContainer, item_type: String, ids: Array, se
 		# Закрытый предмет, который можно купить, показывает цену — это цель, а не тупик
 		var price = progression.get_price(item_type, item_id)
 		var caption_text = data.get("name", "?") if unlocked else ("%d монет" % price if price > 0 else "Закрыто")
-		var caption = make_label(caption_text, 18,
+		var caption = make_label(caption_text, 21,
 			GOLD if (not unlocked and price > 0) else ItemsDB.get_rarity_color(data.get("rarity", "COMMON")))
-		caption.position = Vector2(4, 146)
-		caption.size = Vector2(148, 36)
+		caption.position = Vector2(4, 144)
+		caption.size = Vector2(148, 52)
 		card.add_child(caption)
+		fit_caption(caption, 21, 20)
 
 		container.add_child(card)
 
@@ -1028,6 +1094,15 @@ func make_label(text: String, font_size: int, color: Color, align: HorizontalAli
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+# Подпись под картинкой: одна строка, если влезает при шрифте не мельче min_size,
+# иначе — две строки (длинные имена вроде «Пиксельный пришелец»)
+func fit_caption(label: Label, max_size: int, min_size: int) -> void:
+	var font = label.get_theme_font("font")
+	var font_size = max_size
+	while font_size > min_size and font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > label.size.x:
+		font_size -= 1
+	label.add_theme_font_size_override("font_size", font_size)
 
 # Рамка выделения для выбранной карточки
 func make_highlight_box(color: Color, fill_alpha: float = 0.2) -> StyleBoxFlat:

@@ -16,6 +16,7 @@ var music_enabled := true
 var vibration_enabled := true
 var rated := false  # Игрок уже нажимал «Оценить»
 var zen_mode := false  # Спокойный режим: без проигрыша (действует со следующей партии)
+var seen_tips: Array = []  # Подсказки, которые игрок уже видел (каждая показывается один раз)
 
 func _ready() -> void:
 	load_settings()
@@ -28,6 +29,7 @@ func load_settings() -> void:
 	vibration_enabled = data.get("vibration", true)
 	rated = data.get("rated", false)
 	zen_mode = data.get("zen_mode", false)
+	seen_tips = data.get("seen_tips", [])
 
 func save_settings() -> void:
 	SafeFile.save_var(SAVE_PATH, {
@@ -36,6 +38,7 @@ func save_settings() -> void:
 		"vibration": vibration_enabled,
 		"rated": rated,
 		"zen_mode": zen_mode,
+		"seen_tips": seen_tips,
 	})
 
 func apply() -> void:
@@ -54,6 +57,19 @@ func set_music(enabled: bool) -> void:
 
 func set_zen_mode(enabled: bool) -> void:
 	zen_mode = enabled
+	save_settings()
+
+# Подсказка при первом появлении: true — показать сейчас (и больше не показывать)
+func take_tip(tip_id: String) -> bool:
+	if tip_id in seen_tips:
+		return false
+	seen_tips.append(tip_id)
+	save_settings()
+	return true
+
+# «Показать подсказки снова» в окне «Как играть»
+func reset_tips() -> void:
+	seen_tips.clear()
 	save_settings()
 
 func set_vibration(enabled: bool) -> void:

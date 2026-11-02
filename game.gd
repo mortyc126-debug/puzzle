@@ -89,15 +89,19 @@ const GOLD = Color(1, 0.81, 0.29)
 const NAVY = Color(0.04, 0.05, 0.15)
 
 var score_label: Label
+var score_caption: Label
 var best_score_label: Label
 var coins_label: Label
 var multiplier_label: Label
 var multiplier_pill: Control
 var level_label: Label
 var xp_bar: ProgressBar
-var xp_label: Label
+var xp_label: Label          # звание слева
+var xp_value_label: Label    # опыт справа: «230 / 580 (+140)»
+var xp_pending: ColorRect    # опыт текущей партии — светлый отрезок на полоске (придёт в конце)
 var next_reward_label: Label
 var streak_pill: Control
+var score_pills_y := 0.0
 var combo_label: Label
 var streak_label: Label
 var toast_offset = 0
@@ -121,8 +125,8 @@ var default_clear_stream: AudioStream
 func _ready():
 	progression = Progression
 	progression.reset_multiplier()
-	best_score_at_start = progression.best_score
 	zen = GameSettings.zen_mode
+	best_score_at_start = progression.best_zen_score if zen else progression.best_score
 	default_place_stream = sound_place.stream
 	default_clear_stream = sound_clear.stream
 
@@ -161,6 +165,7 @@ func _ready():
 	update_zen_display()
 	update_powerup_buttons()
 	show_tutorial_if_needed()
+	show_start_tips()
 	Events.game_started.emit()
 
 	# Имя подгоняется под ширину после того, как шрифт посчитан
@@ -268,9 +273,9 @@ func build_hud():
 	score_box.alignment = BoxContainer.ALIGNMENT_CENTER
 	score_box.add_theme_constant_override("separation", -4)
 	score_panel.add_child(score_box)
-	var caption = styled_label("ОЧКИ", 18, Color(0.64, 0.67, 0.85), &"CaptionLabel")
-	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_box.add_child(caption)
+	score_caption = styled_label("ОЧКИ", 20, Color(0.64, 0.67, 0.85), &"CaptionLabel")
+	score_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	score_box.add_child(score_caption)
 	score_label = styled_label("0", 66, Color.WHITE, &"DisplayLabel")
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	score_box.add_child(score_label)
@@ -291,20 +296,27 @@ func build_hud():
 	coin_row.add_child(coins_label)
 	coin_pill.add_child(coin_row)
 
-	# Множитель и серия — по бокам от счёта
+	# Множитель и серия — по бокам от счёта, со словами: «×3» с огоньком без подписи
+	# игроки не понимали. Плашки прижаты к панели счёта и растут наружу.
 	multiplier_pill = make_panel(&"Pill", Vector2.ZERO)
-	multiplier_label = styled_label("×1.0", 24, Color(1, 0.62, 0.25), &"DisplayLabel")
-	multiplier_pill.add_child(multiplier_label)
+	var multiplier_row = HBoxContainer.new()
+	multiplier_row.add_theme_constant_override("separation", 6)
+	multiplier_row.add_child(icon_rect("coin", 26))
+	multiplier_label = styled_label("×1", 22, Color(1, 0.72, 0.3), &"DisplayLabel")
+	multiplier_row.add_child(multiplier_label)
+	multiplier_pill.add_child(multiplier_row)
 	multiplier_pill.visible = false
+	multiplier_pill.resized.connect(arrange_score_pills, CONNECT_DEFERRED)
 
 	streak_pill = make_panel(&"Pill", Vector2.ZERO)
 	var streak_row = HBoxContainer.new()
 	streak_row.add_theme_constant_override("separation", 6)
 	streak_row.add_child(icon_rect("flame", 26, Color(1, 0.6, 0.25)))
-	streak_label = styled_label("×2", 24, Color(1, 0.7, 0.35), &"DisplayLabel")
+	streak_label = styled_label("Серия ×2", 22, Color(1, 0.7, 0.35), &"DisplayLabel")
 	streak_row.add_child(streak_label)
 	streak_pill.add_child(streak_row)
 	streak_pill.visible = false
+	streak_pill.resized.connect(arrange_score_pills, CONNECT_DEFERRED)
 
 	# Уровень и опыт — в нижней строке, между «Заново» и «Заданиями»: всё про прогресс игрока
 	# собрано внизу, а верх экрана отдан текущей партии. Тёмная подложка — чтобы текст
@@ -327,25 +339,36 @@ func build_hud():
 	level_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	level_badge.add_child(level_label)
 
-	xp_label = styled_label("", 19, Color.WHITE)
-	xp_label.position = Vector2(94, 4)
-	xp_label.size = Vector2(418, 28)
-	xp_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	# Три строки по 22 px: звание и опыт, полоска, ближайшая награда. Звание и цифры —
+	# разными надписями по краям: длинное звание не съедает цифры, ничего не обрезается.
+	xp_label = styled_label("", 22, Color.WHITE)
+	xp_label.position = Vector2(94, 2)
+	xp_label.size = Vector2(418, 30)
 	panel.add_child(xp_label)
+	xp_value_label = styled_label("", 22, Color(0.78, 0.86, 1))
+	xp_value_label.position = Vector2(94, 2)
+	xp_value_label.size = Vector2(418, 30)
+	xp_value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	panel.add_child(xp_value_label)
 	xp_bar = ProgressBar.new()
-	xp_bar.position = Vector2(94, 36)
+	xp_bar.show_percentage = false  # до размера: иначе минимальная высота считается со шрифтом процентов
+	xp_bar.position = Vector2(94, 38)
 	xp_bar.custom_minimum_size = Vector2(418, 0)
 	xp_bar.size = Vector2(418, 14)
-	xp_bar.show_percentage = false
 	xp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(xp_bar)
-	var gift = icon_rect("gift", 20, Color(0.72, 0.76, 0.95))
-	gift.position = Vector2(94, 67)
-	gift.size = Vector2(20, 20)
+	xp_pending = ColorRect.new()
+	xp_pending.color = Color(0.55, 0.85, 1, 0.38)
+	xp_pending.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	xp_pending.visible = false
+	xp_bar.add_child(xp_pending)
+	var gift = icon_rect("gift", 24, Color(0.78, 0.82, 1))
+	gift.position = Vector2(94, 62)
+	gift.size = Vector2(24, 24)
 	panel.add_child(gift)
-	next_reward_label = styled_label("", 17, Color(0.72, 0.76, 0.95))
-	next_reward_label.position = Vector2(120, 64)
-	next_reward_label.size = Vector2(392, 26)
+	next_reward_label = styled_label("", 22, Color(0.78, 0.82, 1))
+	next_reward_label.position = Vector2(126, 58)
+	next_reward_label.size = Vector2(386, 32)
 	next_reward_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	panel.add_child(next_reward_label)
 
@@ -398,8 +421,8 @@ func arrange_hud():
 
 	var score_center = (zone_top + grid_top - gap_score) / 2.0
 	score_panel.position = Vector2(290, roundf(score_center - score_height / 2.0))
-	streak_pill.position = Vector2(140, roundf(score_center - 30))
-	multiplier_pill.position = Vector2(628, roundf(score_center - 30))
+	score_pills_y = roundf(score_center - 30)
+	arrange_score_pills()
 
 	tray_center_y = roundf(grid_top + board_px + gap_tray + spare * 0.15 + TRAY_HEIGHT / 2.0)
 	for block in active_blocks:
@@ -413,6 +436,16 @@ func arrange_hud():
 	combo_label.position = combo_base
 	if tutorial_label and is_instance_valid(tutorial_label):
 		tutorial_label.position = Vector2(50, board_center.y - 50)
+
+# Серия — слева от панели счёта, монеты — справа; ширина плашек зависит от текста
+func arrange_score_pills():
+	if score_panel == null:
+		return
+	var gap = 12.0
+	streak_pill.size = Vector2.ZERO
+	multiplier_pill.size = Vector2.ZERO
+	streak_pill.position = Vector2(score_panel.position.x - gap - streak_pill.size.x, score_pills_y)
+	multiplier_pill.position = Vector2(score_panel.position.x + score_panel.custom_minimum_size.x + gap, score_pills_y)
 
 func place(control: Control, pos: Vector2, control_size: Vector2):
 	control.position = pos
@@ -463,6 +496,7 @@ func setup_buttons_style():
 		name_label.visible = false
 
 func setup_tool_button(button: Button, icon_name: String, price: int):
+	button.gui_input.connect(_on_tool_gui_input.bind(button, price))
 	button.text = ""
 	button.icon = icon(icon_name)
 	button.expand_icon = true
@@ -499,8 +533,11 @@ func set_tool_active(button: Button, active: bool, price: int):
 		pill.get_node("Row/PriceLabel").text = "отмена" if active else str(price)
 
 func update_multiplier_display():
-	multiplier_label.text = "×" + str(progression.score_multiplier)
+	multiplier_label.text = "Монеты ×%s" % String.num(progression.score_multiplier, 1).trim_suffix(".0")
 	multiplier_pill.visible = progression.score_multiplier > 1.0
+	if multiplier_pill.visible:
+		show_tip("multiplier", "Монеты ×%s: чем больше очков в партии, тем больше монет вы получите в конце." \
+			% String.num(progression.score_multiplier, 1).trim_suffix(".0"))
 
 func connect_buttons():
 	$SettingsButton.pressed.connect(_on_settings_pressed)
@@ -514,10 +551,9 @@ func connect_buttons():
 
 func update_score_display():
 	score_label.text = str(score)
-	if zen:
-		return  # Рекорды ставятся только в обычном режиме
-	if progression.update_best_score(score):
-		best_score_label.text = "%d" % progression.best_score
+	# У спокойного режима свой рекорд: проиграть там нельзя, сравнивать с обычным нечестно
+	if progression.update_best_zen_score(score) if zen else progression.update_best_score(score):
+		best_score_label.text = "%d" % current_best_score()
 	# Праздник в момент, когда рекорд побит (один раз за партию)
 	if not record_announced and best_score_at_start > 0 and score > best_score_at_start:
 		record_announced = true
@@ -525,9 +561,12 @@ func update_score_display():
 		Sfx.play("record")
 		GameSettings.vibrate(60)
 
+func current_best_score() -> int:
+	return progression.best_zen_score if zen else progression.best_score
+
 func update_zen_display():
-	if zen:
-		best_score_label.text = "Спокойный режим"
+	score_caption.text = "СПОКОЙНЫЙ РЕЖИМ" if zen else "ОЧКИ"
+	best_score_label.text = "%d" % current_best_score()
 
 # Ближайшая награда за уровень — то, ради чего хочется сыграть ещё партию
 func update_next_reward_display():
@@ -542,28 +581,55 @@ func update_next_reward_display():
 	if next["lines"].size() > 1:
 		text += " и ещё %d" % (next["lines"].size() - 1)
 	label.text = text
+	fit_font_size(label, 22, 20)
+
+# Шрифт уменьшается до min_size, пока текст не влезет в ширину надписи (мельче — нечитаемо)
+func fit_font_size(label: Label, max_size: int, min_size: int) -> void:
+	var font = label.get_theme_font("font")
+	var font_size = max_size
+	while font_size > min_size and font.get_string_size(label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > label.size.x:
+		font_size -= 1
+	label.add_theme_font_size_override("font_size", font_size)
 
 func update_xp_display():
 	update_next_reward_display()
 	if level_label:
 		level_label.text = str(progression.current_level)
+	var pending = effective_run_xp(run_xp) if run_xp > 0 and not run_finished else 0
+	var need = progression.get_xp_for_next_level()
 	if xp_bar:
-		xp_bar.max_value = progression.get_xp_for_next_level()
+		xp_bar.max_value = need
 		xp_bar.value = progression.current_xp
+	# Опыт партии начисляется в конце — пока он виден светлым продолжением полоски
+	if xp_pending:
+		var max_level = progression.is_max_level()
+		xp_pending.visible = pending > 0 and not max_level and need > 0
+		if xp_pending.visible:
+			var width = xp_bar.size.x
+			var from = clampf(float(progression.current_xp) / need, 0.0, 1.0) * width
+			var to = clampf(float(progression.current_xp + pending) / need, 0.0, 1.0) * width
+			xp_pending.position = Vector2(from, 0)
+			xp_pending.size = Vector2(maxf(to - from, 3.0), xp_bar.size.y)
 	if xp_label:
-		var text = progression.get_rank()
-		if progression.is_max_level():
-			text += " · максимум"
-		else:
-			text += " · %d / %d XP" % [progression.current_xp, progression.get_xp_for_next_level()]
-		if run_xp > 0 and not run_finished:
-			text += "  (+%d за партию)" % effective_run_xp(run_xp)
-		xp_label.text = text
+		xp_label.text = progression.get_rank()
+		var value = "максимум" if progression.is_max_level() else "%d / %d" % [progression.current_xp, need]
+		if pending > 0:
+			value += "  +%d" % pending
+		xp_value_label.text = value
+		# Длинное звание и цифры не должны наезжать друг на друга
+		var font = xp_label.get_theme_font("font")
+		var room = xp_value_label.size.x - font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x - 14.0
+		var rank_size = 22
+		while rank_size > 20 and font.get_string_size(xp_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, rank_size).x > room:
+			rank_size -= 1
+		xp_label.add_theme_font_size_override("font_size", rank_size)
 
 func update_streak_display(streak: int):
 	streak_pill.visible = streak >= 2
 	if streak >= 2:
-		streak_label.text = "×%d" % streak
+		show_tip("streak", "Серия: очищайте линии ход за ходом — очки за линии растут, до ×4. Три хода без линий — серия сгорает.")
+	if streak >= 2:
+		streak_label.text = "Серия ×%d" % streak
 
 func is_input_blocked() -> bool:
 	return game_over or not get_tree().get_nodes_in_group("modal").is_empty()
@@ -795,6 +861,7 @@ func _on_hammer_pressed():
 		reset_rotate_button()
 	hammer_mode = true
 	set_tool_active($HammerButton, true, PRICE_HAMMER)
+	show_tip("hammer", "Молоток: нажмите на клетку поля — она исчезнет (%d монет). Передумали — нажмите молоток ещё раз." % PRICE_HAMMER)
 
 func use_hammer_on_cell(x: int, y: int):
 	if not hammer_mode or grid.board.get_cell(x, y) == Board.EMPTY:
@@ -841,6 +908,7 @@ func _on_rotate_pressed():
 		reset_hammer_button()
 	rotate_mode = true
 	set_tool_active($RotateButton, true, PRICE_ROTATE)
+	show_tip("rotate", "Поворот: нажмите на фигуру внизу — она повернётся (%d монет). Передумали — нажмите кнопку ещё раз." % PRICE_ROTATE)
 
 func rotate_block(block):
 	if not rotate_mode or not progression.spend_coins(PRICE_ROTATE):
@@ -1032,7 +1100,7 @@ func _on_exit_confirm():
 
 # === TOASTS (уведомления сверху) ===
 
-func show_toast(text: String, color: Color = Color.WHITE):
+func show_toast(text: String, color: Color = Color.WHITE, hold: float = 2.4):
 	var panel = PanelContainer.new()
 	panel.theme_type_variation = &"ToastPanel"
 	panel.z_index = 120
@@ -1053,7 +1121,7 @@ func show_toast(text: String, color: Color = Color.WHITE):
 
 	var tween = create_tween()
 	tween.tween_property(panel, "position:y", slot_y, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tween.tween_interval(2.4)
+	tween.tween_interval(hold)
 	tween.tween_property(panel, "modulate:a", 0.0, 0.35)
 	tween.tween_callback(func():
 		toast_offset = maxi(toast_offset - 1, 0)
@@ -1368,10 +1436,17 @@ func show_final_game_over():
 	continue_used_count = 0
 
 	var box = open_modal(600, _on_restart_pressed)
-	modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
+	if zen:
+		modal_title(box, "ПАРТИЯ ЗАВЕРШЕНА", Color(0.6, 0.88, 1), 46)
+	else:
+		modal_title(box, "ИГРА ОКОНЧЕНА", Color(1, 0.35, 0.35), 52)
 	modal_text(box, "Очки: %d" % score, 44, Color.WHITE)
 	if record_bonus_given:
 		modal_text(box, "Новый рекорд! +20 монет", 28, Color(1, 0.84, 0))
+	elif zen and score > best_score_at_start and score > 0:
+		modal_text(box, "Новый рекорд спокойного режима!", 28, Color(1, 0.84, 0))
+	elif zen:
+		modal_text(box, "Рекорд спокойного режима: %d" % progression.best_zen_score, 28, Color(1, 0.84, 0))
 	else:
 		modal_text(box, "Рекорд: %d" % progression.best_score, 28, Color(1, 0.84, 0))
 		# «Чуть-чуть не хватило» — самый сильный повод сыграть ещё раз
@@ -1517,7 +1592,7 @@ func make_reward_card(item: Dictionary) -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	title.custom_minimum_size = Vector2(180, 0)
-	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_font_size_override("font_size", 21)
 	card.add_child(title)
 
 	var button = Button.new()
@@ -1703,6 +1778,35 @@ func clear_saved_run():
 	SafeFile.remove(RUN_SAVE_PATH)
 
 # === ПОДСКАЗКА НОВИЧКУ ===
+
+# Выключенная кнопка бонуса не нажимается, но на касание отвечает подсказкой:
+# новичок видел цены и не понимал, откуда берутся монеты
+var last_coins_hint_ms := -10000
+
+func _on_tool_gui_input(event: InputEvent, button: Button, price: int):
+	var released = (event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT) \
+		or (event is InputEventScreenTouch and not event.pressed)
+	if not released or not button.disabled or game_over or progression.total_coins >= price:
+		return
+	var now = Time.get_ticks_msec()
+	if now - last_coins_hint_ms < 3000:
+		return
+	last_coins_hint_ms = now
+	Sfx.play("invalid")
+	show_toast("Нужно %d монет, у вас %d. Монеты дают в конце партии за очки, за новые уровни и задания дня." \
+		% [price, progression.total_coins], GOLD, 4.0)
+
+# Подсказка показывается один раз за всё время (список увиденных — в настройках)
+func show_tip(tip_id: String, text: String):
+	if GameSettings.take_tip(tip_id):
+		show_toast(text, Color(0.85, 0.92, 1), 5.0)
+
+# Подсказки к началу партии: задания — со второй партии, спокойный режим — в первой спокойной
+func show_start_tips():
+	if zen:
+		show_tip("zen", "Спокойный режим: проиграть нельзя — когда фигуры не влезают, поле освобождается. Рекорд здесь свой.")
+	elif progression.total_games_played >= 1:
+		show_tip("tasks", "Задания дня — кнопка внизу справа: три задания каждый день за монеты и опыт.")
 
 func show_tutorial_if_needed():
 	if progression.total_pieces_placed > 0:

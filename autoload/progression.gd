@@ -37,6 +37,7 @@ var can_claim_daily = false
 
 # Статистика
 var best_score = 0
+var best_zen_score = 0       # Рекорд спокойного режима — отдельно: там нельзя проиграть
 var total_games_played = 0
 var total_lines_cleared = 0
 var total_time_played = 0  # В секундах
@@ -516,6 +517,7 @@ func save_progress():
 		"max_color_slots": max_color_slots,
 		"active_colors": active_colors,
 		"best_score": best_score,
+		"best_zen_score": best_zen_score,
 		"total_games_played": total_games_played,
 		"total_lines_cleared": total_lines_cleared,
 		"total_time_played": total_time_played,
@@ -605,6 +607,7 @@ func load_progress():
 	missions_done = save_data.get("missions_done", 0)
 	full_days = save_data.get("full_days", 0)
 	zen_games = save_data.get("zen_games", 0)
+	best_zen_score = save_data.get("best_zen_score", 0)
 	coins_spent = save_data.get("coins_spent", 0)
 
 	var saved_flags = save_data.get("has_new_items", {})
@@ -742,6 +745,8 @@ func get_stat(stat_id: String) -> int:
 			return total_lines_cleared
 		"best_score":
 			return best_score
+		"best_zen_score":
+			return best_zen_score
 		"pieces_placed":
 			return total_pieces_placed
 		"max_streak":
@@ -792,6 +797,13 @@ func get_stat(stat_id: String) -> int:
 func update_best_score(score: int) -> bool:
 	if score > best_score:
 		best_score = score
+		request_save()
+		return true
+	return false
+
+func update_best_zen_score(score: int) -> bool:
+	if score > best_zen_score:
+		best_zen_score = score
 		request_save()
 		return true
 	return false
