@@ -79,11 +79,13 @@
 > • Три новых задания каждый день и испытание дня — одна задача на всех: готовое поле, известные фигуры и цель за 36 ходов. В понедельник полегче, в воскресенье — проверка мастерства.
 > • Честные фигуры: в каждом наборе есть фигура, которую можно поставить.
 > • 500 уровней, звания от «Новичка» до «Легенды».
-> • 33 достижения, 122 ступени.
-> • 38 аватарок, 26 рамок, 11 эффектов очистки и 25 цветов блоков. Некоторые нельзя купить — только заслужить.
+> • 35 достижений, 128 ступеней.
+> • 38 аватарок, 26 рамок, 19 эффектов очистки (молнии, бабочки, ноты, чёрная дыра…) и 25 цветов блоков. Некоторые нельзя купить — только заслужить.
 > • Новая награда на каждом уровне со 2-го по 40-й.
 > • 15 тем — от Классики до Космоса: Сакура, Пустыня, Облака, Ночной лес, Северное сияние, Неоновый город… У каждой свои блоки и живой фон.
 > • 10 видов кубиков поверх любой темы: неон, киберпанк, аниме, милашки с мордочками, голограмма, лёд и другие.
+> • 11 окрасок блоков с градиентами: королевская в золотой оправе, металлы, закат, северное сияние, радуга…
+> • 8 живых фонов поверх любой темы: аврора, синтвейв, фонарики, лава-лампа, изумрудный зал, королевский бархат…
 > • Бонусы: молоток, поворот фигуры, новые фигуры, отмена хода.
 > • Не хотите ждать уровня — купите тему, рамку или аватарку за монеты из игры. Без реальных денег.
 > • Сияющие и золотые версии аватарок и рамок, титулы под именем, цвет и свечение имени.
@@ -94,7 +96,7 @@
 **English (если понадобится):**
 > Short: Place blocks, clear lines. No ads, works offline, fair pieces.
 >
-> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. A daily challenge with the same puzzle for everyone, shiny and golden avatar and frame upgrades, titles and name colors. 500 levels with a new reward on every level from 2 to 40, 33 achievements with 122 tiers, 38 avatars, 26 frames, 11 line-clear effects, 25 block colors, 15 themes from Classic to Space (Sakura, Desert, Clouds, Night Forest, Neon City and more) and 10 block skins that work with any theme (neon, cyberpunk, anime, cute faces, hologram, ice and more).
+> A classic 8×8 block puzzle. Drag pieces onto the board, fill rows and columns to clear them, chain clears into streaks, and clear the whole board for a big bonus. No ads at all, fully offline, and every hand has a piece that fits. A daily challenge with the same puzzle for everyone, shiny and golden avatar and frame upgrades, titles and name colors. 500 levels with a new reward on every level from 2 to 40, 35 achievements with 128 tiers, 38 avatars, 26 frames, 19 line-clear effects, 25 block colors, 15 themes from Classic to Space (Sakura, Desert, Clouds, Night Forest, Neon City and more) 10 block skins that work with any theme (neon, cyberpunk, anime, cute faces, hologram, ice and more), 11 gradient block paints (royal gems in gold, metals, sunset, aurora) and 8 animated backdrops (aurora, synthwave, lanterns, royal velvet and more).
 
 ## Чек-лист перед загрузкой
 

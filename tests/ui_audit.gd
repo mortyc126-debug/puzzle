@@ -128,6 +128,25 @@ func build_steps() -> void:
 			if profile:
 				profile.get_node("CustomizeContainer").current_tab = tab)
 		steps.append(func(_game): shot("profile_tab_%d" % tab))
+	# Коллекции ниже первого экрана: окраски (под кубиками) и фоны (под темами) + карточки закрытых
+	steps.append_array([
+		func(game):
+			var profile = find_modal(game, "Profile")
+			profile.get_node("CustomizeContainer").current_tab = 2
+			scroll_to(profile, "ОКРАСКА"),
+		func(_game): shot("profile_paints"),
+		func(game): find_modal(game, "Profile").show_locked_card("paint", 5),
+		func(_game): shot("paint_locked"),
+		func(game): game.handle_back(),
+		func(game):
+			var profile = find_modal(game, "Profile")
+			profile.get_node("CustomizeContainer").current_tab = 3
+			scroll_to(profile, "ФОНЫ"),
+		func(_game): shot("profile_backdrops"),
+		func(game): find_modal(game, "Profile").show_locked_card("backdrop", 8),
+		func(_game): shot("backdrop_locked"),
+		func(game): game.handle_back(),
+	])
 	steps.append_array([
 		func(game): find_modal(game, "Profile").show_item_card("frame", root.get_node("Progression").player_frame),
 		func(_game): shot("item_card_upgrade"),
@@ -191,6 +210,18 @@ func build_steps() -> void:
 			return 90,
 		func(_game): shot("challenge_result"),
 	])
+
+# Прокручивает открытый раздел профиля до надписи, начинающейся с prefix
+func scroll_to(profile: Node, prefix: String) -> void:
+	for label in profile.find_children("*", "Label", true, false):
+		if label.text.begins_with(prefix) and label.is_visible_in_tree():
+			var parent = label.get_parent()
+			while parent and not parent is ScrollContainer:
+				parent = parent.get_parent()
+			if parent:
+				parent.scroll_vertical = int(label.global_position.y - parent.global_position.y + parent.scroll_vertical - 10)
+			return
+	print("CHECK раздел «%s» в профиле: НЕТ" % prefix)
 
 func find_modal(game, scene_name: String) -> Node:
 	for child in game.ui_layer.get_children():

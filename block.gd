@@ -54,11 +54,10 @@ func set_placeable(value: bool) -> void:
 
 func _draw() -> void:
 	var theme: BlockTheme = ThemeManager.blocks
-	var color = ThemeManager.get_block_color(color_index)
 	var alpha = 1.0 if (placeable or dragging) else 0.35
 	for cell in shape:
 		var rect = Rect2(cell * cell_size, Vector2(cell_size, cell_size))
-		BlockRenderer.draw_block(self, rect, color, theme, alpha)
+		ThemeManager.draw_cell(self, rect, color_index, theme, alpha)
 
 func _input(event: InputEvent) -> void:
 	# Пока открыто окно или игра окончена — новые перетаскивания не начинаем

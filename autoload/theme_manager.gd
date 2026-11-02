@@ -7,6 +7,7 @@ extends Node
 
 signal theme_changed(theme: BlockTheme)
 signal blocks_changed  # сменились кубики: перерисовать блоки (фон темы при этом не трогаем)
+signal backdrop_changed  # сменился фон из коллекции «Фоны»
 
 # Порядок — лестница открытия: от простых тем к самым красивым, «Космос» — венец (уровень 100)
 const THEME_PATHS = [
@@ -33,6 +34,8 @@ var current: BlockTheme
 # (Progression.player_skin). Фон, поле и цвета — от темы. Без кубиков — сама тема.
 var blocks: BlockTheme
 var skin_id := 0
+var paint_id := 0  # окраска поверх темы (ItemsDB.paints_data), 0 — цвета темы
+var backdrop_id := 0  # фон поверх темы (ItemsDB.backdrops_data), 0 — фон самой темы
 
 func _ready() -> void:
 	for path in THEME_PATHS:
@@ -106,8 +109,60 @@ func with_skin(theme: BlockTheme, preview_skin: int) -> BlockTheme:
 	copy.glow_strength = data.get("glow", theme.glow_strength)
 	return copy
 
-# Цвет блока по индексу, сохранённому на поле
-func get_block_color(color_index: int, theme: BlockTheme = null) -> Color:
+func apply_paint(new_paint_id: int) -> void:
+	if new_paint_id == paint_id:
+		return
+	paint_id = new_paint_id
+	blocks_changed.emit()
+
+func apply_backdrop(new_backdrop_id: int) -> void:
+	if new_backdrop_id == backdrop_id:
+		return
+	backdrop_id = new_backdrop_id
+	backdrop_changed.emit()
+
+# Сцена выбранного фона или null — тогда фон берётся из темы
+func get_backdrop_scene(preview_backdrop: int = -1) -> PackedScene:
+	var use_id = backdrop_id if preview_backdrop < 0 else preview_backdrop
+	var path: String = ItemsDB.get_backdrop_data(use_id).get("scene", "") if use_id > 0 else ""
+	if path == "" or not ResourceLoader.exists(path):
+		return null
+	return load(path)
+
+# Цвет окраски по индексу: {"color" — средний, "top"/"bottom" — градиент (прозрачные — без него), "rim"}
+func paint_entry(paint: int, color_index: int) -> Dictionary:
+	var data = ItemsDB.get_paint_data(paint)
+	var colors: Array = data.get("colors", [])
+	if colors.is_empty():
+		return {}
+	var item = colors[posmod(color_index, colors.size())]
+	var none = Color(0, 0, 0, 0)
+	var rim: Color = data.get("rim", none)
+	if item is Array:
+		return {"color": item[0].lerp(item[1], 0.5), "top": item[0], "bottom": item[1], "rim": rim}
+	return {"color": item, "top": none, "bottom": none, "rim": rim}
+
+# Рисует блок по индексу цвета: тема (или кубики), окраска и её градиент.
+# paint: -2 — текущая окраска, -1 — цвета самой темы (превью тем), иначе — номер окраски
+func draw_cell(canvas: CanvasItem, rect: Rect2, color_index: int, theme: BlockTheme = null, alpha: float = 1.0,
+		paint: int = -2) -> void:
+	if theme == null:
+		theme = blocks
+	var use_paint = paint_id if paint == -2 else paint
+	if use_paint > 0:
+		var entry = paint_entry(use_paint, color_index)
+		if not entry.is_empty():
+			BlockRenderer.draw_block(canvas, rect, entry["color"], theme, alpha, entry["top"], entry["bottom"], entry["rim"])
+			return
+	BlockRenderer.draw_block(canvas, rect, get_block_color(color_index, theme, -1), theme, alpha)
+
+# Цвет блока по индексу, сохранённому на поле (для частиц и вспышек — средний цвет окраски)
+func get_block_color(color_index: int, theme: BlockTheme = null, paint: int = -2) -> Color:
+	var use_paint = paint_id if paint == -2 and theme == null else paint
+	if use_paint > 0:
+		var entry = paint_entry(use_paint, color_index)
+		if not entry.is_empty():
+			return entry["color"]
 	if theme == null:
 		theme = current
 	if theme.use_player_colors or theme.palette.is_empty():
@@ -118,6 +173,9 @@ func get_block_color(color_index: int, theme: BlockTheme = null) -> Color:
 # Из каких индексов выбирать цвет новых фигур
 func get_spawn_color_indices() -> Array:
 	var result = []
+	var paint_colors: Array = ItemsDB.get_paint_data(paint_id).get("colors", []) if paint_id > 0 else []
+	if not paint_colors.is_empty():
+		return range(paint_colors.size())
 	if current.use_player_colors or current.palette.is_empty():
 		var progression = get_node_or_null("/root/Progression")
 		if progression:

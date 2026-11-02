@@ -61,6 +61,24 @@ var effects_data = {
 		"description": "Раскалённые искры взлетают над полем, как над вулканом.", "unlock": {"type": "level", "level": 47}},
 	11: {"name": "Снежинки", "rarity": "EPIC", "kind": "snow",
 		"description": "Очищенные клетки рассыпаются снегом.", "unlock": {"type": "level", "level": 72}},
+	12: {"name": "Монетки", "rarity": "UNCOMMON", "kind": "coins",
+		"description": "Из каждой клетки выпрыгивает крутящаяся монетка. Звенит даже без звука.", "unlock": {"type": "level", "level": 29}},
+	13: {"name": "Ударная волна", "rarity": "RARE", "kind": "shockwave",
+		"description": "От клеток разбегаются кольца, как от удара по воде.", "unlock": {"type": "level", "level": 38}},
+	14: {"name": "Осколки", "rarity": "RARE", "kind": "shards",
+		"description": "Блоки раскалываются на треугольные осколки, и те кувыркаясь падают.", "unlock": {"type": "level", "level": 66}},
+	15: {"name": "Молнии", "rarity": "EPIC", "kind": "lightning",
+		"description": "Ветвистые разряды бьют из каждой клетки — линия уходит с треском.", "unlock": {"type": "level", "level": 105}},
+	16: {"name": "Ноты", "rarity": "UNCOMMON", "kind": "notes",
+		"description": "Линия звучит: вверх улетают разноцветные ноты.", "unlock": {"type": "level", "level": 125}},
+	17: {"name": "Бабочки", "rarity": "EPIC", "kind": "butterflies",
+		"description": "Из очищенных клеток вспархивают бабочки и улетают, помахивая крыльями.", "unlock": {"type": "level", "level": 155}},
+	18: {"name": "Чёрная дыра", "rarity": "LEGENDARY", "kind": "blackhole",
+		"description": "Клетку затягивает в крошечную воронку: искры закручиваются по спирали и исчезают.",
+		"unlock": {"type": "level", "level": 400}},
+	19: {"name": "Золотая пыль", "rarity": "LEGENDARY", "kind": "golddust",
+		"description": "Королевская награда: клетки рассыпаются золотыми блёстками. Только за «Золотую коллекцию».",
+		"unlock": {"type": "achievement", "id": "golden", "tier": 3}},
 }
 
 # === РАМКИ ===
@@ -529,6 +547,93 @@ var skins_data = {
 	10: {"name": "Звёздные", "rarity": "LEGENDARY", "style": BlockTheme.BlockStyle.GALAXY, "radius": 10.0, "glow": 0.6,
 		"description": "В каждом кубике — кусочек космоса: туманность и звёзды.", "unlock": {"type": "level", "level": 300}},
 }
+
+# Окраски: цвета блоков поверх темы. Элемент colors — цвет или [верх, низ] (градиент внутри блока),
+# rim — кайма (золотая у «Королевской»). Палитры собраны по модным и классическим наборам:
+# королевские камни (аметист, рубин #DC143C, сапфир #0F52BA, изумруд #50C878, золото #D4AF37),
+# «авроровые» градиенты (бирюза #06B6D4 → индиго #6366F1 → маджента #EC4899), закатные (#FF6B6B, #FF9F68, #FFD56B).
+var paints_data = {
+	1: {"name": "Пастель", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 21},
+		"description": "Мягкие пастельные тона: розовый, мятный, персиковый, лавандовый.",
+		"colors": [Color(1.000, 0.702, 0.776), Color(0.627, 0.906, 0.898), Color(1.000, 0.855, 0.757), Color(0.710, 0.725, 1.000), Color(0.992, 0.992, 0.588), Color(0.765, 0.694, 0.882)]},
+	2: {"name": "Закат", "rarity": "RARE", "unlock": {"type": "level", "level": 36},
+		"description": "Градиенты заката: коралл в персик, мандарин в розу, сирень в фуксию.",
+		"colors": [[Color(1.000, 0.420, 0.420), Color(1.000, 0.624, 0.408)], [Color(1.000, 0.624, 0.408), Color(1.000, 0.835, 0.420)], [Color(0.976, 0.271, 0.353), Color(0.710, 0.090, 0.620)], [Color(0.941, 0.502, 0.149), Color(0.969, 0.373, 0.290)], [Color(1.000, 0.835, 0.420), Color(1.000, 0.420, 0.420)], [Color(0.780, 0.490, 1.000), Color(1.000, 0.561, 0.671)]]},
+	3: {"name": "Неоновая", "rarity": "RARE", "unlock": {"type": "level", "level": 44},
+		"description": "Кислотные цвета вывесок: зелёный, розовый, синий, жёлтый, оранжевый, фиолетовый.",
+		"colors": [Color(0.224, 1.000, 0.078), Color(1.000, 0.063, 0.941), Color(0.122, 0.318, 1.000), Color(1.000, 1.000, 0.200), Color(1.000, 0.373, 0.122), Color(0.737, 0.075, 0.996)]},
+	4: {"name": "Северное сияние", "rarity": "EPIC", "unlock": {"type": "level", "level": 57},
+		"description": "Модные «авроровые» градиенты: бирюза в индиго, индиго в маджента, мята в бирюзу.",
+		"colors": [[Color(0.133, 0.827, 0.933), Color(0.388, 0.400, 0.945)], [Color(0.388, 0.400, 0.945), Color(0.925, 0.282, 0.600)], [Color(0.655, 0.953, 0.816), Color(0.133, 0.827, 0.933)], [Color(0.427, 0.259, 0.780), Color(0.925, 0.282, 0.600)], [Color(0.024, 0.714, 0.831), Color(0.063, 0.725, 0.506)], [Color(0.545, 0.361, 0.965), Color(0.231, 0.510, 0.965)]]},
+	5: {"name": "Королевская", "rarity": "LEGENDARY", "unlock": {"type": "level", "level": 82}, "rim": Color(0.831, 0.686, 0.216),
+		"description": "Камни короны в золотой оправе: аметист, рубин, сапфир, изумруд, золото и жемчуг.",
+		"colors": [[Color(0.608, 0.420, 0.878), Color(0.294, 0.102, 0.478)], [Color(0.949, 0.251, 0.373), Color(0.545, 0.039, 0.133)], [Color(0.239, 0.482, 0.910), Color(0.039, 0.180, 0.451)], [Color(0.369, 0.839, 0.561), Color(0.055, 0.361, 0.227)], [Color(1.000, 0.898, 0.541), Color(0.722, 0.525, 0.043)], [Color(1.000, 0.965, 0.902), Color(0.831, 0.769, 0.659)]]},
+	6: {"name": "Мороженое", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 96},
+		"description": "Сливочные градиенты: клубника, фисташка, черника, манго, мята, ваниль.",
+		"colors": [[Color(1.000, 0.820, 0.863), Color(1.000, 0.561, 0.671)], [Color(0.890, 0.976, 0.788), Color(0.576, 0.773, 0.447)], [Color(0.839, 0.894, 1.000), Color(0.482, 0.612, 1.000)], [Color(1.000, 0.945, 0.722), Color(1.000, 0.702, 0.278)], [Color(0.835, 1.000, 0.941), Color(0.361, 0.839, 0.690)], [Color(1.000, 0.992, 0.949), Color(0.953, 0.878, 0.710)]]},
+	7: {"name": "Металлы", "rarity": "EPIC", "unlock": {"type": "level", "level": 135}, "rim": Color(1.000, 1.000, 1.000),
+		"description": "Полированные слитки: золото, серебро, бронза, розовое золото, медь и платина.",
+		"colors": [[Color(1.000, 0.945, 0.659), Color(0.788, 0.604, 0.118)], [Color(0.957, 0.965, 0.980), Color(0.604, 0.639, 0.698)], [Color(0.941, 0.698, 0.478), Color(0.549, 0.353, 0.169)], [Color(0.969, 0.784, 0.753), Color(0.718, 0.431, 0.475)], [Color(0.969, 0.635, 0.420), Color(0.639, 0.314, 0.165)], [Color(0.910, 0.941, 0.973), Color(0.561, 0.635, 0.722)]]},
+	8: {"name": "Океанская", "rarity": "RARE", "unlock": {"type": "level", "level": 165},
+		"description": "Все оттенки моря: от отмели до глубины.",
+		"colors": [[Color(0.498, 0.859, 1.000), Color(0.000, 0.455, 0.851)], [Color(0.224, 0.800, 0.800), Color(0.000, 0.427, 0.467)], [Color(0.702, 0.898, 0.988), Color(0.310, 0.765, 0.969)], [Color(0.565, 0.878, 0.937), Color(0.000, 0.467, 0.714)], [Color(0.282, 0.792, 0.894), Color(0.012, 0.016, 0.369)], [Color(0.180, 0.769, 0.714), Color(0.043, 0.235, 0.365)]]},
+	9: {"name": "Осенняя", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 185},
+		"description": "Тёплая осень: ржавчина, горчица, олива, бордо, терракота и тыква.",
+		"colors": [Color(0.718, 0.278, 0.165), Color(0.882, 0.678, 0.004), Color(0.439, 0.510, 0.220), Color(0.502, 0.000, 0.125), Color(0.886, 0.447, 0.357), Color(1.000, 0.459, 0.094)]},
+	10: {"name": "Радужная", "rarity": "EPIC", "unlock": {"type": "level", "level": 200},
+		"description": "Каждый блок — переход между соседними цветами радуги.",
+		"colors": [[Color(1.000, 0.231, 0.231), Color(1.000, 0.624, 0.110)], [Color(1.000, 0.624, 0.110), Color(1.000, 0.882, 0.302)], [Color(1.000, 0.882, 0.302), Color(0.239, 0.863, 0.518)], [Color(0.239, 0.863, 0.518), Color(0.133, 0.827, 0.933)], [Color(0.231, 0.510, 0.965), Color(0.545, 0.361, 0.965)], [Color(0.545, 0.361, 0.965), Color(1.000, 0.310, 0.722)]]},
+	11: {"name": "Нуар", "rarity": "RARE", "unlock": {"type": "level", "level": 450},
+		"description": "Чёрно-белое кино и один алый акцент.",
+		"colors": [[Color(0.353, 0.353, 0.353), Color(0.102, 0.102, 0.102)], [Color(0.604, 0.604, 0.604), Color(0.290, 0.290, 0.290)], [Color(0.878, 0.878, 0.878), Color(0.541, 0.541, 0.541)], [Color(1.000, 0.180, 0.302), Color(0.545, 0.000, 0.086)], [Color(0.227, 0.227, 0.227), Color(0.000, 0.000, 0.000)], [Color(0.784, 0.784, 0.784), Color(0.431, 0.431, 0.431)]]},
+}
+
+# Фоны: живой фон поверх любой темы (поле, блоки и цвета остаются от темы). 0 — «Как в теме».
+# scene — сцена фона (res://backdrops/<id>/), color — цвет под фоном и в превью, пока сцена грузится.
+# Идеи взяты из трендов: меш-градиенты (размытые пятна, «аврора»), королевский пурпур с золотом,
+# изумруд с золотом в стиле ар-деко, ретро-синтвейв.
+var backdrops_data = {
+	1: {"name": "Тёплый градиент", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 27},
+		"description": "Модный меш-градиент: коралл, персик, золото и капля неба медленно перетекают друг в друга.",
+		"scene": "res://backdrops/mesh_warm/mesh_warm.tscn", "color": Color(0.85, 0.4, 0.5)},
+	2: {"name": "Аврора", "rarity": "RARE", "unlock": {"type": "level", "level": 50},
+		"description": "Светящиеся пятна бирюзы, индиго и мадженты дрейфуют по ночному небу.",
+		"scene": "res://backdrops/mesh_aurora/mesh_aurora.tscn", "color": Color(0.07, 0.07, 0.18)},
+	3: {"name": "Лава-лампа", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 68},
+		"description": "Тёплые капли неторопливо всплывают и опускаются — как в лампе из семидесятых.",
+		"scene": "res://backdrops/lava_lamp/lava_lamp.tscn", "color": Color(0.32, 0.06, 0.19)},
+	4: {"name": "Синтвейв", "rarity": "EPIC", "unlock": {"type": "level", "level": 88},
+		"description": "Ретро-закат: полосатое солнце и неоновая сетка, бегущая к горизонту.",
+		"scene": "res://backdrops/synthwave/synthwave.tscn", "color": Color(0.12, 0.0, 0.22)},
+	5: {"name": "Фонарики", "rarity": "RARE", "unlock": {"type": "level", "level": 115},
+		"description": "Бумажные фонарики поднимаются в ночное небо и отражаются в воде.",
+		"scene": "res://backdrops/lanterns/lanterns.tscn", "color": Color(0.1, 0.08, 0.2)},
+	6: {"name": "Изумрудный зал", "rarity": "EPIC", "unlock": {"type": "level", "level": 145},
+		"description": "Глубокий изумруд и золотые веера ар-деко, по стене скользит блик.",
+		"scene": "res://backdrops/emerald/emerald.tscn", "color": Color(0.07, 0.3, 0.24)},
+	7: {"name": "Чёрный мрамор", "rarity": "RARE", "unlock": {"type": "level", "level": 190},
+		"description": "Тёмный полированный камень с белыми и золотыми прожилками.",
+		"scene": "res://backdrops/marble/marble.tscn", "color": Color(0.07, 0.07, 0.08)},
+	8: {"name": "Королевский бархат", "rarity": "LEGENDARY", "unlock": {"type": "level", "level": 275},
+		"description": "Пурпурный бархат, золотая решётка с жемчугом, корона и оседающие блёстки.",
+		"scene": "res://backdrops/royal/royal.tscn", "color": Color(0.25, 0.05, 0.37)},
+}
+
+func get_backdrop_ids() -> Array:
+	var ids = backdrops_data.keys()
+	ids.sort()
+	return ids
+
+func get_backdrop_data(backdrop_id: int) -> Dictionary:
+	return backdrops_data.get(backdrop_id, {})
+
+func get_paint_ids() -> Array:
+	var ids = paints_data.keys()
+	ids.sort()
+	return ids
+
+func get_paint_data(paint_id: int) -> Dictionary:
+	return paints_data.get(paint_id, {})
 
 func get_skin_ids() -> Array:
 	var ids = skins_data.keys()

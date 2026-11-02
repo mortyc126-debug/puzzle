@@ -56,6 +56,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var theme: BlockTheme = ThemeManager.current
 	var blocks: BlockTheme = ThemeManager.blocks  # вид блоков: тема или выбранные кубики
+	if ThemeManager.backdrop_id > 0:
+		BlockRenderer.draw_board_underlay(self, Rect2(Vector2.ZERO, get_pixel_size()), theme)
 	BlockRenderer.draw_board(self, Rect2(Vector2.ZERO, get_pixel_size()), theme)
 
 	for y in range(GRID_SIZE):
@@ -64,7 +66,7 @@ func _draw() -> void:
 			if value == Board.EMPTY:
 				BlockRenderer.draw_empty_cell(self, cell_rect(x, y), theme)
 			else:
-				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(value), blocks)
+				ThemeManager.draw_cell(self, cell_rect(x, y), value, blocks)
 
 	if ghost_active:
 		# Линии, которые очистятся после постановки
@@ -79,7 +81,7 @@ func _draw() -> void:
 			if not board.in_bounds(x, y):
 				continue
 			if ghost_valid:
-				BlockRenderer.draw_block(self, cell_rect(x, y), ThemeManager.get_block_color(ghost_color_index), blocks, 0.4)
+				ThemeManager.draw_cell(self, cell_rect(x, y), ghost_color_index, blocks, 0.4)
 			else:
 				draw_rect(cell_rect(x, y).grow(-4), theme.ghost_invalid_color)
 

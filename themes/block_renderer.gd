@@ -8,6 +8,20 @@ const BASE_CELL = 80.0
 
 static var _box_cache: Dictionary = {}
 
+# Окраска с градиентом (ItemsDB.paints_data): пока рисуется блок, здесь его верхний и нижний цвет.
+# Тело блока тогда — скруглённая текстура-градиент, а светлые и тёмные накладки полупрозрачны,
+# чтобы градиент просвечивал. Без окраски всё рисуется как раньше.
+static var _grad_on := false
+static var _grad_top := Color.WHITE
+static var _grad_bottom := Color.WHITE
+static var _grad_cache: Dictionary = {}
+static var _grad_clear_scheduled := false
+# Стили, где градиент виден; у остальных (неон, магма, самоцвет…) блок берёт средний цвет
+const GRADIENT_STYLES = [BlockTheme.BlockStyle.FLAT, BlockTheme.BlockStyle.BEVEL, BlockTheme.BlockStyle.GLOSSY,
+	BlockTheme.BlockStyle.CANDY, BlockTheme.BlockStyle.WOOD, BlockTheme.BlockStyle.PIXEL, BlockTheme.BlockStyle.METAL,
+	BlockTheme.BlockStyle.ANIME, BlockTheme.BlockStyle.KAWAII, BlockTheme.BlockStyle.JELLY, BlockTheme.BlockStyle.CUBE3D,
+	BlockTheme.BlockStyle.BRICK, BlockTheme.BlockStyle.FROST, BlockTheme.BlockStyle.GLASS]
+
 # StyleBoxFlat кэшируются: поле перерисовывается при каждом движении пальца
 static func _box(fill: Color, radius: float, border: Color = Color(0, 0, 0, 0), border_width: int = 0,
 		shadow: Color = Color(0, 0, 0, 0), shadow_size: int = 0, top_only: bool = false) -> StyleBoxFlat:
@@ -40,34 +54,56 @@ static func draw_board(canvas: CanvasItem, rect: Rect2, theme: BlockTheme) -> vo
 	var padded = rect.grow(theme.board_padding)
 	canvas.draw_style_box(_box(theme.board_color, theme.board_corner_radius), padded)
 
+# Подложка под поле цвета фона темы: поле темы полупрозрачное и рассчитано на её фон, а на чужом
+# (коллекция «Фоны» — например, светлый мрамор под тёмной «Классикой») клетки сливались бы с полем
+static func draw_board_underlay(canvas: CanvasItem, rect: Rect2, theme: BlockTheme) -> void:
+	var padded = rect.grow(theme.board_padding)
+	canvas.draw_style_box(_box(Color(theme.background_color, 1.0), theme.board_corner_radius), padded)
+
 static func draw_empty_cell(canvas: CanvasItem, rect: Rect2, theme: BlockTheme) -> void:
 	var scale = rect.size.x / BASE_CELL
 	var inner = rect.grow(-rect.size.x * 0.05)
 	canvas.draw_style_box(_box(theme.cell_color, theme.block_corner_radius * 0.8 * scale), inner)
 
-static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: BlockTheme, alpha: float = 1.0) -> void:
+# grad_top/grad_bottom — градиент окраски (прозрачный — без градиента), rim — кайма окраски
+static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: BlockTheme, alpha: float = 1.0,
+		grad_top: Color = Color(0, 0, 0, 0), grad_bottom: Color = Color(0, 0, 0, 0), rim: Color = Color(0, 0, 0, 0)) -> void:
 	var size = rect.size.x
 	var scale = size / BASE_CELL
 	var radius = theme.block_corner_radius * scale
 	var inner = rect.grow(-size * 0.04)
 	var base = Color(color, color.a * alpha)
+	_grad_on = grad_top.a > 0.0 and theme.block_style in GRADIENT_STYLES
+	if _grad_on:
+		_grad_top = grad_top
+		_grad_bottom = grad_bottom
+	_draw_styled(canvas, rect, inner, base, theme, radius, scale, alpha)
+	_grad_on = false
+	if rim.a > 0.0:
+		canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(rim, rim.a * alpha), maxi(2, int(3.5 * scale))), inner)
+		canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius * 0.8, Color(1, 1, 1, 0.35 * alpha), maxi(1, int(1.2 * scale))),
+			inner.grow(-3.5 * scale))
+
+static func _draw_styled(canvas: CanvasItem, rect: Rect2, inner: Rect2, base: Color, theme: BlockTheme, radius: float,
+		scale: float, alpha: float) -> void:
+	var size = rect.size.x
 
 	match theme.block_style:
 		BlockTheme.BlockStyle.FLAT:
-			canvas.draw_style_box(_box(base, radius), inner)
+			_body(canvas, inner, base, radius)
 
 		BlockTheme.BlockStyle.BEVEL:
 			var shadow_rect = Rect2(inner.position + Vector2(2, 2) * scale, inner.size)
 			canvas.draw_style_box(_box(Color(base.darkened(0.3), base.a), radius), shadow_rect)
-			canvas.draw_style_box(_box(base, radius), inner)
+			_body(canvas, inner, base, radius)
 			var top = Rect2(inner.position, Vector2(inner.size.x, inner.size.y * 0.5))
-			canvas.draw_style_box(_box(Color(base.lightened(0.2), base.a), radius, Color(0, 0, 0, 0), 0,
+			canvas.draw_style_box(_box(_lighter(base, 0.2), radius, Color(0, 0, 0, 0), 0,
 				Color(0, 0, 0, 0), 0, true), top)
 			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(1, 1, 1, 0.9 * alpha),
 				maxi(2, int(3 * scale))), inner)
 
 		BlockTheme.BlockStyle.GLOSSY:
-			canvas.draw_style_box(_box(base, radius), inner)
+			_body(canvas, inner, base, radius)
 			var low = Rect2(inner.position + Vector2(0, inner.size.y * 0.55), Vector2(inner.size.x, inner.size.y * 0.45))
 			canvas.draw_style_box(_box(Color(0, 0, 0, 0.22 * alpha), radius), low)
 			var shine = Rect2(inner.position + Vector2(size * 0.1, size * 0.08), Vector2(inner.size.x - size * 0.2, size * 0.28))
@@ -94,14 +130,15 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 		BlockTheme.BlockStyle.CANDY:
 			var depth = Rect2(inner.position + Vector2(0, size * 0.05), inner.size)
 			canvas.draw_style_box(_box(Color(base.darkened(0.25), base.a), radius), depth)
-			canvas.draw_style_box(_box(base, radius), inner)
-			canvas.draw_style_box(_box(Color(base.lightened(0.2), base.a), radius * 0.8), inner.grow(-size * 0.11))
+			_body(canvas, inner, base, radius)
+			canvas.draw_style_box(_box(_lighter(base, 0.2), radius * 0.8), inner.grow(-size * 0.11))
 			var shine = Rect2(inner.position + Vector2(size * 0.15, size * 0.12), Vector2(size * 0.32, size * 0.13))
 			canvas.draw_style_box(_box(Color(1, 1, 1, 0.6 * alpha), size * 0.065), shine)
 			canvas.draw_circle(inner.position + Vector2(size * 0.62, size * 0.19), size * 0.045, Color(1, 1, 1, 0.65 * alpha))
 
 		BlockTheme.BlockStyle.GLASS:
-			canvas.draw_style_box(_box(Color(base, 0.65 * alpha), radius, Color(base.lightened(0.55), 0.95 * alpha),
+			_body(canvas, inner, Color(base, 0.65 * alpha), radius)
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.lightened(0.55), 0.95 * alpha),
 				maxi(2, int(3 * scale))), inner)
 			var p = inner.position
 			var s = inner.size.x
@@ -114,7 +151,7 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 		BlockTheme.BlockStyle.WOOD:
 			var edge = Rect2(inner.position + Vector2(0, size * 0.04), inner.size)
 			canvas.draw_style_box(_box(Color(base.darkened(0.4), base.a), radius), edge)
-			canvas.draw_style_box(_box(base, radius), inner)
+			_body(canvas, inner, base, radius)
 			# Рисунок волокон зависит от положения клетки — у соседних блоков он разный
 			var grain_seed = int(rect.position.x / maxf(size, 1.0)) * 7 + int(rect.position.y / maxf(size, 1.0)) * 13
 			var grain = Color(base.darkened(0.28), 0.6 * alpha)
@@ -136,7 +173,7 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 			var outline = rect.grow(-size * 0.03)
 			canvas.draw_rect(outline, Color(base.darkened(0.6), base.a))
 			var body = outline.grow(-px * 0.6)
-			canvas.draw_rect(body, base)
+			_body(canvas, body, base, 0.0)
 			var light = Color(base.lightened(0.45), base.a)
 			var dark = Color(base.darkened(0.35), base.a)
 			canvas.draw_rect(Rect2(body.position, Vector2(body.size.x, px)), light)
@@ -212,9 +249,9 @@ static func draw_block(canvas: CanvasItem, rect: Rect2, color: Color, theme: Blo
 			var p = inner.position
 			var s = inner.size.x
 			canvas.draw_style_box(_box(Color(base.darkened(0.45), base.a), radius), Rect2(p + Vector2(0, s * 0.04), inner.size))
-			canvas.draw_style_box(_box(Color(base.darkened(0.12), base.a), radius), inner)
+			_body(canvas, inner, Color(base.darkened(0.12), base.a), radius)
 			var top = Rect2(p, Vector2(s, s * 0.48))
-			canvas.draw_style_box(_box(Color(base.lightened(0.28), base.a), radius, Color(0, 0, 0, 0), 0,
+			canvas.draw_style_box(_box(_lighter(base, 0.28), radius, Color(0, 0, 0, 0), 0,
 				Color(0, 0, 0, 0), 0, true), top)
 			canvas.draw_rect(Rect2(p + Vector2(s * 0.06, s * 0.4), Vector2(s * 0.88, s * 0.08)), Color(1, 1, 1, 0.55 * alpha))
 			canvas.draw_rect(Rect2(p + Vector2(s * 0.06, s * 0.48), Vector2(s * 0.88, s * 0.04)), Color(base.darkened(0.3), 0.6 * alpha))
@@ -274,10 +311,10 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 
 		BlockTheme.BlockStyle.ANIME:
 			var line = maxi(2, int(3.5 * scale))
-			canvas.draw_style_box(_box(base, radius), inner)
+			_body(canvas, inner, base, radius)
 			var b = line + radius * 0.3
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0 + b, y1 - b - s * 0.26), Vector2(x1 - b, y1 - b - s * 0.5),
-				Vector2(x1 - b, y1 - b), Vector2(x0 + b, y1 - b)]), Color(base.darkened(0.2), alpha))
+				Vector2(x1 - b, y1 - b), Vector2(x0 + b, y1 - b)]), _darker(Color(base, alpha), 0.2))
 			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(base.darkened(0.6), alpha), line), inner)
 			canvas.draw_style_box(_box(Color(1, 1, 1, 0.85 * alpha), s * 0.05),
 				Rect2(p + Vector2(s * 0.17, s * 0.15), Vector2(s * 0.3, s * 0.09)))
@@ -286,8 +323,8 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 		BlockTheme.BlockStyle.KAWAII:
 			var depth = Rect2(p + Vector2(0, s * 0.05), inner.size)
 			canvas.draw_style_box(_box(Color(base.darkened(0.22), base.a), radius * 1.4), depth)
-			canvas.draw_style_box(_box(base, radius * 1.4), inner)
-			canvas.draw_style_box(_box(Color(base.lightened(0.18), base.a), radius * 1.2,
+			_body(canvas, inner, base, radius * 1.4)
+			canvas.draw_style_box(_box(_lighter(base, 0.18), radius * 1.2,
 				Color(0, 0, 0, 0), 0, Color(0, 0, 0, 0), 0, true), Rect2(p, Vector2(s, s * 0.46)))
 			var ink = Color(base.darkened(0.75), alpha)
 			for eye_x in [0.33, 0.67]:
@@ -312,7 +349,7 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 
 		BlockTheme.BlockStyle.JELLY:
 			canvas.draw_style_box(_box(Color(base.darkened(0.3), 0.8 * alpha), radius * 1.3), Rect2(p + Vector2(0, s * 0.05), inner.size))
-			canvas.draw_style_box(_box(Color(base, 0.82 * alpha), radius * 1.3), inner)
+			_body(canvas, inner, Color(base, 0.82 * alpha), radius * 1.3)
 			canvas.draw_style_box(_box(Color(base.lightened(0.35), 0.55 * alpha), radius), inner.grow(-s * 0.16))
 			canvas.draw_style_box(_box(Color(1, 1, 1, 0.55 * alpha), s * 0.09), Rect2(p + Vector2(s * 0.14, s * 0.1), Vector2(s * 0.42, s * 0.16)))
 			canvas.draw_circle(p + Vector2(s * 0.74, s * 0.7), s * 0.055, Color(1, 1, 1, 0.5 * alpha))
@@ -320,7 +357,7 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 
 		BlockTheme.BlockStyle.CUBE3D:
 			var d = s * 0.17
-			canvas.draw_rect(inner, base)
+			_body(canvas, inner, base, 0.0)
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x1, y0), Vector2(x1 - d, y0 + d),
 				Vector2(x0 + d, y0 + d)]), Color(base.lightened(0.38), base.a))
 			canvas.draw_colored_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x0 + d, y0 + d), Vector2(x0 + d, y1 - d),
@@ -334,7 +371,7 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 		BlockTheme.BlockStyle.BRICK:
 			var small = radius * 0.5
 			canvas.draw_style_box(_box(Color(base.darkened(0.3), base.a), small), Rect2(p + Vector2(0, s * 0.06), inner.size))
-			canvas.draw_style_box(_box(base, small), inner)
+			_body(canvas, inner, base, small)
 			canvas.draw_style_box(_box(Color(base.lightened(0.15), base.a), small, Color(0, 0, 0, 0), 0,
 				Color(0, 0, 0, 0), 0, true), Rect2(p, Vector2(s, s * 0.12)))
 			# Кнопка: тень под ней, тёмный обод, светлый верх и блик — видна на любом цвете
@@ -346,7 +383,11 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 
 		BlockTheme.BlockStyle.FROST:
 			var icy = base.lerp(Color(0.92, 0.98, 1), 0.45)
-			canvas.draw_style_box(_box(Color(icy, 0.9 * alpha), radius, Color(1, 1, 1, 0.85 * alpha), maxi(1, int(2 * scale))), inner)
+			if _grad_on:
+				_grad_top = _grad_top.lerp(Color(0.92, 0.98, 1), 0.45)
+				_grad_bottom = _grad_bottom.lerp(Color(0.92, 0.98, 1), 0.45)
+			_body(canvas, inner, Color(icy, 0.9 * alpha), radius)
+			canvas.draw_style_box(_box(Color(0, 0, 0, 0), radius, Color(1, 1, 1, 0.85 * alpha), maxi(1, int(2 * scale))), inner)
 			canvas.draw_colored_polygon(PackedVector2Array([p + Vector2(s * 0.06, s * 0.06), p + Vector2(s * 0.42, s * 0.06),
 				p + Vector2(s * 0.06, s * 0.36)]), Color(1, 1, 1, 0.55 * alpha))
 			var crack = Color(1, 1, 1, 0.7 * alpha)
@@ -367,6 +408,60 @@ static func _draw_skin(canvas: CanvasItem, inner: Rect2, base: Color, theme: Blo
 
 		_:
 			canvas.draw_style_box(_box(base, radius), inner)
+
+# Тело блока: сплошное или градиент окраски (скруглённая текстура из кэша; прозрачность — из color.a)
+static func _body(canvas: CanvasItem, rect: Rect2, color: Color, radius: float) -> void:
+	if not _grad_on:
+		canvas.draw_style_box(_box(color, radius), rect)
+		return
+	var texture = _gradient_texture(_grad_top, _grad_bottom, radius / maxf(rect.size.x, 1.0))
+	canvas.draw_texture_rect(texture, rect, false, Color(1, 1, 1, color.a))
+
+# Светлая накладка: обычно — светлее цвет блока; на градиенте — полупрозрачный белый
+static func _lighter(base: Color, amount: float) -> Color:
+	if _grad_on:
+		return Color(1, 1, 1, amount * 1.1 * base.a)
+	return Color(base.lightened(amount), base.a)
+
+static func _darker(base: Color, amount: float) -> Color:
+	if _grad_on:
+		return Color(0, 0, 0, amount * 0.9 * base.a)
+	return Color(base.darkened(amount), base.a)
+
+# Квадрат 48×48 со скруглёнными углами (доля radius_share от стороны) и градиентом сверху вниз
+# с лёгким наклоном. Кэшируется: окраска — несколько пар цветов, текстур выходит пара десятков.
+static func _gradient_texture(top: Color, bottom: Color, radius_share: float) -> ImageTexture:
+	var share = snappedf(clampf(radius_share, 0.0, 0.5), 0.04)
+	var key = "%s|%s|%.2f" % [top.to_html(), bottom.to_html(), share]
+	if _grad_cache.has(key):
+		return _grad_cache[key]
+	var n = 48
+	var image = Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var r = share * n
+	for y in range(n):
+		for x in range(n):
+			var t = clampf((y + x * 0.25) / (n * 1.25), 0.0, 1.0)
+			var c = top.lerp(bottom, t)
+			# Скругление: расстояние до ближайшего «центра угла», мягкий край в 1 пиксель
+			var cx = clampf(x + 0.5, r, n - r)
+			var cy = clampf(y + 0.5, r, n - r)
+			var d = Vector2(x + 0.5 - cx, y + 0.5 - cy).length()
+			c.a = clampf(r - d + 0.5, 0.0, 1.0) if r > 0.0 else 1.0
+			image.set_pixel(x, y, c)
+	var texture = ImageTexture.create_from_image(image)
+	# Чистить кэш посреди отрисовки нельзя: уже отправленные текстуры освободятся, и блоки выйдут
+	# белыми (так и было на витрине окрасок). Очистка — в начале следующего кадра.
+	if _grad_cache.size() > 400 and not _grad_clear_scheduled:
+		_grad_clear_scheduled = true
+		var tree = Engine.get_main_loop() as SceneTree
+		if tree:
+			tree.process_frame.connect(_clear_gradients, CONNECT_ONE_SHOT)
+	_grad_cache[key] = texture
+	return texture
+
+static func _clear_gradients() -> void:
+	_grad_cache.clear()
+	_grad_clear_scheduled = false
 
 # Четырёхлучевая искорка
 static func _spark(canvas: CanvasItem, at: Vector2, arm: float, color: Color) -> void:

@@ -175,6 +175,7 @@ func _ready():
 	progression.name_style_changed.connect(update_hud_name)
 	progression.item_upgraded.connect(func(_t, _i, _tier): refresh_profile_button())
 	ThemeManager.theme_changed.connect(apply_theme_visuals)
+	ThemeManager.backdrop_changed.connect(func(): apply_background(ThemeManager.current))
 
 	apply_theme_visuals(ThemeManager.current)
 	refresh_profile_button()
@@ -685,19 +686,7 @@ func is_input_blocked() -> bool:
 # === ТЕМА ===
 
 func apply_theme_visuals(theme: BlockTheme):
-	RenderingServer.set_default_clear_color(theme.background_color)
-
-	if theme.background_texture:
-		background_sprite.texture = theme.background_texture
-		fit_background_sprite()
-		background_sprite.visible = true
-	else:
-		background_sprite.visible = false
-
-	for child in theme_background.get_children():
-		child.queue_free()
-	if theme.background_scene:
-		theme_background.add_child(theme.background_scene.instantiate())
+	apply_background(theme)
 
 	sound_place.stream = theme.sound_place if theme.sound_place else default_place_stream
 	sound_clear.stream = theme.sound_clear if theme.sound_clear else default_clear_stream
@@ -706,6 +695,28 @@ func apply_theme_visuals(theme: BlockTheme):
 	for block in active_blocks:
 		if is_instance_valid(block):
 			block.queue_redraw()
+
+# Фон: выбранный в коллекции «Фоны» — поверх любой темы, иначе фон самой темы
+func apply_background(theme: BlockTheme):
+	grid.queue_redraw()  # подложка поля зависит от того, выбран ли фон из коллекции
+	for child in theme_background.get_children():
+		child.queue_free()
+	var backdrop = ThemeManager.get_backdrop_scene()
+	if backdrop:
+		RenderingServer.set_default_clear_color(ItemsDB.get_backdrop_data(ThemeManager.backdrop_id).get("color", theme.background_color))
+		background_sprite.visible = false
+		theme_background.add_child(backdrop.instantiate())
+		return
+
+	RenderingServer.set_default_clear_color(theme.background_color)
+	if theme.background_texture:
+		background_sprite.texture = theme.background_texture
+		fit_background_sprite()
+		background_sprite.visible = true
+	else:
+		background_sprite.visible = false
+	if theme.background_scene:
+		theme_background.add_child(theme.background_scene.instantiate())
 
 # === ФИГУРЫ ===
 
@@ -1679,7 +1690,19 @@ func make_reward_card(item: Dictionary) -> Control:
 			var skin_preview = ThemePreview.new()
 			skin_preview.custom_minimum_size = Vector2(170, 124)
 			skin_preview.set_theme_resource(ThemeManager.with_skin(ThemeManager.current, int(item_id)), false)
+			skin_preview.paint = ThemeManager.paint_id
 			holder.add_child(skin_preview)
+		"backdrop":
+			var backdrop_preview = BackdropPreview.new()
+			backdrop_preview.custom_minimum_size = Vector2(170, 124)
+			backdrop_preview.setup(int(item_id), false)
+			holder.add_child(backdrop_preview)
+		"paint":
+			var paint_preview = ThemePreview.new()
+			paint_preview.custom_minimum_size = Vector2(170, 124)
+			paint_preview.paint = int(item_id)
+			paint_preview.set_theme_resource(ThemeManager.blocks, false)
+			holder.add_child(paint_preview)
 		"effect":
 			var effect = EffectPreview.new()
 			effect.custom_minimum_size = Vector2(170, 124)
@@ -1718,6 +1741,10 @@ func equip_item(item: Dictionary, button: Button):
 			progression.select_theme(str(item_id))
 		"skin":
 			progression.select_skin(int(item_id))
+		"paint":
+			progression.select_paint(int(item_id))
+		"backdrop":
+			progression.select_backdrop(int(item_id))
 		"effect":
 			progression.player_effect = int(item_id)
 		"color":

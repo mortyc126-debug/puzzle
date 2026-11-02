@@ -42,19 +42,22 @@ func prepare(kind: String) -> void:
 			SafeFile.save_var("user://progression.save", {"save_version": 3, "current_level": 500, "current_xp": 0,
 				"total_coins": 2000000000, "best_score": 999999, "item_tiers": tiers, "player_avatar": 37, "player_frame": 25,
 				"owned_titles": ["infinite", "living"], "player_title": "infinite", "owned_name_colors": ["white", "rainbow"],
-				"name_color": "rainbow", "name_glow_owned": true, "name_glow": true, "player_name": "ОченьДлинн"})
+				"name_color": "rainbow", "name_glow_owned": true, "name_glow": true, "player_name": "ОченьДлинн",
+				"player_skin": 10, "player_paint": 5, "player_backdrop": 8, "player_effect": 18})
 		"broken_inner":
 			# Внутренности файлов испорчены: задания без полей, задача испытания без наборов, тип в слотах цветов
 			SafeFile.save_var("user://missions.save", {"date": today(), "missions": [{"kind": 3}, "x", 5], "bonus_given": false})
 			SafeFile.save_var("user://challenge.save", {"date": today(), "active": true, "attempts": 1,
 				"puzzle": {"date": today(), "goal": "lines", "target": 9, "sets": [[["a"]]]}})
 			SafeFile.save_var("user://progression.save", {"save_version": 3, "current_level": 0, "active_colors": ["red", 99, -1],
-				"max_color_slots": 999})
+				"max_color_slots": 999, "player_skin": 55, "player_paint": 77, "player_backdrop": 99,
+				"unlocked_paints": [77, "x"], "unlocked_backdrops": [99, -3]})
 			SafeFile.save_var("user://run.save", {"board": [[1, 2], "x"], "tray": [{"shape": [["a", "b"]]}], "score": "много"})
 		"wrong_types":
 			# Поля не того типа (как после ручной правки или сбоя)
 			SafeFile.save_var("user://progression.save", {"save_version": 3, "current_level": "десять", "total_coins": -500,
-				"unlocked_avatars": "все", "item_tiers": [], "owned_titles": {}, "active_colors": []})
+				"unlocked_avatars": "все", "item_tiers": [], "owned_titles": {}, "active_colors": [],
+				"unlocked_backdrops": "все", "player_backdrop": "королевский", "unlocked_paints": {}, "player_paint": [1]})
 
 func _process(_delta: float) -> bool:
 	frames += 1
@@ -87,5 +90,6 @@ func _process(_delta: float) -> bool:
 		"challenge_active": challenge.active, "challenge_ready": challenge.is_ready(),
 		"achievement_tiers": root.get_node("Achievements").get_total_progress()["unlocked"],
 		"missions": root.get_node("Missions").missions.size(), "blocked": game.is_input_blocked(),
+		"look": "%d/%d/%d" % [prog.player_skin, prog.player_paint, prog.player_backdrop],
 	}))
 	return true

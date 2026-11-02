@@ -26,7 +26,8 @@ themes/               Темы оформления
   block_theme.gd      Ресурс темы (class BlockTheme)
   block_renderer.gd   Отрисовка поля и блоков в стиле темы
   classic/ candy/ wood/ sakura/ ocean/ desert/ retro/ lava/ clouds/ crystal/ forest/ aurora/ gold/
-  neon_city/ space/   15 тем: ресурс .tres + сцена фона; кубики — ItemsDB.skins_data
+  neon_city/ space/   15 тем: ресурс .tres + сцена фона; кубики — ItemsDB.skins_data, окраски — paints_data
+backdrops/            8 живых фонов поверх темы (коллекция «Фоны», ItemsDB.backdrops_data): основа backdrop_base.gd
 
 ui/                   Тема интерфейса, превью тем и эффектов, частицы эффектов (EffectPainter)
 assets/icon, store/   Иконка приложения, картинки для магазина
@@ -37,7 +38,8 @@ profile.gd            Профиль и кастомизация
 assets/avatars        Аватарки (SVG), assets/frames — рамки
 tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py), звуков (make_sounds.py); balance_sim.py — стресс-тест и баланс без Godot
 tests/                test_core.gd — логика; bot_play.gd — бот играет партии и обходит окна;
-                      ui_audit.gd — скриншоты 23 экранов и проверка шрифтов; challenge_flow.gd,
+                      ui_audit.gd — скриншоты 25 экранов и проверка шрифтов; test_catalog.gd — каталог наград;
+                      skin/paint/backdrop/effect_sheet.gd — витрины предметов; challenge_flow.gd,
                       challenge_difficulty.gd — испытание дня; persona_bot.gd — игроки-персоны;
                       save_stress.sh — 13 видов испорченных сохранений (на копии проекта)
 docs/                 План развития и инструкции по контенту
