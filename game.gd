@@ -1848,33 +1848,45 @@ func load_run() -> bool:
 	var data = SafeFile.load_dict(run_save_path())
 	if not data.get("board", null) is Array or data["board"].size() != Board.SIZE:
 		return false
+	# Клетки поля — только номера цветов или «пусто»; иначе файл испорчен — новая партия
+	for row in data["board"]:
+		if not row is Array or row.size() != Board.SIZE:
+			return false
+		for value in row:
+			if not value is int or value < Board.EMPTY or value >= ItemsDB.block_colors.size():
+				return false
 	if not challenge.is_empty():
 		if data.get("challenge_date", "") != challenge["date"]:
 			return false
-		challenge_set = data.get("challenge_set", 0)
-		challenge_moves = data.get("challenge_moves", 0)
+		challenge_set = clampi(SafeFile.get_int(data, "challenge_set", 0, 0), 0, challenge["sets"].size())
+		challenge_moves = SafeFile.get_int(data, "challenge_moves", 0, 0)
 
 	grid.board.from_array(data["board"])
-	score = data.get("score", 0)
-	scoring.set_state(data.get("scoring", {}))
-	run_xp = data.get("run_xp", 0)
-	run_lines = data.get("run_lines", 0)
-	pieces_this_run = data.get("pieces", 0)
-	used_powerups = data.get("used_powerups", false)
-	continue_cost = data.get("continue_cost", CONTINUE_BASE_COST)
-	best_score_at_start = data.get("best_at_start", progression.best_score)
-	zen = data.get("zen", false)
-	progression.score_multiplier = data.get("multiplier", 1.0)
-	run_max_streak = data.get("max_streak", 0)
-	run_max_combo = data.get("max_combo", 0)
-	record_announced = data.get("record_announced", false)
+	score = SafeFile.get_int(data, "score", 0, 0)
+	scoring.set_state(SafeFile.get_dict(data, "scoring"))
+	run_xp = SafeFile.get_int(data, "run_xp", 0, 0)
+	run_lines = SafeFile.get_int(data, "run_lines", 0, 0)
+	pieces_this_run = SafeFile.get_int(data, "pieces", 0, 0)
+	used_powerups = SafeFile.get_bool(data, "used_powerups", false)
+	continue_cost = SafeFile.get_int(data, "continue_cost", CONTINUE_BASE_COST, CONTINUE_BASE_COST)
+	best_score_at_start = SafeFile.get_int(data, "best_at_start", progression.best_score, 0)
+	zen = SafeFile.get_bool(data, "zen", false)
+	var multiplier = data.get("multiplier", 1.0)
+	progression.score_multiplier = float(multiplier) if (multiplier is float or multiplier is int) else 1.0
+	run_max_streak = SafeFile.get_int(data, "max_streak", 0, 0)
+	run_max_combo = SafeFile.get_int(data, "max_combo", 0, 0)
+	record_announced = SafeFile.get_bool(data, "record_announced", false)
 
-	for item in data.get("tray", []):
+	for item in SafeFile.get_array(data, "tray"):
+		if not item is Dictionary:
+			continue
 		var shape = []
-		for cell in item.get("shape", []):
-			shape.append(Vector2(cell[0], cell[1]))
+		for cell in SafeFile.get_array(item, "shape"):
+			if cell is Array and cell.size() == 2 and (cell[0] is int or cell[0] is float) and (cell[1] is int or cell[1] is float):
+				shape.append(Vector2(clampi(int(cell[0]), 0, 4), clampi(int(cell[1]), 0, 4)))
 		if not shape.is_empty():
-			create_block(shape, int(item.get("color", 0)), clampi(int(item.get("slot", 0)), 0, 2))
+			var color = clampi(SafeFile.get_int(item, "color", 0), 0, ItemsDB.block_colors.size() - 1)
+			create_block(shape, color, clampi(SafeFile.get_int(item, "slot", 0), 0, 2))
 	if active_blocks.is_empty():
 		spawn_blocks()
 

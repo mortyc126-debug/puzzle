@@ -62,3 +62,29 @@ static func _rename(from_path: String, to_path: String) -> bool:
 	if FileAccess.file_exists(to_path):
 		DirAccess.remove_absolute(to_abs)
 	return DirAccess.rename_absolute(from_abs, to_abs) == OK
+
+# === ЧТЕНИЕ ПОЛЕЙ С ПРОВЕРКОЙ ТИПА ===
+# Файл может разобраться, но с полями не того типа (сбой, ручная правка, старая версия).
+# Тогда берётся значение по умолчанию — игра открывается, а не падает при загрузке (tests/save_stress.sh).
+
+static func get_int(data: Dictionary, key: String, default: int, min_value: int = -2147483648) -> int:
+	var value = data.get(key, default)
+	if value is int or value is float:
+		return maxi(int(value), min_value)
+	return default
+
+static func get_bool(data: Dictionary, key: String, default: bool) -> bool:
+	var value = data.get(key, default)
+	return value if value is bool else default
+
+static func get_str(data: Dictionary, key: String, default: String) -> String:
+	var value = data.get(key, default)
+	return value if value is String else default
+
+static func get_array(data: Dictionary, key: String, default: Array = []) -> Array:
+	var value = data.get(key, null)
+	return value if value is Array else default.duplicate()
+
+static func get_dict(data: Dictionary, key: String, default: Dictionary = {}) -> Dictionary:
+	var value = data.get(key, null)
+	return value if value is Dictionary else default.duplicate()

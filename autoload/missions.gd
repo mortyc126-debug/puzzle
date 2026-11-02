@@ -187,6 +187,13 @@ func save_state() -> void:
 
 func load_state() -> void:
 	var data = SafeFile.load_dict(SAVE_PATH)
-	date = data.get("date", "")
-	missions = data.get("missions", [])
-	bonus_given = data.get("bonus_given", false)
+	date = SafeFile.get_str(data, "date", "")
+	missions = SafeFile.get_array(data, "missions", [])
+	bonus_given = SafeFile.get_bool(data, "bonus_given", false)
+	# Испорченное задание — задания дня строятся заново
+	for mission in missions:
+		if not mission is Dictionary or not mission.get("kind") is String or not mission.get("target") is int or not mission.get("progress") is int \
+				or not mission.get("done") is bool or not mission.get("difficulty") is int:
+			missions = []
+			date = ""
+			break

@@ -18,6 +18,7 @@ func _init() -> void:
 	test_rotation()
 	test_safe_file()
 	test_challenge_puzzle()
+	test_typed_reads()
 
 	print("")
 	print("Проверок: %d, ошибок: %d" % [checks, failures])
@@ -172,3 +173,21 @@ func test_challenge_puzzle() -> void:
 			best = maxi(best, ChallengePuzzle.simulate(puzzle["start"], puzzle["sets"], style)[puzzle["goal"]])
 		check(best >= puzzle["target"], "%s: решатель проходит (%d ≥ %d)" % [date, best, puzzle["target"]])
 		check(puzzle["target"] > 0, "%s: цель больше нуля" % date)
+
+# Чтение сохранений с проверкой типа: испорченное поле даёт значение по умолчанию, а не падение
+func test_typed_reads() -> void:
+	var data = {"level": "десять", "coins": -500, "fine": 7, "list": "все", "dict": [], "flag": 1, "name": 5}
+	check(SafeFile.get_int(data, "level", 1) == 1, "строка вместо числа — по умолчанию")
+	check(SafeFile.get_int(data, "coins", 0, 0) == 0, "отрицательные монеты обрезаются до нуля")
+	check(SafeFile.get_int(data, "fine", 0) == 7, "нормальное число читается")
+	check(SafeFile.get_array(data, "list", [1]) == [1], "строка вместо списка — по умолчанию")
+	check(SafeFile.get_dict(data, "dict").is_empty(), "список вместо словаря — пустой словарь")
+	check(SafeFile.get_bool(data, "flag", false) == false, "число вместо флага — по умолчанию")
+	check(SafeFile.get_str(data, "name", "Игрок") == "Игрок", "число вместо имени — по умолчанию")
+	check(SafeFile.get_int(data, "нет такого", 3) == 3, "нет поля — по умолчанию")
+	var puzzle = ChallengePuzzle.build("2026-11-04")
+	check(ChallengePuzzle.is_valid(puzzle), "собранная задача испытания проходит проверку")
+	var broken = puzzle.duplicate(true)
+	broken["sets"] = [[["a"]]]
+	check(not ChallengePuzzle.is_valid(broken), "задача с испорченными наборами не проходит проверку")
+	check(not ChallengePuzzle.is_valid({}), "пустая задача не проходит проверку")

@@ -101,6 +101,28 @@ static func target_for(type: String, value: int, day: int) -> int:
 		target = int(floor(target / 10.0)) * 10
 	return clampi(target, mini(MIN_TARGET[type], value), value)
 
+# Задача из сохранения пригодна для игры: Game читает её поля без проверок
+static func is_valid(puzzle: Dictionary) -> bool:
+	if not puzzle.get("date") is String or not puzzle.get("goal") in GOALS or not puzzle.get("target") is int \
+			or not puzzle.get("moves") is int or not puzzle.get("day") is int or not puzzle.get("start") is Array:
+		return false
+	var sets = puzzle.get("sets")
+	if not sets is Array or sets.size() != SETS:
+		return false
+	for shapes in sets:
+		if not shapes is Array or shapes.size() != 3:
+			return false
+		for shape in shapes:
+			if not shape is Array or shape.is_empty():
+				return false
+			for cell in shape:
+				if not cell is Vector2:
+					return false
+	for cell in puzzle["start"]:
+		if not cell is Array or cell.size() != 3:
+			return false
+	return true
+
 static func best_of(results: Array, key: String) -> int:
 	var best = 0
 	for result in results:

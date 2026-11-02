@@ -24,12 +24,12 @@ func _ready() -> void:
 
 func load_settings() -> void:
 	var data = SafeFile.load_dict(SAVE_PATH)
-	sound_enabled = data.get("sound", true)
-	music_enabled = data.get("music", true)
-	vibration_enabled = data.get("vibration", true)
-	rated = data.get("rated", false)
-	zen_mode = data.get("zen_mode", false)
-	seen_tips = data.get("seen_tips", [])
+	sound_enabled = SafeFile.get_bool(data, "sound", true)
+	music_enabled = SafeFile.get_bool(data, "music", true)
+	vibration_enabled = SafeFile.get_bool(data, "vibration", true)
+	rated = SafeFile.get_bool(data, "rated", false)
+	zen_mode = SafeFile.get_bool(data, "zen_mode", false)
+	seen_tips = SafeFile.get_array(data, "seen_tips", [])
 
 func save_settings() -> void:
 	SafeFile.save_var(SAVE_PATH, {
