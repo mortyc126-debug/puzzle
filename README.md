@@ -37,7 +37,8 @@ assets/avatars        Аватарки (SVG), assets/frames — рамки
 tools/                Генераторы аватарок (make_avatars.py), рамок (make_frames.py), иконок (make_icons.py), звуков (make_sounds.py); balance_sim.py — стресс-тест и баланс без Godot
 tests/                test_core.gd — логика; bot_play.gd — бот играет партии и обходит окна;
                       ui_audit.gd — скриншоты 23 экранов и проверка шрифтов; challenge_flow.gd,
-                      challenge_difficulty.gd — испытание дня; persona_bot.gd — игроки-персоны
+                      challenge_difficulty.gd — испытание дня; persona_bot.gd — игроки-персоны;
+                      save_stress.sh — 13 видов испорченных сохранений (на копии проекта)
 docs/                 План развития и инструкции по контенту
 ```
 
@@ -89,6 +90,12 @@ godot --headless --path . --fixed-fps 60 -s tests/bot_play.gd -- --games=20
 ```
 godot --headless --path . --fixed-fps 60 -s tests/challenge_flow.gd
 godot --headless --path . -s tests/challenge_difficulty.gd
+```
+
+Игра на испорченных, обрезанных, старых и крайних сохранениях (работает на копии проекта, ваши сохранения не трогает):
+
+```
+tests/save_stress.sh /путь/к/godot
 ```
 
 Баланс и стресс-тест без Godot (бот играет сотни партий по тем же правилам):
