@@ -60,14 +60,37 @@ func ensure_today() -> void:
 		var pick = kinds[rng.randi() % kinds.size()]
 		kinds.erase(pick)
 		var def = POOL[pick]
+		var scale = level_scale(Progression.current_level)
 		missions.append({
 			"kind": def["kind"],
 			"difficulty": difficulty,
-			"target": def["targets"][difficulty],
+			"target": scaled_target(def, difficulty, scale),
+			"coins": int(round(REWARD_COINS[difficulty] * reward_scale(scale) / 5.0)) * 5,
+			"xp": int(round(REWARD_XP[difficulty] * reward_scale(scale) / 10.0)) * 10,
 			"progress": 0,
 			"done": false,
 		})
 	save_state()
+
+# Задания растут вместе с игроком: на 1–5 уровне цели как есть, на 30-м — вдвое, к 60-му — втрое.
+# Иначе сильный игрок закрывал все три в первой же партии дня (симуляция плейтеста).
+static func level_scale(level: int) -> float:
+	return 1.0 + clampf(level - 5, 0, 55) / 25.0
+
+# Награда растёт вполовину медленнее сложности, но растёт — задание остаётся выгодным
+static func reward_scale(scale: float) -> float:
+	return 1.0 + (scale - 1.0) * 0.5
+
+static func scaled_target(def: Dictionary, difficulty: int, scale: float) -> int:
+	var base: int = def["targets"][difficulty]
+	match def["stat"]:
+		"games", "combo":
+			return base  # число партий и линий за ход не масштабируем
+		"streak":
+			return base + int((scale - 1.0) * 1.5)  # +1 к серии примерно на каждые 20 уровней
+	var value = base * scale
+	var step = 50 if value >= 300 else (10 if value >= 60 else 5)
+	return int(round(value / step)) * step
 
 func get_definition(kind: String) -> Dictionary:
 	for def in POOL:
@@ -93,8 +116,14 @@ static func plural(n: int, forms: Array) -> String:
 	return forms[2]
 
 func get_reward_text(mission: Dictionary) -> String:
-	var difficulty = mission["difficulty"]
-	return "+%d монет · +%d XP" % [REWARD_COINS[difficulty], REWARD_XP[difficulty]]
+	return "+%d монет · +%d XP" % [mission_coins(mission), mission_xp(mission)]
+
+# Награда хранится в задании (с учётом уровня); у старых сохранений — по сложности
+func mission_coins(mission: Dictionary) -> int:
+	return int(mission.get("coins", REWARD_COINS[mission["difficulty"]]))
+
+func mission_xp(mission: Dictionary) -> int:
+	return int(mission.get("xp", REWARD_XP[mission["difficulty"]]))
 
 func count_done() -> int:
 	var done = 0
@@ -145,9 +174,8 @@ func record_run(run: Dictionary) -> void:
 	save_state()
 
 func _reward(mission: Dictionary) -> void:
-	var difficulty = mission["difficulty"]
-	var coins = REWARD_COINS[difficulty]
-	var xp = REWARD_XP[difficulty]
+	var coins = mission_coins(mission)
+	var xp = mission_xp(mission)
 	Progression.add_coins(coins)
 	Progression.record_coins_earned(coins)
 	Progression.gain_xp(xp)
