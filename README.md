@@ -93,6 +93,7 @@ python3 tools/balance_sim.py 200
 
 - [docs/GODOT_SETUP.md](docs/GODOT_SETUP.md) — перенос в Godot, настройка Android, сборка APK/AAB и веб-версии
 - [docs/QA.md](docs/QA.md) — результаты тестирования, баланс и чек-лист проверки на телефоне
+- [docs/PLAYTEST.md](docs/PLAYTEST.md) — симуляция 10 игроков: отзывы, оценки и что поправить перед выпуском
 - [docs/RELEASE.md](docs/RELEASE.md) — план выпуска, тексты для магазина, как понять, зашла ли игра
 - [docs/MARKET.md](docs/MARKET.md) — за что хвалят и ругают похожие игры
 - [docs/ROADMAP.md](docs/ROADMAP.md) — исследование, что сделано, планы
