@@ -814,15 +814,25 @@ func create_backdrops_section():
 		box.add_child(section)
 	for child in section.get_children():
 		child.queue_free()
-	section.add_child(HSeparator.new())
-	section.add_child(make_label("ФОНЫ — живой фон поверх любой темы", 22, Color(0.64, 0.67, 0.85), HORIZONTAL_ALIGNMENT_LEFT, false))
-	var grid = GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 12)
-	grid.add_theme_constant_override("v_separation", 12)
-	section.add_child(grid)
-	for backdrop_id in [0] + ItemsDB.get_backdrop_ids():
-		grid.add_child(make_backdrop_card(backdrop_id))
+	# Сначала премиум — живые фоны (всё движется, только за монеты), ниже — обычные статичные
+	var live_ids = []
+	var static_ids = [0]
+	for backdrop_id in ItemsDB.get_backdrop_ids():
+		if ItemsDB.get_backdrop_data(backdrop_id).get("live", false):
+			live_ids.append(backdrop_id)
+		else:
+			static_ids.append(backdrop_id)
+	for group in [["ЖИВЫЕ ФОНЫ — премиум: всё движется, только за монеты", live_ids, Color(1, 0.78, 0.35)],
+			["ФОНЫ — открываются уровнями, работают с любой темой", static_ids, Color(0.64, 0.67, 0.85)]]:
+		section.add_child(HSeparator.new())
+		section.add_child(make_label(group[0], 22, group[2], HORIZONTAL_ALIGNMENT_LEFT))
+		var grid = GridContainer.new()
+		grid.columns = 3
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 12)
+		section.add_child(grid)
+		for backdrop_id in group[1]:
+			grid.add_child(make_backdrop_card(backdrop_id))
 
 func make_backdrop_card(backdrop_id: int) -> Control:
 	var data = ItemsDB.get_backdrop_data(backdrop_id)
@@ -838,6 +848,8 @@ func make_backdrop_card(backdrop_id: int) -> Control:
 	preview.size = Vector2(230, 220)
 	card.add_child(preview)
 	preview.setup(backdrop_id, not unlocked)
+	if data.get("live", false):
+		card.add_child(make_live_badge(Vector2(24, 20)))
 	var rarity = data.get("rarity", "COMMON")
 	var title = make_label(data.get("name", "") if backdrop_id > 0 else "Как в теме", 24,
 		ItemsDB.get_rarity_color(rarity) if backdrop_id > 0 else Color.WHITE)
@@ -847,13 +859,37 @@ func make_backdrop_card(backdrop_id: int) -> Control:
 	var price = progression.get_price("backdrop", backdrop_id) if backdrop_id > 0 else 0
 	var status = "Выбран" if selected else ("Нажмите, чтобы выбрать" if unlocked else "")
 	if not unlocked:
-		status = "%d монет или ур. %d" % [price, int(data.get("unlock", {}).get("level", 0))] if price > 0 \
-			else ItemsDB.get_unlock_text(data.get("unlock", {}))
+		var unlock: Dictionary = data.get("unlock", {})
+		if price > 0 and unlock.get("type", "") == "shop":
+			status = "%d монет" % price
+		elif price > 0:
+			status = "%d монет или ур. %d" % [price, int(unlock.get("level", 0))]
+		else:
+			status = ItemsDB.get_unlock_text(unlock)
 	var status_label = make_label(status, 20, GOLD if selected or (not unlocked and price > 0) else Color(0.8, 0.82, 0.95))
 	status_label.position = Vector2(8, 270)
 	status_label.size = Vector2(246, 48)
 	card.add_child(status_label)
 	return card
+
+# Значок «ЖИВОЙ» в углу превью премиум-фона
+func make_live_badge(at: Vector2) -> Control:
+	var badge = PanelContainer.new()
+	badge.theme_type_variation = &"Pill"
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.position = at
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var icon = TextureRect.new()
+	icon.texture = icon_texture("sparkle")
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.custom_minimum_size = Vector2(20, 20)
+	icon.modulate = Color(1, 0.84, 0.3)
+	row.add_child(icon)
+	row.add_child(make_label("ЖИВОЙ", 20, Color(1, 0.84, 0.3), HORIZONTAL_ALIGNMENT_LEFT, false))
+	badge.add_child(row)
+	return badge
 
 func _on_backdrop_clicked(backdrop_id: int):
 	if backdrop_id != 0 and not progression.is_unlocked("backdrop", backdrop_id):
@@ -1423,8 +1459,10 @@ func show_locked_card(item_type: String, item_id):
 			preview.custom_minimum_size = Vector2(380, 220)
 		"backdrop":
 			var backdrop_data = ItemsDB.get_backdrop_data(int(item_id))
-			title = "Фон «%s»" % backdrop_data.get("name", "?")
+			title = progression.get_item_label("backdrop", int(item_id))
 			description = backdrop_data.get("description", "") + " Поле и блоки остаются от темы."
+			if backdrop_data.get("live", false):
+				description += " Это живой фон: всё на нём движется."
 			var backdrop_preview = BackdropPreview.new()
 			backdrop_preview.custom_minimum_size = Vector2(260, 400)
 			backdrop_preview.board_share = 0.5
@@ -1472,8 +1510,12 @@ func add_buy_row(box: Control, item_type: String, item_id):
 	var price = progression.get_price(item_type, item_id)
 	if price > 0:
 		var coins = progression.total_coins
-		var hint = "Можно купить сразу: %d монет. У вас %d." % [price, coins] if coins >= price \
-			else "Или купить за %d монет — не хватает %d." % [price, price - coins]
+		var shop_only = progression.get_item_unlock(item_type, item_id).get("type", "") == "shop"
+		var hint = ""
+		if coins >= price:
+			hint = ("Цена: %d монет. У вас %d." if shop_only else "Можно купить сразу: %d монет. У вас %d.") % [price, coins]
+		else:
+			hint = ("Цена: %d монет — не хватает %d." if shop_only else "Или купить за %d монет — не хватает %d.") % [price, price - coins]
 		box.add_child(make_label(hint, 21, Color(0.85, 0.88, 1)))
 	var row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER

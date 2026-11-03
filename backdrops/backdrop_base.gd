@@ -3,6 +3,8 @@ extends Node2D
 
 ## Основа фонов из коллекции «Фоны» (ItemsDB.backdrops_data): неподвижное рисуется один раз в
 ## _paint_static(), живое — в _paint_fx() на отдельном слое 20 раз в секунду (как у фонов тем).
+## Статичный фон (is_animated() → false) рисуется один раз и совсем не тратит кадры; живые
+## фоны — премиум, их продают только за монеты (см. ItemsDB.backdrops_data, поле "live").
 ## Размер берётся из вьюпорта: тот же фон работает и на экране игры, и в маленьком превью профиля.
 ## Сверху всегда лёгкое затемнение под шапкой: имя и монеты белые и должны читаться на любом фоне.
 
@@ -15,9 +17,12 @@ var _since_redraw := 0.0
 func _ready() -> void:
 	area = area_override if area_override != Vector2.ZERO else get_viewport_rect().size
 	_setup(RandomNumberGenerator.new())
-	fx = Node2D.new()
-	add_child(fx)
-	fx.draw.connect(_paint_fx)
+	if is_animated():
+		fx = Node2D.new()
+		add_child(fx)
+		fx.draw.connect(_paint_fx)
+	else:
+		set_process(false)
 	var scrim = Node2D.new()
 	add_child(scrim)
 	scrim.draw.connect(func(): vertical_gradient(0, area.y * 0.11, Color(0, 0, 0, 0.38), Color(0, 0, 0, 0), scrim))
@@ -34,6 +39,9 @@ func _draw() -> void:
 	_paint_static()
 
 # Переопределяются в фонах
+func is_animated() -> bool:
+	return true
+
 func _setup(_rng: RandomNumberGenerator) -> void:
 	pass
 
@@ -73,7 +81,33 @@ static func _make_blob_texture() -> Texture2D:
 	return ImageTexture.create_from_image(image)
 
 func glint(canvas: CanvasItem, at: Vector2, arm: float, color: Color) -> void:
+	if arm < 0.5 or color.a < 0.01:
+		return  # погасшая искра: многоугольник нулевого размера движок не может разбить на треугольники
 	canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(0, -arm), at + Vector2(arm * 0.2, 0),
 		at + Vector2(0, arm), at + Vector2(-arm * 0.2, 0)]), color)
 	canvas.draw_colored_polygon(PackedVector2Array([at + Vector2(-arm, 0), at + Vector2(0, arm * 0.2),
 		at + Vector2(arm, 0), at + Vector2(0, -arm * 0.2)]), color)
+
+# Много фигур одним вызовом отрисовки: треугольники (каждые три точки), цвет — на каждую вершину.
+# Сотня кругов или осколков через draw_circle — сотня вызовов; так — один.
+func fill_triangles(canvas: CanvasItem, points: PackedVector2Array, colors: PackedColorArray) -> void:
+	if points.is_empty():
+		return
+	var indices = PackedInt32Array(range(points.size()))
+	RenderingServer.canvas_item_add_triangle_array(canvas.get_canvas_item(), indices, points, colors)
+
+# Выпуклый многоугольник веером треугольников — в общие массивы для fill_triangles
+static func add_polygon(points: PackedVector2Array, colors: PackedColorArray, polygon: PackedVector2Array, color: Color) -> void:
+	for k in range(1, polygon.size() - 1):
+		points.append_array([polygon[0], polygon[k], polygon[k + 1]])
+		colors.append_array([color, color, color])
+
+static func circle_polygon(center: Vector2, radius: float, segments: int = 12, from_angle: float = 0.0,
+		to_angle: float = TAU) -> PackedVector2Array:
+	var polygon = PackedVector2Array()
+	if to_angle - from_angle < TAU - 0.001:
+		polygon.append(center)
+	for k in range(segments + 1):
+		var a = from_angle + (to_angle - from_angle) * k / segments
+		polygon.append(center + Vector2(cos(a), sin(a)) * radius)
+	return polygon

@@ -18,5 +18,5 @@ func _paint_static() -> void:
 func _paint_fx() -> void:
 	for blob in blobs:
 		var phase: float = blob[4]
-		var center = Vector2(area.x * (blob[2] + 0.18 * sin(time * 0.13 + phase)), area.y * (blob[3] + 0.12 * cos(time * 0.11 + phase)))
+		var center = Vector2(area.x * (blob[2] + 0.2 * sin(time * 0.3 + phase)), area.y * (blob[3] + 0.14 * cos(time * 0.24 + phase)))
 		soft_blob(fx, center, area.x * blob[1], blob[0])

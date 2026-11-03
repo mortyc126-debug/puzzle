@@ -593,30 +593,55 @@ var paints_data = {
 # Идеи взяты из трендов: меш-градиенты (размытые пятна, «аврора»), королевский пурпур с золотом,
 # изумруд с золотом в стиле ар-деко, ретро-синтвейв.
 var backdrops_data = {
-	1: {"name": "Тёплый градиент", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 27},
+	1: {"name": "Тёплый градиент", "rarity": "UNCOMMON", "unlock": {"type": "shop"}, "live": true,
 		"description": "Модный меш-градиент: коралл, персик, золото и капля неба медленно перетекают друг в друга.",
 		"scene": "res://backdrops/mesh_warm/mesh_warm.tscn", "color": Color(0.85, 0.4, 0.5)},
-	2: {"name": "Аврора", "rarity": "RARE", "unlock": {"type": "level", "level": 50},
+	2: {"name": "Аврора", "rarity": "RARE", "unlock": {"type": "shop"}, "live": true,
 		"description": "Светящиеся пятна бирюзы, индиго и мадженты дрейфуют по ночному небу.",
 		"scene": "res://backdrops/mesh_aurora/mesh_aurora.tscn", "color": Color(0.07, 0.07, 0.18)},
-	3: {"name": "Лава-лампа", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 68},
+	3: {"name": "Лава-лампа", "rarity": "UNCOMMON", "unlock": {"type": "shop"}, "live": true,
 		"description": "Тёплые капли неторопливо всплывают и опускаются — как в лампе из семидесятых.",
 		"scene": "res://backdrops/lava_lamp/lava_lamp.tscn", "color": Color(0.32, 0.06, 0.19)},
-	4: {"name": "Синтвейв", "rarity": "EPIC", "unlock": {"type": "level", "level": 88},
+	4: {"name": "Синтвейв", "rarity": "EPIC", "unlock": {"type": "shop"}, "live": true,
 		"description": "Ретро-закат: полосатое солнце и неоновая сетка, бегущая к горизонту.",
 		"scene": "res://backdrops/synthwave/synthwave.tscn", "color": Color(0.12, 0.0, 0.22)},
-	5: {"name": "Фонарики", "rarity": "RARE", "unlock": {"type": "level", "level": 115},
+	5: {"name": "Фонарики", "rarity": "RARE", "unlock": {"type": "shop"}, "live": true,
 		"description": "Бумажные фонарики поднимаются в ночное небо и отражаются в воде.",
 		"scene": "res://backdrops/lanterns/lanterns.tscn", "color": Color(0.1, 0.08, 0.2)},
-	6: {"name": "Изумрудный зал", "rarity": "EPIC", "unlock": {"type": "level", "level": 145},
+	6: {"name": "Изумрудный зал", "rarity": "EPIC", "unlock": {"type": "shop"}, "live": true,
 		"description": "Глубокий изумруд и золотые веера ар-деко, по стене скользит блик.",
 		"scene": "res://backdrops/emerald/emerald.tscn", "color": Color(0.07, 0.3, 0.24)},
-	7: {"name": "Чёрный мрамор", "rarity": "RARE", "unlock": {"type": "level", "level": 190},
+	7: {"name": "Чёрный мрамор", "rarity": "RARE", "unlock": {"type": "shop"}, "live": true,
 		"description": "Тёмный полированный камень с белыми и золотыми прожилками.",
 		"scene": "res://backdrops/marble/marble.tscn", "color": Color(0.07, 0.07, 0.08)},
-	8: {"name": "Королевский бархат", "rarity": "LEGENDARY", "unlock": {"type": "level", "level": 275},
+	8: {"name": "Королевский бархат", "rarity": "LEGENDARY", "unlock": {"type": "shop"}, "live": true,
 		"description": "Пурпурный бархат, золотая решётка с жемчугом, корона и оседающие блёстки.",
 		"scene": "res://backdrops/royal/royal.tscn", "color": Color(0.25, 0.05, 0.37)},
+	# Статичные фоны: рисуются один раз, открываются уровнями (или покупаются по обычной цене)
+	9: {"name": "Сумерки", "rarity": "COMMON", "unlock": {"type": "level", "level": 27},
+		"description": "Небо от глубокого индиго к розовому горизонту и первые звёзды.",
+		"scene": "res://backdrops/dusk/dusk.tscn", "color": Color(0.3, 0.15, 0.4)},
+	10: {"name": "Ночное небо", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 50},
+		"description": "Россыпь звёзд, Млечный Путь и тонкий месяц.",
+		"scene": "res://backdrops/night_sky/night_sky.tscn", "color": Color(0.03, 0.06, 0.16)},
+	11: {"name": "Сэйгайха", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 68},
+		"description": "Японский узор «волны синего моря»: ряды бирюзовых чешуек.",
+		"scene": "res://backdrops/seigaiha/seigaiha.tscn", "color": Color(0.03, 0.13, 0.22)},
+	12: {"name": "Соты", "rarity": "UNCOMMON", "unlock": {"type": "level", "level": 88},
+		"description": "Тёплый янтарь, сетка шестиугольников и соты с мёдом.",
+		"scene": "res://backdrops/honeycomb/honeycomb.tscn", "color": Color(0.24, 0.12, 0.03)},
+	13: {"name": "Горы", "rarity": "RARE", "unlock": {"type": "level", "level": 115},
+		"description": "Закатное солнце и пять слоёв гор, темнеющих к зрителю.",
+		"scene": "res://backdrops/mountains/mountains.tscn", "color": Color(0.3, 0.18, 0.37)},
+	14: {"name": "Терраццо", "rarity": "RARE", "unlock": {"type": "level", "level": 145},
+		"description": "Модный итальянский пол: тёмный камень и разноцветная каменная крошка.",
+		"scene": "res://backdrops/terrazzo/terrazzo.tscn", "color": Color(0.14, 0.15, 0.18)},
+	15: {"name": "Конфетти", "rarity": "RARE", "unlock": {"type": "level", "level": 190},
+		"description": "Праздник на глубоком фиолетовом: полоски, кружочки и треугольники.",
+		"scene": "res://backdrops/confetti/confetti.tscn", "color": Color(0.17, 0.06, 0.29)},
+	16: {"name": "Ар-деко", "rarity": "EPIC", "unlock": {"type": "level", "level": 275},
+		"description": "Золотые лучи веером, ступенчатая рамка и ромбы — как в отелях 1920-х.",
+		"scene": "res://backdrops/art_deco/art_deco.tscn", "color": Color(0.05, 0.05, 0.06)},
 }
 
 func get_backdrop_ids() -> Array:
@@ -689,6 +714,8 @@ func get_unlock_text(unlock: Dictionary) -> String:
 	match unlock.get("type", "default"):
 		"default":
 			return "Доступно сразу"
+		"shop":
+			return "Только за монеты"
 		"level":
 			return "Откроется на уровне %d" % unlock.get("level", 1)
 		"achievement":

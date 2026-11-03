@@ -2,7 +2,8 @@ extends SceneTree
 
 ## Проверка каталога наград: все предметы подписаны и открываются на допустимом уровне или за
 ## существующее достижение; фоны грузятся и рисуются; у окрасок хватает цветов для фигур; каждый
-## эффект очистки даёт частицы; пороги достижений «Откройте N …» достижимы.
+## эффект очистки даёт частицы; пороги достижений «Откройте N …» достижимы; живые фоны движутся
+## и продаются только за монеты, статичные — не тратят кадры.
 ## Только читает — сохранения игрока не меняет:
 ##   godot --headless --path . --fixed-fps 60 -s tests/test_catalog.gd
 ## В конце печатает «CATALOG: OK» или список проблем (и выходит с кодом 1).
@@ -26,8 +27,15 @@ func _process(_delta: float) -> bool:
 		check_effects()
 		start_backdrops()
 	if frames == 60:
+		var db = root.get_node("ItemsDB")
 		for node in backdrops:
-			check(is_instance_valid(node) and node.time > 0.5, "фон %s не анимируется" % node.name)
+			var live: bool = db.get_backdrop_data(int(node.name.trim_prefix("Backdrop"))).get("live", false)
+			check(node.is_animated() == live, "фон %s: в каталоге live=%s, а сцена %s" % [node.name, live,
+				"движется" if node.is_animated() else "статичная"])
+			if live:
+				check(node.time > 0.5, "живой фон %s не анимируется" % node.name)
+			else:
+				check(node.time == 0.0 and not node.is_processing(), "статичный фон %s тратит кадры" % node.name)
 		for node in backdrops:
 			node.queue_free()
 		print("Проверок: %d" % checks)
@@ -53,6 +61,8 @@ func check_items() -> void:
 		match unlock.get("type", "default"):
 			"default":
 				pass
+			"shop":
+				check(prog.PRICES.has(prog.get_item_rarity(item["type"], item["id"])), "%s продаётся только за монеты, но без цены" % key)
 			"level":
 				var level = int(unlock.get("level", 0))
 				check(level >= 2 and level <= prog.MAX_LEVEL, "%s открывается на уровне %d" % [key, level])

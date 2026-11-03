@@ -303,6 +303,7 @@ func spend_coins(amount: int) -> bool:
 const PRICES = {"COMMON": 300, "UNCOMMON": 600, "RARE": 1200, "EPIC": 2500, "LEGENDARY": 5000}
 const COLOR_PRICE = 200
 const THEME_PRICE_FACTOR = 1.5
+const LIVE_BACKDROP_FACTOR = 2.5  # живой фон — премиум: только за монеты и в 2,5 раза дороже
 
 func get_item_unlock(item_type: String, item_id) -> Dictionary:
 	match item_type:
@@ -346,7 +347,8 @@ func get_item_rarity(item_type: String, item_id) -> String:
 
 # Цена в монетах; 0 — купить нельзя (уже открыт, открывается не уровнем или мифический)
 func get_price(item_type: String, item_id) -> int:
-	if is_unlocked(item_type, item_id) or get_item_unlock(item_type, item_id).get("type", "") != "level":
+	# Продаётся то, что открывается уровнем (можно раньше), и премиум «только за монеты»
+	if is_unlocked(item_type, item_id) or get_item_unlock(item_type, item_id).get("type", "") not in ["level", "shop"]:
 		return 0
 	if item_type == "color":
 		return COLOR_PRICE
@@ -354,8 +356,10 @@ func get_price(item_type: String, item_id) -> int:
 	if not PRICES.has(rarity):
 		return 0
 	var price: int = PRICES[rarity]
-	if item_type == "theme" or item_type == "backdrop":  # фон на весь экран — как тема
+	if item_type == "theme":
 		price = int(price * THEME_PRICE_FACTOR)
+	elif item_type == "backdrop" and ItemsDB.get_backdrop_data(int(item_id)).get("live", false):
+		price = int(price * LIVE_BACKDROP_FACTOR)
 	return price
 
 func buy_item(item_type: String, item_id) -> bool:
@@ -731,7 +735,8 @@ func get_item_label(item_type: String, item_id) -> String:
 		"paint":
 			return "Окраска «%s»" % ItemsDB.get_paint_data(int(item_id)).get("name", "?")
 		"backdrop":
-			return "Фон «%s»" % ItemsDB.get_backdrop_data(int(item_id)).get("name", "?")
+			var backdrop = ItemsDB.get_backdrop_data(int(item_id))
+			return "%s «%s»" % ["Живой фон" if backdrop.get("live", false) else "Фон", backdrop.get("name", "?")]
 		"color":
 			return "Цвет «%s»" % ItemsDB.color_names[int(item_id)]
 	return "Награда"

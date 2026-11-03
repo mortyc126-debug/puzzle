@@ -3,7 +3,7 @@ extends SceneTree
 ## Витрина фонов: все фоны коллекции «Фоны» с полем поверх (как в профиле), через 2,5 секунды анимации.
 ## Нужен экран:
 ##   godot --path . --resolution 900x1600 -s tests/backdrop_sheet.gd -- --out=/tmp/backdrops.png
-##     [--theme=classic] [--skin=0] [--paint=0] — тема, кубики и окраска поля
+##     [--theme=classic] [--skin=0] [--paint=0] — тема, кубики и окраска поля; [--only=live|static] — какие фоны
 var out := ""
 var frames := 0
 var opts := {}
@@ -26,6 +26,10 @@ func build():
 	holder.add_child(bg)
 	var db = root.get_node("ItemsDB")
 	var ids = db.get_backdrop_ids()
+	if opts.get("only", "") == "static":
+		ids = ids.filter(func(i): return not db.get_backdrop_data(i).get("live", false))
+	elif opts.get("only", "") == "live":
+		ids = ids.filter(func(i): return db.get_backdrop_data(i).get("live", false))
 	for i in range(ids.size()):
 		var preview = load("res://ui/backdrop_preview.gd").new()
 		preview.position = Vector2(8 + (i % 4) * 223, 8 + (i / 4) * 440)

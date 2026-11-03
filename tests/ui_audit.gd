@@ -158,8 +158,10 @@ func build_steps() -> void:
 		func(game):
 			var profile = find_modal(game, "Profile")
 			profile.get_node("CustomizeContainer").current_tab = 3
-			scroll_to(profile, "ФОНЫ"),
+			scroll_to(profile, "ЖИВЫЕ ФОНЫ"),
 		func(_game): shot("profile_backdrops"),
+		func(game): scroll_to(find_modal(game, "Profile"), "ФОНЫ —"),
+		func(_game): shot("profile_backdrops_static"),
 		func(game): find_modal(game, "Profile").show_locked_card("backdrop", 8),
 		func(_game): shot("backdrop_locked"),
 		func(game): game.handle_back(),

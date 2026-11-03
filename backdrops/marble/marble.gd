@@ -25,7 +25,18 @@ func _paint_static() -> void:
 		draw_polyline(vein["points"], color, vein["width"], true)
 
 func _paint_fx() -> void:
-	var t = fposmod(time / 11.0, 1.0)
+	var t = fposmod(time / 9.0, 1.0)
 	var y = -area.y * 0.3 + t * area.y * 1.6
 	fx.draw_colored_polygon(PackedVector2Array([Vector2(0, y), Vector2(area.x, y - area.x * 0.4),
-		Vector2(area.x, y - area.x * 0.4 + 90), Vector2(0, y + 90)]), Color(1, 1, 1, 0.05))
+		Vector2(area.x, y - area.x * 0.4 + 110), Vector2(0, y + 110)]), Color(1, 1, 1, 0.08))
+	# Искры бегут по золотым прожилкам
+	for i in range(veins.size()):
+		var vein = veins[i]
+		if not vein["gold"]:
+			continue
+		var points: PackedVector2Array = vein["points"]
+		var along = fposmod(time * 0.12 + i * 0.37, 1.0) * (points.size() - 1)
+		var k = int(along)
+		var pos = points[k].lerp(points[mini(k + 1, points.size() - 1)], along - k)
+		soft_blob(fx, pos, area.x * 0.05, Color(1, 0.8, 0.35, 0.5))
+		glint(fx, pos, area.x * 0.018, Color(1, 0.95, 0.75, 0.9))

@@ -23,5 +23,9 @@ func _paint_static() -> void:
 func _paint_fx() -> void:
 	for blob in blobs:
 		var phase: float = blob[4]
-		var center = Vector2(area.x * (blob[2] + 0.2 * sin(time * 0.1 + phase)), area.y * (blob[3] + 0.1 * cos(time * 0.09 + phase)))
+		var center = Vector2(area.x * (blob[2] + 0.22 * sin(time * 0.26 + phase)), area.y * (blob[3] + 0.12 * cos(time * 0.2 + phase)))
 		soft_blob(fx, center, area.x * blob[1], blob[0])
+	# Каждая пятая звезда мерцает
+	for i in range(0, stars.size(), 5):
+		var twinkle = 0.5 + 0.5 * sin(time * 2.2 + i * 1.7)
+		glint(fx, stars[i][0], (3.0 + stars[i][1] * 3.0) * twinkle, Color(1, 1, 1, 0.7 * twinkle))

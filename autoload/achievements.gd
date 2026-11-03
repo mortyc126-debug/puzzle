@@ -69,7 +69,7 @@ const LIST = [
 	{"id": "paints", "icon": "🎨", "title": "Палитра художника", "desc": "Откройте %s окрасок блоков",
 		"stat": "paints_unlocked", "tiers": [2, 5, 11]},
 	{"id": "backdrops", "icon": "🖼️", "title": "Декоратор", "desc": "Откройте %s фонов",
-		"stat": "backdrops_unlocked", "tiers": [2, 4, 8]},
+		"stat": "backdrops_unlocked", "tiers": [3, 8, 16]},
 	{"id": "missions", "icon": "📋", "title": "Исполнитель", "desc": "Выполните %s заданий дня",
 		"stat": "missions_done", "tiers": [5, 30, 100, 300]},
 	{"id": "full_day", "icon": "📆", "title": "Идеальный день", "desc": "Выполните все задания дня %s раз",
